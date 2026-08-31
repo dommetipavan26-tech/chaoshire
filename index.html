@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaosHire — Chaos Simulator for Fair Hiring</title>
+<style>
+:root{--bg:#0b1220;--card:#121c30;--card2:#16233c;--line:#1f2c48;--txt:#e5ecf8;--dim:#8fa1c2;
+--blue:#38bdf8;--green:#34d399;--rose:#fb7185;--amber:#fbbf24;--violet:#a78bfa}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--blue)}
+header{padding:22px 28px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+h1{font-size:22px;letter-spacing:.3px}
+h1 span{color:var(--blue)}
+.tag{color:var(--dim);font-size:13px;margin-top:2px}
+.modelsel{display:flex;gap:8px}
+.mbtn{background:var(--card);border:1px solid var(--line);color:var(--dim);padding:9px 14px;border-radius:10px;cursor:pointer;font-size:13px}
+.mbtn.on{border-color:var(--blue);color:var(--txt);background:var(--card2)}
+nav{display:flex;gap:4px;padding:10px 28px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+nav button{background:none;border:none;color:var(--dim);padding:10px 14px;border-radius:10px;cursor:pointer;font-size:14px}
+nav button.on{background:var(--card2);color:var(--txt)}
+main{padding:26px 28px;max-width:1180px;margin:0 auto}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.card h3{font-size:15px;margin-bottom:10px}
+.stat-num{font-size:28px;font-weight:700}
+.dim{color:var(--dim);font-size:12.5px}
+.chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.ok{background:rgba(52,211,153,.12);color:var(--green)}
+.bad{background:rgba(251,113,133,.12);color:var(--rose)}
+.warn{background:rgba(251,191,36,.14);color:var(--amber)}
+.info{background:rgba(56,189,248,.12);color:var(--blue)}
+.bar{height:10px;border-radius:6px;background:var(--card2);overflow:hidden;min-width:60px}
+.bar>i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--blue),var(--violet))}
+.bar.badbar>i{background:linear-gradient(90deg,var(--rose),var(--amber))}
+.grow{display:flex;align-items:center;gap:10px;margin:6px 0}
+.grow .lbl{width:130px;font-size:13px;color:var(--dim)}
+.grow .val{width:70px;text-align:right;font-size:13px;font-variant-numeric:tabular-nums}
+.grow .bar{flex:1}
+.grade-ring{width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;margin:auto}
+.grade-ring b{font-size:40px}
+.grade-ring small{color:var(--dim)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--dim);text-align:left;padding:8px;border-bottom:1px solid var(--line);font-weight:600}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+.btn{background:var(--blue);color:#062033;border:none;padding:10px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px}
+.btn.ghost{background:var(--card2);color:var(--txt);border:1px solid var(--line)}
+input,textarea,select{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px;font-size:14px;font-family:inherit}
+textarea{min-height:90px;resize:vertical}
+label{font-size:12.5px;color:var(--dim);display:block;margin:10px 0 5px}
+.mit{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;gap:12px;align-items:flex-start}
+.mit input{width:auto;margin-top:4px}
+.kicker{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin:22px 0 10px}
+.err{background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.4);color:var(--rose);padding:10px 14px;border-radius:10px;font-size:13px;margin-top:10px}
+pre{background:var(--card2);padding:12px;border-radius:10px;font-size:12px;overflow:auto;border:1px solid var(--line)}
+footer{padding:24px 28px;color:var(--dim);font-size:12px;border-top:1px solid var(--line)}
+.hidden{display:none}
+.reason-badge{font-size:11px;padding:2px 8px;border-radius:999px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Chaos<span>Hire</span></h1>
+    <div class="tag">Chaos Simulator for Fair Hiring · break your hiring AI before it breaks someone's career</div>
+  </div>
+  <div class="modelsel" id="modelsel"></div>
+</header>
+<nav id="tabs"></nav>
+<main>
+  <section id="tab-overview"></section>
+  <section id="tab-chaos" class="hidden"></section>
+  <section id="tab-filtered" class="hidden"></section>
+  <section id="tab-mitigations" class="hidden"></section>
+  <section id="tab-appeals" class="hidden"></section>
+  <section id="tab-upload" class="hidden"></section>
+</main>
+<footer>Demo build · 600 synthetic candidates with hidden ground-truth “qualified” labels · all data stays in memory.</footer>
+<script>
+let META=null, MODEL='legacy';
+const $=s=>document.querySelector(s);
+const jget=async u=>{const r=await fetch(u);return r.json();};
+const jpost=async(u,b)=>{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});return r.json();};
+const pc=x=>(x*100).toFixed(1)+'%';
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const gchar={M:'Male',F:'Female',NB:'Non-binary'},geth={G1:'Community A',G2:'Community B',G3:'Community C'};
+const attrTitle={gender:'Gender',ethnicity:'Ethnicity / Community',age_band:'Age band'};
+const glabel=(a,v)=>a==='gender'?(gchar[v]||v):a==='ethnicity'?(geth[v]||v):v;
+const chipFor=(ok,label)=>ok===null?`<span class="chip warn">${label}: n/a</span>`:`<span class="chip ${ok?'ok':'bad'}">${label}</span>`;
+const gradeColor=g=>({A:'var(--green)',B:'var(--green)',C:'var(--amber)',D:'var(--amber)',F:'var(--rose)'}[g]||'var(--txt)');
+const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${v}</span>`;
+
+const TABS=[['overview','Fairness Dashboard'],['chaos','⚡ Chaos Lab'],['filtered','Who Got Filtered Out'],
+  ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model']];
+$('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${id}" class="${i===0?'on':''}">${l}</button>`).join('');
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  TABS.forEach(([id])=>$('#tab-'+id).classList.toggle('hidden',id!==b.dataset.t));
+  if(b.dataset.t==='filtered')loadFiltered();
+});
+
+function renderModelSel(){
+  $('#modelsel').innerHTML=META.models.map(m=>
+    `<button class="mbtn ${m.id===MODEL?'on':''}" data-m="${m.id}"><b>${m.title}</b><br><span style="font-size:11px">${m.blurb}</span></button>`).join('');
+}
+$('#modelsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MODEL=b.dataset.m;renderModelSel();
+  loadOverview();$('#tab-chaos').innerHTML=chaosIntro();$('#tab-filtered').innerHTML='<p class="dim">Open this tab to load…</p>';$('#tab-mitigations').innerHTML=mitHTML();});
+
+/* ---------------- OVERVIEW ---------------- */
+async function loadOverview(dataset='demo'){
+  const a=await jget(`/api/audit?model=${MODEL}&dataset=${dataset}`);
+  const s=$('#tab-overview');
+  if(a.error){s.innerHTML=`<div class="err">${esc(a.error)}</div>`;return;}
+  const c=a.certificate, col=gradeColor(c.grade);
+  const ring=`<div class="grade-ring" style="background:conic-gradient(${col} ${c.total*3.6}deg, var(--card2) 0)">
+    <div style="width:96px;height:96px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <b style="color:${col}">${c.total}</b><small>Grade ${c.grade}</small></div></div>`;
+  let html=`<div class="grid g4">
+    <div class="card"><h3>Candidates</h3><div class="stat-num">${a.stats.candidates}</div><div class="dim">in audit pool</div></div>
+    <div class="card"><h3>Accepted</h3><div class="stat-num">${a.stats.accepted} <span class="dim" style="font-size:14px">(${pc(a.stats.accept_rate)})</span></div><div class="dim">overall selection rate</div></div>
+    <div class="card"><h3>Ground truth</h3><div class="stat-num">${a.stats.qualified_share!==null?pc(a.stats.qualified_share):'n/a'}</div><div class="dim">truly qualified (hidden from model)</div></div>
+    <div class="card" style="display:flex;align-items:center;gap:14px">${ring}
+      <div style="flex:1">${c.components.map(x=>`<div class="grow"><span class="lbl" style="width:auto;flex:1">${x.label}</span><span class="val">${x.pts}/${x.max}</span></div>`).join('')}
+      <div class="dim">Fairness Certificate Score™</div></div></div></div>`;
+  html+=`<div class="kicker">Group fairness metrics</div><div class="grid g2">`;
+  for(const at of a.attributes){
+    html+=`<div class="card"><h3>${attrTitle[at.attribute]||at.attribute}</h3>`;
+    for(const g of at.groups){
+      html+=`<div class="grow"><span class="lbl">${glabel(at.attribute,g.group)}${g.low_n?' <span class="dim" title="Small sample — interpret with caution">⚠</span>':''}</span>
+        <div class="bar"><i style="width:${g.selection_rate*100}%"></i></div>
+        <span class="val">${pc(g.selection_rate)}</span></div>`;
+    }
+    html+=`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      ${chipFor(at.di_pass,'DI '+at.disparate_impact)}
+      ${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}
+      ${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div>
+      <div class="dim" style="margin-top:8px">${at.groups.map(g=>`${glabel(at.attribute,g.group)}: ${g.selected}/${g.n} selected${g.tpr!==null?`, TPR ${pc(g.tpr)}`:''}`).join(' · ')}</div>
+      </div>`;
+  }
+  html+='</div>';
+  html+=`<div class="dim" style="margin-top:14px">Thresholds — disparate impact ≥ 0.80 (four-fifths rule) · parity gap ≤ 0.10 · equal-opportunity gap ≤ 0.10${MODEL==='legacy'?' · switch to <b>MeritFirst v2</b> (top right) to see what a clean audit looks like.':''}</div>`;
+  s.innerHTML=html;
+}
+
+/* ---------------- CHAOS ---------------- */
+const chaosIntro=()=>`<div class="card"><h3>⚡ Chaos Engineering for Fairness</h3>
+  <p class="dim" style="font-size:14px;margin-bottom:14px">Netflix breaks its own servers to find weaknesses. ChaosHire breaks your <b>hiring model</b> the same way — counterfactual identity swaps, adversarial résumés, and demographic stress tests — before a regulator or a lawsuit does.</p>
+  <button class="btn" id="runchaos">Run full chaos suite</button>
+  <div id="chaosout" style="margin-top:16px"></div></div>`;
+$('#tab-chaos').innerHTML=chaosIntro();
+$('#tab-chaos').addEventListener('click',async e=>{
+  if(e.target.id!=='runchaos')return;
+  e.target.disabled=true;e.target.textContent='Injecting chaos…';
+  const r=await jget(`/api/chaos?model=${MODEL}`);
+  e.target.disabled=false;e.target.textContent='Re-run chaos suite';
+  const rcol=r.resilience>=80?'var(--green)':r.resilience>=50?'var(--amber)':'var(--rose)';
+  let html=`<div class="card" style="background:var(--card2)"><div class="grow"><span class="lbl" style="width:auto">Chaos Resilience Score</span>
+    <div class="bar"><i style="width:${r.resilience}%;background:${rcol}"></i></div><b style="color:${rcol}">${r.resilience}/100</b></div>
+    <div class="dim">Model under test: ${esc(r.model.title)}</div></div><div class="grid g2" style="margin-top:14px">`;
+  for(const t of r.tests){
+    html+=`<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start">
+      <h3>${t.name}</h3>${vChip(t.verdict)}</div>
+      <p class="dim" style="font-size:13px;margin:6px 0">${t.story}</p>
+      <div><span class="dim">${t.metric}:</span> <b>${t.value}</b></div>
+      <div class="dim" style="font-size:12.5px;margin-top:4px">${t.detail}</div></div>`;
+  }
+  $('#chaosout').innerHTML=html+'</div>';
+});
+
+/* ---------------- FILTERED ---------------- */
+async function loadFiltered(){
+  const r=await jget(`/api/filtered?model=${MODEL}`);
+  const s=$('#tab-filtered');
+  if(r.error){s.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
+  const mx=Math.max(...r.top_reasons.map(t=>t.count),1);
+  let html=`<div class="grid g4">
+    <div class="card"><h3>Rejected</h3><div class="stat-num" style="color:var(--rose)">${r.total_rejected}</div><div class="dim">candidates filtered out</div></div>
+    <div class="card"><h3>Qualified but rejected</h3><div class="stat-num" style="color:var(--amber)">${r.qualified_missed}</div><div class="dim">false rejections — talent lost</div></div>
+    <div class="card"><h3>Rejection share by gender</h3>${r.by_gender.map(g=>`<div class="grow"><span class="lbl">${glabel('gender',g.group)}</span><div class="bar badbar"><i style="width:${g.share*100}%"></i></div><span class="val">${pc(g.share)}</span></div>`).join('')}</div>
+    <div class="card"><h3>Why they were filtered (XAI)</h3>${r.top_reasons.map(t=>{const bias=META.bias_features.some(b=>META.feature_labels[b]===t.label);
+      return `<div class="grow"><span class="lbl" style="width:170px">${t.label}</span><div class="bar ${bias?'badbar':''}"><i style="width:${t.count/mx*100}%"></i></div><span class="val">${t.count}</span></div>`;}).join('')}
+      <div class="dim" style="margin-top:6px">Red bars = bias-related features, not merit.</div></div></div>`;
+  html+=`<div class="kicker">Sample of rejected candidates (auditor view — ground truth visible)</div>
+  <div class="card" style="overflow:auto"><table><tr><th>Candidate</th><th>Gender</th><th>Community</th><th>Age</th><th>Score</th><th>Truly qualified</th><th>Primary rejection reason</th></tr>
+  ${r.sample.map(x=>`<tr><td><b>${esc(x.name)}</b><br><span class="dim">${x.id}</span></td><td>${glabel('gender',x.gender)}</td><td>${glabel('ethnicity',x.ethnicity)}</td><td>${x.age_band}</td>
+  <td>${x.score}</td><td>${x.qualified?'<span class="chip warn">YES — lost</span>':'<span class="chip info">no</span>'}</td>
+  <td><span class="reason-badge ${x.bias_related?'bad':'info'} chip">${esc(x.reason_label)}</span></td></tr>`).join('')}</table></div>`;
+  s.innerHTML=html;
+}
+
+/* ---------------- MITIGATIONS ---------------- */
+const MIT=[
+ ['blind','Blind screening','Strip every protected-attribute signal (gender, community, age) at inference time. The model physically cannot use them.'],
+ ['proxy','Proxy removal','Drop college-prestige (a socioeconomic proxy) and heavily reduce the career-gap penalty that punishes caregivers.'],
+ ['calibrate','Threshold calibration','Adjust per-group decision cutoffs so selection rates equalize — a post-processing fix needing no retraining.']];
+const mitHTML=()=>`<div class="card"><h3>Mitigation playbook — apply fixes and re-audit live</h3>
+ <div class="dim" style="margin-bottom:12px">Each strategy is simulated against <b>LegacyCorp Screen v1</b> so you can show before→after on stage.</div>
+ ${MIT.map(([v,t,d])=>`<div class="mit"><input type="checkbox" class="mit-check" value="${v}" id="m_${v}">
+   <label for="m_${v}" style="margin:0"><b style="color:var(--txt)">${t}</b><br>${d}</label></div>`).join('')}
+ <button class="btn" id="applymit" style="margin-top:14px">Apply selected &amp; re-audit</button>
+ <div id="mitout" style="margin-top:16px"></div></div>`;
+$('#tab-mitigations').innerHTML=mitHTML();
+$('#tab-mitigations').addEventListener('click',async e=>{
+  if(e.target.id!=='applymit')return;
+  const sel=[...document.querySelectorAll('.mit-check:checked')].map(x=>x.value);
+  const r=await jpost('/api/mitigate',{strategies:sel});
+  const o=$('#mitout');
+  if(r.error){o.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
+  const b=r.before,a=r.after.certificate;
+  o.innerHTML=`<div class="card" style="background:var(--card2)"><h3>Result</h3>
+    ${r.applied.map(x=>`<div class="grow" style="margin:4px 0"><span class="chip ok">applied</span><span style="font-size:13.5px">${x}</span></div>`).join('')}
+    <div class="grow" style="margin-top:12px"><span class="lbl" style="width:auto">Fairness Certificate</span>
+    <b style="color:${gradeColor(b.grade)}">${b.total} (${b.grade})</b><span class="dim">→</span>
+    <b style="color:${gradeColor(a.grade)};font-size:22px">${a.total} (${a.grade})</b></div></div>
+    <div class="grid g2" style="margin-top:14px">${r.after.attributes.map(at=>`<div class="card"><h3>${attrTitle[at.attribute]||at.attribute}</h3>
+      ${at.groups.map(g=>`<div class="grow"><span class="lbl">${glabel(at.attribute,g.group)}</span><div class="bar"><i style="width:${g.selection_rate*100}%"></i></div><span class="val">${pc(g.selection_rate)}</span></div>`).join('')}
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${chipFor(at.di_pass,'DI '+at.disparate_impact)}${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div></div>`).join('')}</div>`;
+});
+
+/* ---------------- APPEALS ---------------- */
+$('#tab-appeals').innerHTML=`<div class="grid g2">
+ <div class="card"><h3>Candidate-facing portal</h3>
+  <div class="dim" style="margin-bottom:6px">What a rejected applicant sees — decision, score, plain-language reasons, and a way to appeal. Transparency = trust.</div>
+  <label>Application ID <span class="dim">(try <span id="sid"></span>)</span></label>
+  <div style="display:flex;gap:8px"><input id="cid" placeholder="C-1000"><button class="btn" id="lookup" style="white-space:nowrap">Look up</button></div>
+  <div id="cout" style="margin-top:12px"></div></div>
+ <div class="card"><h3>File an appeal</h3>
+  <label>Application ID</label><input id="acid" placeholder="C-1000">
+  <label>Why should this decision be reviewed?</label><textarea id="amsg" placeholder="Tell us what the model couldn't see…"></textarea>
+  <button class="btn" id="sendappeal" style="margin-top:12px">Submit appeal</button><div id="aout" style="margin-top:10px"></div></div></div>
+ <div class="kicker">HR review queue</div><div class="card" id="queue"><span class="dim">No appeals yet — submit one from the candidate portal above.</span></div>
+ <div style="margin-top:10px"><button class="btn ghost" id="refreshq">Refresh queue</button></div>`;
+$('#tab-appeals').addEventListener('click',async e=>{
+  if(e.target.id==='lookup'){
+    const cid=$('#cid').value.trim();
+    const r=await jget('/api/candidate/'+encodeURIComponent(cid));
+    const o=$('#cout');
+    if(r.error){o.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
+    o.innerHTML=`<div class="card" style="background:var(--card2)"><div style="display:flex;justify-content:space-between;align-items:center">
+      <b>${esc(r.name)} <span class="dim">(${r.candidate_id})</span></b>
+      <span class="chip ${r.status==='Accepted'?'ok':'bad'}">${r.status}</span></div>
+      <div class="grow" style="margin:10px 0"><span class="lbl" style="width:auto">Model score</span><div class="bar"><i style="width:${r.score*100}%"></i></div><span class="val">${r.score}</span></div>
+      <div class="dim">Screened by ${esc(r.model)}</div>
+      <div style="margin-top:8px"><b style="font-size:13px">${r.status==='Accepted'?'What worked in your favour':'Main factors behind this decision'}</b>
+      ${r.reasons.map(x=>`<div class="grow" style="margin:4px 0"><span style="flex:1;font-size:13px">${esc(x.desc)}</span><span class="val" style="color:${x.impact<0?'var(--rose)':'var(--green)'}">${x.impact>0?'+':''}${x.impact}</span></div>`).join('')}</div>
+      ${r.can_appeal?'<button class="btn ghost" id="toappeal" style="margin-top:10px">Appeal this decision →</button>':''}</div>`;
+  }
+  if(e.target.id==='toappeal'){$('#acid').value=$('#cid').value.trim();$('#amsg').focus();}
+  if(e.target.id==='sendappeal'){
+    const r=await jpost('/api/appeals',{candidate_id:$('#acid').value.trim(),message:$('#amsg').value.trim()||'(no message)'});
+    $('#aout').innerHTML=r.error?`<div class="err">${esc(r.error)}</div>`:
+      `<div class="chip ok">Appeal #${r.appeal_id} filed</div> <span class="chip ${r.priority.startsWith('HIGH')?'warn':'info'}">${r.priority}</span>`;
+    loadQueue();
+  }
+  if(e.target.id==='refreshq')loadQueue();
+});
+async function loadQueue(){
+  const r=await jget('/api/appeals');
+  $('#queue').innerHTML=r.appeals.length?`<table><tr><th>#</th><th>Candidate</th><th>Appeal</th><th>Auto-triage</th><th>Status</th></tr>
+   ${r.appeals.map(a=>`<tr><td>${a.id}</td><td><b>${esc(a.name)}</b><br><span class="dim">${a.candidate_id}</span></td><td>${esc(a.message)}</td>
+   <td><span class="chip ${a.priority.startsWith('HIGH')?'warn':'info'}">${a.priority}</span></td><td><span class="chip info">${a.status}</span></td></tr>`).join('')}</table>`
+   :'<span class="dim">No appeals yet.</span>';
+}
+
+/* ---------------- UPLOAD ---------------- */
+$('#tab-upload').innerHTML=`<div class="grid g2">
+ <div class="card"><h3>Bring your own model's output</h3>
+  <div class="dim" style="margin-bottom:8px">Export your model's screening decisions as CSV and audit them here. Required schema:</div>
+  <pre id="schema"></pre>
+  <label>CSV file</label><input type="file" id="csvfile" accept=".csv,text/csv">
+  <button class="btn" id="upbtn" style="margin-top:12px">Upload &amp; audit</button>
+  <a class="btn ghost" style="margin-left:8px;text-decoration:none;display:inline-block;padding:10px 18px;border-radius:10px" href="/api/sample.csv" download="sample.csv">Download sample CSV</a>
+  <div id="upout" style="margin-top:12px"></div></div>
+ <div class="card"><h3>What you get</h3>
+  <div class="dim" style="font-size:14px;line-height:1.9">✔ Disparate impact, demographic parity &amp; equal opportunity per attribute<br>
+  ✔ Fairness Certificate Score™ with a transparent formula<br>
+  ✔ Row-level explanations of who was filtered and why<br>
+  ✔ Works with <i>any</i> model — you only upload its decisions, never the model itself (IP-safe for vendors)</div></div></div>`;
+$('#tab-upload').addEventListener('click',async e=>{
+  if(e.target.id!=='upbtn'){
+    const f=$('#csvfile').files[0];if(!f){$('#upout').innerHTML='<div class="err">Choose a CSV file first.</div>';return;}
+    const text=await f.text();
+    const r=await jpost('/api/upload',{csv:text});
+    $('#upout').innerHTML=r.error?`<div class="err">${esc(r.error)}</div>`:
+      `<div class="chip ok">Loaded ${r.rows} rows</div> <span class="dim">groups: ${r.attributes_found.join(', ')} · ground truth: ${r.has_ground_truth?'yes':'no (equal-opportunity will be n/a)'}</span>
+       <div style="margin-top:10px"><button class="btn" id="viewup">View audit of uploaded model →</button></div>`;
+  }
+  if(e.target.id==='viewup'){
+    document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t==='overview'));
+    TABS.forEach(([id])=>$('#tab-'+id).classList.toggle('hidden',id!=='overview'));
+    loadOverview('uploaded');
+  }
+});
+
+/* ---------------- boot ---------------- */
+(async()=>{
+  META=await jget('/api/meta');
+  renderModelSel();
+  $('#sid').textContent=META.sample_ids.join(', ');
+  $('#schema').textContent=META.schema;
+  await loadOverview();
+})();
+</script>
+</body>
+</html>
