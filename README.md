@@ -1,48 +1,171 @@
-# ⚡ ChaosHire — Chaos Simulator for Fair Hiring
+# ChaosHire
 
-> *Netflix breaks its own servers to find weaknesses before customers do. ChaosHire breaks your **hiring AI** the same way — before a regulator, a lawsuit, or a rejected-who-should-have-been-hired candidate does.*
+### Chaos testing for fair hiring AI
 
-Theme fit: **Inclusive Workforce** (fairness auditing, explainability, appeals) × **chaos engineering** mindset borrowed from resilient-systems thinking.
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Team briefing](TEAM-BRIEFING.md)
 
-## What it does
+> Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
-| # | Your feature | Status in this build |
+ChaosHire is an open-source fairness-auditing prototype for hiring models. It combines conventional group-fairness metrics with controlled counterfactual experiments, candidate-level explanations, mitigation simulations, and an appeals workflow.
+
+## Why this project exists
+
+A normal fairness dashboard asks, **“Did groups receive different outcomes?”** ChaosHire also asks, **“Would this exact decision change if only the candidate's identity changed?”**
+
+That second question powers the **Chaos Lab**:
+
+| Test | Controlled experiment | Risk exposed |
 |---|---|---|
-| 1 | Upload their AI hiring model **or use yours** | ✅ Upload a CSV of any model's decisions (IP-safe — no model weights needed) **or** audit the two built-in models (`LegacyCorp Screen v1`, `MeritFirst v2`) |
-| 2 | Automated bias audits (disparate impact, equal opportunity) | ✅ Per-attribute (gender / ethnicity / age band): selection rates, **disparate impact** (4/5ths rule ≥ 0.8), **demographic-parity gap** (≤ 0.10), **equal-opportunity gap / TPR** (≤ 0.10), with minimum-cell-size guard (n < 30 flagged ⚠, EEOC-style) |
-| 3 | Live dashboard of who's filtered out and **why** | ✅ Group bars + XAI reason attribution per rejected candidate (bias-related reasons flagged in red; auditor view shows hidden ground-truth "qualified" losses) |
-| 4 | Mitigation suggestions + fairness certificate | ✅ Fairness Certificate Score™ (0–100, A–F, transparent formula) + one-click simulated mitigations: blind screening, proxy removal, threshold calibration → instant before→after re-audit |
-| 5 | Candidate-facing appeal portal | ✅ Candidate looks up their application ID → sees decision, score, plain-language reasons → files appeal → HR queue with **auto-triage** ("HIGH — qualified candidate rejected") |
-| ⭐ | The differentiator: **Chaos Lab** | ✅ 5 chaos tests: Gender-Swap Counterfactual, Name/Community-Swap Counterfactual, Privilege-Keyword Injection, Career-Gap Stress, Ageing Stress → 0–100 Chaos Resilience Score |
+| Gender-swap counterfactual | Change gender markers; leave qualifications unchanged | Direct or proxy gender influence |
+| Name/community swap | Change community signals; preserve the résumé | Name or community discrimination |
+| Privilege-keyword injection | Submit deliberately weak, prestige-heavy synthetic résumés | Susceptibility to résumé gaming and class proxies |
+| Career-gap stress | Add a career gap to qualified selected candidates | Penalties affecting caregivers and returners |
+| Ageing stress | Re-submit selected younger candidates as 50+ | Hidden age penalties |
 
-## Tech
+Each experiment produces a `PASS`, `WARN`, or `FAIL`. Together they form a 0–100 **Chaos Resilience Score**.
 
-- **Backend:** Python · FastAPI · NumPy · Pandas (fairness metrics, counterfactual simulation, mitigation simulation all hand-rolled — easy to explain to judges)
-- **Frontend:** single-file vanilla JS dashboard, zero external CDN dependencies
-- **Data:** 1,000 synthetic candidates with hidden ground-truth `qualified` labels; two built-in models — a subtly-biased vendor model and a skills-only fair baseline
+## Demonstration results
 
-## Run it
+The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and two transparent reference models:
 
-```bash
-pip install fastapi uvicorn numpy pandas
-python3 -m uvicorn backend:app --host 0.0.0.0 --port 8000
-# open http://localhost:8000
+| Reference model | Purpose | Fairness certificate | Chaos resilience |
+|---|---|---:|---:|
+| **LegacyCorp Screen v1** | Intentionally biased test fixture | **42 / F** | **30 / 100** |
+| **MeritFirst v2** | Merit-based control fixture | **86 / B** | **100 / 100** |
+
+The LegacyCorp fixture produces:
+
+- **16.9%** decision flips under gender swapping
+- **11.1%** decision flips under name/community swapping
+- **32.7%** newly rejected hires under the ageing stress test
+- **42** qualified candidates incorrectly rejected
+- A simulated mitigation improvement from **42/F to 83/B**
+
+These are reproducible **synthetic demonstration results**, not findings about a real employer. The model names are fictional.
+
+## Product capabilities
+
+- Group audits for gender, ethnicity/community and age band
+- Disparate impact using the four-fifths threshold
+- Demographic-parity and equal-opportunity gaps
+- Minimum-cell-size warnings for unreliable group comparisons
+- Five counterfactual and stress tests in the Chaos Lab
+- Candidate-level additive explanations
+- Blind-screening, proxy-removal and threshold-calibration simulations
+- Candidate decision lookup and appeals workflow
+- CSV decision audit without exposing model weights
+- Responsive, dependency-free web dashboard
+
+## Architecture
+
+```text
+Browser (vanilla HTML/CSS/JS)
+             │ JSON/HTTP
+             ▼
+       FastAPI application
+       ├── synthetic reference data
+       ├── model scoring
+       ├── fairness metrics
+       ├── chaos experiments
+       ├── explanations
+       └── mitigations + appeals
+             │
+       NumPy + Pandas
 ```
 
-## 3-minute demo script for judges
+The current release intentionally keeps the architecture compact for reproducibility. Persistence, authentication, configurable schema mapping, and separated service modules are tracked for later releases.
 
-1. **Hook (30s):** "Amazon scrapped its hiring AI because it punished résumés containing the word 'women's'. Every company now runs models like this — and almost none can prove they're fair. ChaosHire is the proving ground."
-2. **The audit (30s):** Dashboard on `LegacyCorp Screen v1` → certificate **42 / Grade F**, gender DI **0.55**, age DI **0.54**, ethnicity DI **0.66** — every attribute fails the four-fifths rule.
-3. **The chaos (45s):** Run the Chaos Suite → **16.9% of all decisions flip** on a gender swap, **11.1%** on a name/community swap, age stress kills **33%** of hires. Chaos Resilience **30/100**. *"We found this in 8 seconds. Their regulator would have found it too."*
-4. **The human cost (30s):** "Who Got Filtered Out" → **42 qualified candidates** wrongly rejected; top reasons are *age 50+*, *ethnicity*, and *career gap* — not skills.
-5. **The fix (30s):** Mitigations → check all three → **42 F → 83 B** live. Then toggle `MeritFirst v2`: **86 B**, chaos resilience **100/100** — proof the platform can also *certify* a good model, not just shame bad ones.
-6. **The transparency close (30s):** Candidate portal: look up `C-1046` — **Zara Lopez, 50+, returned from a career break, genuinely qualified, rejected at 0.46 vs the 0.50 bar** — plain-language reasons shown → file appeal → HR queue auto-flags it **"HIGH — qualified candidate rejected"**.
-7. **The ask:** "Every hiring model will be audited — by us, or by a court. EU AI Act classifies hiring AI as high-risk; NYC Local Law 144 already mandates bias audits. ChaosHire is compliance and conscience in one box."
+## Quick start
 
-## Stretch roadmap (say this when judges ask "what's next")
+### Option 1 — Python
 
-- Real model upload via ONNX / pickle + SHAP explanations
-- LLM-written plain-language decision letters and appeal triage
-- Real resume corpus audits; intersectional analysis (gender × ethnicity × age)
-- Continuous monitoring with drift alerts; signed, shareable fairness certificates
-- Regulatory report export (EU AI Act / NYC LL144 / EEOC formats)
+```bash
+git clone https://github.com/dommetipavan26-tech/chaoshire.git
+cd chaoshire
+python -m venv .venv
+
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+
+python -m pip install -r requirements.txt
+python -m uvicorn backend:app --reload
+```
+
+Open <http://localhost:8000>. Interactive API documentation is available at <http://localhost:8000/docs>.
+
+### Option 2 — Docker
+
+```bash
+docker build -t chaoshire .
+docker run --rm -p 8000:8000 chaoshire
+```
+
+### Run tests
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+GitHub Actions runs the same tests on Python 3.11 and 3.12 for every pull request and push to `main`.
+
+## Audit your own decisions
+
+The upload workflow accepts a CSV containing model **outcomes**, so a vendor does not need to expose weights or source code.
+
+Required columns:
+
+```csv
+candidate_id,gender,ethnicity,age_band,decision,qualified
+C-001,F,G2,36-50,0,1
+C-002,M,G1,26-35,1,1
+```
+
+- `decision`: accepted values include `1`, `true`, `yes`, and `accepted`
+- `qualified`: optional ground-truth label used for equal-opportunity analysis
+- At least one supported group column is required
+
+Download a compatible synthetic sample from `/api/sample.csv`.
+
+## Three-minute walkthrough
+
+1. Open **LegacyCorp Screen v1** and note its 42/F certificate.
+2. Open **Chaos Lab** and run the suite; explain the 16.9% gender-swap flip rate.
+3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
+4. Apply all three mitigations and compare 42/F with 83/B.
+5. Switch to **MeritFirst v2** to demonstrate that the same tests can certify a cleaner model.
+6. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
+
+## Methodology and limitations
+
+ChaosHire is an educational and portfolio-grade prototype—not a legal compliance certification service.
+
+- The built-in dataset and models are synthetic.
+- Observed disparity is evidence requiring investigation; it does not by itself prove unlawful discrimination.
+- The four-fifths threshold is a screening heuristic, not a universal definition of fairness.
+- Equal-opportunity analysis depends on trustworthy qualification labels.
+- Threshold calibration may create legal or operational concerns and requires expert review.
+- The current in-memory upload and appeals state is not suitable for sensitive production data.
+- Real deployments require privacy assessment, access controls, encryption, retention policies, monitoring, and legal review.
+
+## Roadmap
+
+- [x] Deterministic reference models and fairness audit
+- [x] Counterfactual Chaos Lab
+- [x] Explanations, mitigation simulations and appeals
+- [x] Public deployment, automated tests and container support
+- [ ] Configurable CSV schema and protected attributes
+- [ ] Persistent audit history and role-based access
+- [ ] Intersectional fairness analysis
+- [ ] Downloadable HTML/PDF audit reports
+- [ ] Model-version regression gates for CI/CD
+- [ ] Pluggable scoring adapters and SHAP explanations
+
+## Responsible use
+
+Do not upload real applicant data to the public demonstration. Use synthetic or properly anonymized data only. ChaosHire should support—not replace—qualified human, statistical, legal and domain review.
+
+## License
+
+Released under the [MIT License](LICENSE).

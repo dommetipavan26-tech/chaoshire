@@ -180,6 +180,12 @@ def audit(d: pd.DataFrame) -> dict:
 
 
 # ---------------------------------------------------------------- endpoints
+@app.get("/api/health")
+def health():
+    """Lightweight liveness probe for hosting platforms and containers."""
+    return {"status": "ok", "service": "ChaosHire"}
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     with open(__file__.replace("backend.py", "index.html"), "r", encoding="utf-8") as fh:

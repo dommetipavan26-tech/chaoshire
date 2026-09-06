@@ -71,7 +71,7 @@ footer{padding:24px 28px;color:var(--dim);font-size:12px;border-top:1px solid va
 </header>
 <nav id="tabs"></nav>
 <main>
-  <section id="tab-overview"></section>
+    <section id="tab-overview"><p class="dim" style="margin-top:30px">⏳ Waking up the server — first load on the free tier can take up to 60 seconds, please wait…</p></section>
   <section id="tab-chaos" class="hidden"></section>
   <section id="tab-filtered" class="hidden"></section>
   <section id="tab-mitigations" class="hidden"></section>
@@ -82,7 +82,7 @@ footer{padding:24px 28px;color:var(--dim);font-size:12px;border-top:1px solid va
 <script>
 let META=null, MODEL='legacy';
 const $=s=>document.querySelector(s);
-const jget=async u=>{const r=await fetch(u);return r.json();};
+const jget=async(u)=>{let err;for(let i=0;i<4;i++){try{const r=await fetch(u);if(r.ok)return r.json();err=new Error('HTTP '+r.status);}catch(e){err=e;}await new Promise(s=>setTimeout(s,1400*(i+1)));}throw err;};
 const jpost=async(u,b)=>{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});return r.json();};
 const pc=x=>(x*100).toFixed(1)+'%';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -297,11 +297,15 @@ $('#tab-upload').addEventListener('click',async e=>{
 
 /* ---------------- boot ---------------- */
 (async()=>{
-  META=await jget('/api/meta');
-  renderModelSel();
-  $('#sid').textContent=META.sample_ids.join(', ');
-  $('#schema').textContent=META.schema;
-  await loadOverview();
+  try{
+    META=await jget('/api/meta');
+    renderModelSel();
+    $('#sid').textContent=META.sample_ids.join(', ');
+    $('#schema').textContent=META.schema;
+    await loadOverview();
+  }catch(e){
+    $('#tab-overview').innerHTML='<div class="err">The free server was asleep and is still waking up (takes ~60 seconds after being idle).<br><br><button class="btn" onclick="location.reload()">Retry now</button></div>';
+  }
 })();
 </script>
 </body>
