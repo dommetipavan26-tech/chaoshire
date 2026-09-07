@@ -39,16 +39,21 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Reproducible experiment IDs
 - [x] Comparison between model versions
 - [x] Fairness regression gate for CI/CD
-- [ ] Pluggable production-model scoring adapters
+- [x] Pluggable decision-source adapter contract
+- [ ] Authenticated remote REST scoring connector
 
 ## Phase 4 — Reports and product polish
 
 - [x] Downloadable self-contained HTML audit report
-- [ ] Native PDF export
-- [ ] Guided demonstration mode
-- [ ] Authentication and auditor/reviewer roles
-- [ ] Accessibility and mobile QA
-- [ ] Structured logging, rate limiting, and privacy controls
+- [x] Native dependency-free PDF summary export
+- [x] Guided demonstration mode
+- [x] Deterministic evidence-grounded fairness review agent
+- [x] Tamper-evident aggregate evidence bundles
+- [x] Optional API-key write protection
+- [x] Accessibility and mobile/PWA hardening
+- [x] Request IDs, operational metrics, rate limiting, and privacy controls
+- [ ] User accounts and auditor/reviewer roles
+- [ ] Structured external log shipping
 - [ ] Architecture diagram and short demonstration video
 
 ## Definition of portfolio-ready

@@ -1,6 +1,6 @@
 # Audit-history persistence and privacy
 
-ChaosHire v0.5 stores aggregate audit evidence in SQLite. This document defines what is and is not persisted.
+ChaosHire stores aggregate audit evidence in SQLite by default. This document defines what is and is not persisted.
 
 ## Persisted
 

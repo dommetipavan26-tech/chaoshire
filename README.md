@@ -2,7 +2,7 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Continuous fairness](docs/CONTINUOUS-FAIRNESS.md) · [Persistence](docs/PERSISTENCE.md) · [Roadmap](PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Continuous fairness](docs/CONTINUOUS-FAIRNESS.md) · [Portfolio platform](docs/PORTFOLIO-PLATFORM.md) · [Persistence](docs/PERSISTENCE.md) · [Roadmap](PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
@@ -55,7 +55,12 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Reusable counterfactual and stress-test framework with configurable thresholds
 - Deterministic experiment IDs and candidate-level before/after evidence
 - Side-by-side model-version comparison and automated CI/CD fairness release gate
-- Self-contained, printable HTML reports with no external assets
+- Deterministic evidence-grounded fairness review agent with prioritized human actions
+- Pluggable decision-adapter contract for reference, CSV, and production providers
+- Tamper-evident SHA-256 evidence bundles with verification API and CLI
+- Self-contained HTML reports plus dependency-free native PDF summaries
+- Optional API-key write protection, request-size limits, rate limiting, security headers, and operational metrics
+- Accessible mobile/PWA shell and a stable three-minute guided portfolio demo
 - Candidate-level additive explanations
 - Blind-screening, proxy-removal and threshold-calibration simulations
 - Candidate decision lookup and appeals workflow
@@ -103,7 +108,13 @@ chaoshire/
 ├── repository.py          # SQLite aggregate audit-history repository
 ├── quality.py             # model comparison and fairness release policies
 ├── reporting.py           # self-contained HTML audit reports
-├── cli.py                 # CI gate and report command-line interface
+├── pdf_reporting.py       # dependency-free native PDF summaries
+├── agent.py               # deterministic evidence-grounded review agent
+├── adapters.py            # pluggable decision-source contract
+├── evidence.py            # canonical SHA-256 evidence bundles
+├── platform.py            # security, access control, and operations
+├── demo.py                # stable guided portfolio walkthrough
+├── cli.py                 # gate, review, evidence, and report commands
 └── state.py               # explicit temporary raw-upload state
 tests/                     # API, metrics, workflows, statistics, gates, and persistence
 ```
@@ -145,7 +156,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 49 tests and covers more than 96%.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 65 tests and covers more than 96%.
 
 ### Continuous fairness commands
 
@@ -154,8 +165,15 @@ GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for
 python -m chaoshire gate --baseline legacy --candidate fair \
   --min-certificate 75 --min-resilience 80 --min-di 0.80
 
-# self-contained report that opens offline and prints to PDF
+# self-contained HTML report
 python -m chaoshire report --model legacy --output chaoshire-report.html
+
+# native PDF summary
+python -m chaoshire report --model legacy --format pdf --output chaoshire-report.pdf
+
+# transparent agent review and tamper-evident evidence bundle
+python -m chaoshire review --model legacy
+python -m chaoshire evidence --model legacy --output chaoshire-evidence.json
 ```
 
 See [Continuous fairness engineering](docs/CONTINUOUS-FAIRNESS.md) for the test contract, experiment fingerprints, evidence format, comparison API, and CI policy.
@@ -216,10 +234,12 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - [x] Statistical uncertainty and pairwise intersectional fairness analysis
 - [x] Named SQLite-backed aggregate audit history
 - [x] Model-version comparison and regression gates for CI/CD
-- [x] Self-contained HTML report export
-- [ ] Authentication, role-based access, and durable managed storage
-- [ ] Native PDF report export
-- [ ] Pluggable scoring adapters and SHAP explanations
+- [x] Self-contained HTML and native PDF report export
+- [x] Evidence-grounded fairness review agent and verified evidence bundles
+- [x] Pluggable decision-source adapters
+- [x] Optional API-key protection, platform safeguards, metrics, PWA, and guided demo
+- [ ] User accounts, role-based access, and durable managed storage
+- [ ] Remote REST scoring connector and SHAP explanations
 
 ## Responsible use
 

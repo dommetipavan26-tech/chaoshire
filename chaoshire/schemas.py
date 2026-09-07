@@ -32,6 +32,16 @@ class FairnessGateRequest(BaseModel):
     maximum_resilience_regression: int = Field(default=0, ge=0, le=100)
 
 
+class AgentReviewRequest(BaseModel):
+    model: str = Field(default="legacy", pattern="^(legacy|fair)$")
+    dataset: str = Field(default="demo", pattern="^(demo|uploaded)$")
+    include_chaos: bool = True
+
+
+class EvidenceVerifyRequest(BaseModel):
+    bundle: dict
+
+
 class UploadRequest(BaseModel):
     """Configuration for interpreting a model-decision CSV export."""
 

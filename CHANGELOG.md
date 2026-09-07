@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- Deterministic, evidence-grounded Fairness Review Agent with prioritized findings and human-action plans
+- Pluggable `DecisionAdapter` contract for reference models, CSV outcomes, and in-process providers
+- Optional `X-API-Key` protection for mutation routes without breaking the open portfolio demo
+- Request IDs, security headers, body-size enforcement, optional rate limiting, readiness, liveness, and operational metrics
+- Canonical SHA-256 aggregate evidence bundles with tamper-verification API and CLI
+- Dependency-free native PDF audit summaries through API and CLI
+- Accessible mobile/PWA shell with offline app-shell caching and network-first audit evidence
+- Stable six-step, three-minute guided portfolio demonstration in the API and dashboard
+- Sixteen Days 11–20 regression tests; suite now contains 65 tests with more than 96% coverage
 - Reusable `ChaosTest` experiment interface with normalized observations and verdict policies
 - Deterministic SHA-256 experiment IDs for reproducible model-and-policy runs
 - Candidate-level before/after score and decision evidence, capped from 0–50 records
@@ -49,11 +58,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Test suite expanded from 12 to 19 tests with more than 97% package coverage
 
 ### Planned
-- Configurable CSV schema mapping
-- Persistent audit history
-- Intersectional fairness analysis
-- Downloadable audit reports
-- Fairness regression gates for model releases
+- User accounts and auditor/reviewer roles
+- Durable managed-database adapter
+- Authenticated remote model connector
+- External log shipping and long-term metrics
+- SHAP-compatible explanation adapter
 
 ## [0.1.0] - 2026-09-06
 
