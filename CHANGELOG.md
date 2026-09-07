@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+- Added `HEAD` support to health, liveness, and readiness endpoints for UptimeRobot and other uptime monitors
+
 ### Added
 - Automated tag-driven GitHub releases with source, HTML/PDF reports, evidence, and SHA-256 checksums
 - Weekly CodeQL and dependency-vulnerability scanning plus Dependabot updates

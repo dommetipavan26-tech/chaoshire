@@ -59,17 +59,17 @@ app = FastAPI(
 app.middleware("http")(platform_middleware)
 
 
-@app.get("/api/health", tags=["system"])
+@app.api_route("/api/health", methods=["GET", "HEAD"], tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "ChaosHire"}
 
 
-@app.get("/api/live", tags=["system"])
+@app.api_route("/api/live", methods=["GET", "HEAD"], tags=["system"])
 def liveness() -> dict[str, str]:
     return {"status": "alive"}
 
 
-@app.get("/api/ready", tags=["system"])
+@app.api_route("/api/ready", methods=["GET", "HEAD"], tags=["system"])
 def readiness() -> dict[str, str]:
     try:
         initialise_database()
