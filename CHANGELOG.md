@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- SQLite-backed aggregate audit repository with random audit IDs, names, UTC timestamps, and provenance
+- Audit history and detail endpoints (`/api/audits`, `/api/audits/{audit_id}`)
+- Audit History dashboard tab with summary and detail views
+- Explicit storage boundary: raw uploaded rows remain in memory and are never written to audit history
+- Database-path configuration, Docker write permissions, and persistence/privacy documentation
+- Six persistence and privacy regression tests; suite now contains 38 tests with more than 95% coverage
 - Two-sided 95% Wilson confidence intervals for selection rates and true-positive rates
 - Exploratory pooled two-proportion significance tests for highest-vs-lowest selection groups
 - Pairwise intersectional audits for every selected protected-attribute combination

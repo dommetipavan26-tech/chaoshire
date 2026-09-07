@@ -27,7 +27,9 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Exploratory two-proportion significance indicators
 - [x] Pairwise intersectional group analysis
 - [x] Statistical methodology and limitations documentation
-- [ ] Persistent audit runs and audit history
+- [x] SQLite-backed aggregate audit runs and history
+- [x] Raw-row non-persistence privacy boundary
+- [ ] Managed PostgreSQL adapter for durable cloud history
 
 ## Phase 3 — Chaos Lab framework
 

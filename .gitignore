@@ -18,8 +18,11 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Generated local data and reports
-data/uploads/
+# Generated local data, SQLite state, and reports
+data/
+*.db
+*.db-shm
+*.db-wal
 reports/generated/
 
 # Packaging

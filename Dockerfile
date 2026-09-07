@@ -12,7 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend.py index.html ./
 COPY chaoshire ./chaoshire
 
-RUN useradd --create-home --uid 10001 chaoshire
+RUN useradd --create-home --uid 10001 chaoshire \
+    && mkdir -p /app/data \
+    && chown -R chaoshire:chaoshire /app/data
 USER chaoshire
 
 EXPOSE 8000

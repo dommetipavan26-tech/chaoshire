@@ -15,6 +15,7 @@ class UploadRequest(BaseModel):
     """Configuration for interpreting a model-decision CSV export."""
 
     csv: str = Field(min_length=1, max_length=5_000_000)
+    audit_name: str = Field(default="Untitled CSV audit", min_length=1, max_length=100)
     decision_column: str = Field(default="decision", min_length=1, max_length=100)
     favorable_values: list[str] = Field(
         default_factory=lambda: ["1", "true", "yes", "y", "accept", "accepted"],

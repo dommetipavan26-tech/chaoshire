@@ -2,7 +2,7 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Roadmap](PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Persistence & privacy](docs/PERSISTENCE.md) · [Roadmap](PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
@@ -60,6 +60,8 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Custom decision, qualification, candidate-ID, and protected-attribute columns
 - Configurable favorable values and minimum reliable group size
 - Downloadable JSON audit evidence
+- Named audit IDs and SQLite-backed aggregate audit history
+- Privacy-conscious storage: uploaded candidate rows are never written to history
 - Responsive, dependency-free web dashboard
 
 ## Architecture
@@ -95,8 +97,9 @@ chaoshire/
 ├── models.py              # feature transformations and scoring models
 ├── schemas.py             # validated API request contracts
 ├── services.py            # product workflows and orchestration
-└── state.py               # explicit temporary in-memory state
-tests/                     # API, metric, and workflow regression tests
+├── repository.py          # SQLite aggregate audit-history repository
+└── state.py               # explicit temporary raw-upload state
+tests/                     # API, metric, workflow, statistics, and persistence tests
 ```
 
 `backend.py` remains intentionally small so existing deployments can continue using `uvicorn backend:app`. Persistence, authentication, and configurable schema mapping are tracked for later releases.
@@ -127,6 +130,8 @@ docker build -t chaoshire .
 docker run --rm -p 8000:8000 chaoshire
 ```
 
+Aggregate audit history defaults to `data/chaoshire.db`. Override it with `CHAOSHIRE_DB_PATH`; see [Persistence & privacy](docs/PERSISTENCE.md). Render's free filesystem is ephemeral, so the public demo's history is not durable across redeploys.
+
 ### Run tests
 
 ```bash
@@ -134,7 +139,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 32 tests and covers more than 95%.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 38 tests and covers more than 95%.
 
 ## Audit your own decisions
 
@@ -191,6 +196,7 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - [ ] Configurable CSV schema and protected attributes
 - [ ] Persistent audit history and role-based access
 - [x] Statistical uncertainty and pairwise intersectional fairness analysis
+- [x] Named SQLite-backed aggregate audit history
 - [ ] Downloadable HTML/PDF audit reports
 - [ ] Model-version regression gates for CI/CD
 - [ ] Pluggable scoring adapters and SHAP explanations

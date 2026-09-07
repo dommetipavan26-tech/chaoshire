@@ -19,6 +19,7 @@ from .models import (
     get_model,
     score,
 )
+from .repository import save_audit
 from .state import APPEALS, UPLOADED
 
 
@@ -235,6 +236,7 @@ def _normalise_values(values: list[str]) -> set[str]:
 
 def upload_decisions(
     csv_text: str,
+    audit_name: str = "Untitled CSV audit",
     decision_column: str = "decision",
     favorable_values: list[str] | None = None,
     qualification_column: str | None = None,
@@ -358,10 +360,23 @@ def upload_decisions(
         "minimum_group_size": minimum_group_size,
         "warnings": warnings,
     }
+    result = audit(
+        uploaded.copy(),
+        attributes=attributes,
+        minimum_group_size=minimum_group_size,
+    )
+    result["upload"] = metadata
+    safe_name = audit_name.strip() or "Untitled CSV audit"
+    audit_id = save_audit(result, safe_name, metadata)
+
     UPLOADED["df"] = uploaded
     UPLOADED["metadata"] = metadata
+    UPLOADED["audit"] = result
     return {
         "ok": True,
+        "audit_id": audit_id,
+        "audit_name": safe_name,
+        "created_at": result["created_at"],
         "rows": int(len(uploaded)),
         "columns": normalised_columns,
         "attributes_found": attributes,
@@ -372,16 +387,9 @@ def upload_decisions(
 
 
 def uploaded_audit() -> dict[str, Any]:
-    uploaded = UPLOADED["df"]
-    metadata = UPLOADED["metadata"]
-    if uploaded is None or metadata is None:
+    result = UPLOADED["audit"]
+    if result is None:
         return {"error": "No dataset uploaded yet."}
-    result = audit(
-        uploaded.copy(),
-        attributes=metadata["protected_attributes"],
-        minimum_group_size=metadata["minimum_group_size"],
-    )
-    result["upload"] = metadata
     return result
 
 

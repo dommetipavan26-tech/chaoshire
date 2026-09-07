@@ -77,6 +77,7 @@ footer{padding:24px 28px;color:var(--dim);font-size:12px;border-top:1px solid va
   <section id="tab-mitigations" class="hidden"></section>
   <section id="tab-appeals" class="hidden"></section>
   <section id="tab-upload" class="hidden"></section>
+  <section id="tab-history" class="hidden"></section>
 </main>
 <footer>Portfolio prototype · 1,000 synthetic candidates with hidden ground-truth “qualified” labels · do not upload real applicant data.</footer>
 <script>
@@ -95,12 +96,13 @@ const gradeColor=g=>({A:'var(--green)',B:'var(--green)',C:'var(--amber)',D:'var(
 const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${v}</span>`;
 
 const TABS=[['overview','Fairness Dashboard'],['chaos','⚡ Chaos Lab'],['filtered','Who Got Filtered Out'],
-  ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model']];
+  ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model'],['history','Audit History']];
 $('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${id}" class="${i===0?'on':''}">${l}</button>`).join('');
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
   TABS.forEach(([id])=>$('#tab-'+id).classList.toggle('hidden',id!==b.dataset.t));
   if(b.dataset.t==='filtered')loadFiltered();
+  if(b.dataset.t==='history')loadHistory();
 });
 
 function renderModelSel(){
@@ -284,7 +286,8 @@ $('#tab-upload').innerHTML=`<div class="grid g2">
  <div class="card"><h3>Bring your own model's output</h3>
   <div class="dim" style="margin-bottom:8px">Upload a CSV of decisions, then tell ChaosHire how to interpret its columns. The model itself never leaves your system.</div>
   <pre id="schema"></pre>
-  <div class="err" style="color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)">Privacy: this public demo stores uploads temporarily in server memory. Use synthetic or properly anonymized data only.</div>
+  <div class="err" style="color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)">Privacy: raw CSV rows stay in temporary memory. Only aggregate metrics and configuration are saved. On this unauthenticated public demo, audit names and aggregate history are visible to every visitor—use synthetic data and non-sensitive names only.</div>
+  <label>Audit name</label><input id="auditname" maxlength="100" value="Screening model review" placeholder="e.g. Q3 graduate hiring audit">
   <label>CSV file</label><input type="file" id="csvfile" accept=".csv,text/csv">
   <div id="detected" class="dim" style="margin-top:6px">No file selected.</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px">
@@ -317,14 +320,15 @@ $('#tab-upload').addEventListener('click',async e=>{
     $('#upout').innerHTML='<span class="dim">Validating columns and running audit…</span>';
     const split=id=>$(id).value.split(',').map(x=>x.trim()).filter(Boolean);
     const text=await f.text();
-    const payload={csv:text,decision_column:$('#decisioncol').value.trim(),favorable_values:split('#favvalues'),
+    const payload={csv:text,audit_name:$('#auditname').value.trim()||'Untitled CSV audit',decision_column:$('#decisioncol').value.trim(),favorable_values:split('#favvalues'),
       qualification_column:$('#qualcol').value.trim()||null,qualified_values:split('#qualvalues'),
       protected_attributes:split('#attrs'),minimum_group_size:Number($('#mingroup').value)||30};
     const r=await jpost('/api/upload',payload);
     const problem=r.error||(r.detail?'Validation error: '+JSON.stringify(r.detail):null);
     const warns=(r.warnings||[]).map(w=>`<div class="dim" style="color:var(--amber);margin-top:5px">⚠ ${esc(w)}</div>`).join('');
     $('#upout').innerHTML=problem?`<div class="err">${esc(problem)}</div>${r.available_columns?`<div class="dim" style="margin-top:6px">Available columns: ${r.available_columns.map(esc).join(', ')}</div>`:''}`:
-      `<div class="chip ok">Validated ${r.rows} rows</div> <span class="dim">attributes: ${r.attributes_found.map(esc).join(', ')} · ground truth: ${r.has_ground_truth?'yes':'no (equal-opportunity will be n/a)'}</span>${warns}
+      `<div class="chip ok">Saved ${r.rows} rows as aggregate audit</div>
+       <div style="margin-top:7px"><b>${esc(r.audit_name)}</b><br><span class="dim">Audit ID: ${esc(r.audit_id)} · attributes: ${r.attributes_found.map(esc).join(', ')} · ground truth: ${r.has_ground_truth?'yes':'no (equal-opportunity will be n/a)'}</span></div>${warns}
        <div style="margin-top:12px"><button class="btn" id="viewup">View audit →</button>
        <a class="btn ghost" style="margin-left:8px;text-decoration:none;display:inline-block;padding:10px 18px;border-radius:10px" href="/api/audit/export" download="chaoshire-audit.json">Download JSON report</a></div>`;
   }
@@ -335,8 +339,29 @@ $('#tab-upload').addEventListener('click',async e=>{
   }
 });
 
+/* ---------------- AUDIT HISTORY ---------------- */
+$('#tab-history').innerHTML='<div class="card"><h3>Audit history</h3><p class="dim">Open this tab to load saved aggregate audits.</p></div>';
+async function loadHistory(){
+  const s=$('#tab-history');
+  s.innerHTML='<div class="card"><h3>Audit history</h3><p class="dim">Loading aggregate evidence…</p></div>';
+  const r=await jget('/api/audits');
+  if(!r.audits.length){s.innerHTML=`<div class="card"><h3>Audit history</h3><p class="dim">No saved audits yet. Upload a synthetic decision CSV to create the first record.</p></div>`;return;}
+  s.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h3>Saved aggregate audits</h3><p class="dim">Raw applicant rows are never written to this history database.</p></div><button class="btn ghost" id="refreshhistory">Refresh</button></div>
+   <div style="overflow:auto;margin-top:12px"><table><tr><th>Audit</th><th>Created</th><th>Rows</th><th>Attributes</th><th>Certificate</th><th></th></tr>
+   ${r.audits.map(a=>`<tr><td><b>${esc(a.name)}</b><br><span class="dim">${esc(a.audit_id)}</span></td><td>${new Date(a.created_at).toLocaleString()}</td><td>${a.candidates}</td><td>${a.protected_attributes.map(esc).join(', ')}</td><td><span class="chip ${a.certificate.grade==='A'||a.certificate.grade==='B'?'ok':a.certificate.grade==='F'?'bad':'warn'}">${a.certificate.total} / ${a.certificate.grade}</span></td><td><button class="btn ghost history-view" data-audit="${esc(a.audit_id)}">View</button></td></tr>`).join('')}</table></div></div><div id="historydetail" style="margin-top:14px"></div>`;
+}
+$('#tab-history').addEventListener('click',async e=>{
+  if(e.target.id==='refreshhistory'){loadHistory();return;}
+  const b=e.target.closest('.history-view');if(!b)return;
+  const a=await jget('/api/audits/'+encodeURIComponent(b.dataset.audit));
+  const c=a.certificate;
+  $('#historydetail').innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h3>${esc(a.audit_name)}</h3><div class="dim">${esc(a.audit_id)} · ${new Date(a.created_at).toLocaleString()} · ${esc(a.source)}</div></div><span class="chip ${c.grade==='A'||c.grade==='B'?'ok':c.grade==='F'?'bad':'warn'}" style="font-size:16px">${c.total} / Grade ${c.grade}</span></div>
+   <div class="grid g4" style="margin-top:14px"><div><div class="dim">Candidates</div><b>${a.stats.candidates}</b></div><div><div class="dim">Accepted</div><b>${a.stats.accepted} (${pc(a.stats.accept_rate)})</b></div><div><div class="dim">Attributes</div><b>${a.configuration.protected_attributes.map(esc).join(', ')}</b></div><div><div class="dim">Minimum group size</div><b>${a.configuration.minimum_group_size}</b></div></div>
+   <div class="dim" style="margin-top:12px">This record contains aggregate metrics and configuration only—not the uploaded candidate rows.</div></div>`;
+});
+
 /* ---------------- boot ---------------- */
-(async()=>{
+(async()=>{ 
   try{
     META=await jget('/api/meta');
     renderModelSel();

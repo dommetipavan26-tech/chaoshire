@@ -1,7 +1,7 @@
 """FastAPI route layer for ChaosHire."""
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from . import __version__
@@ -16,6 +16,7 @@ from .models import (
     build_decisions,
     get_model,
 )
+from .repository import get_audit, list_audits
 from .schemas import AppealRequest, MitigationRequest, UploadRequest
 from .services import (
     candidate_decision,
@@ -114,6 +115,7 @@ def api_mitigate(request: MitigationRequest) -> dict:
 def api_upload(request: UploadRequest) -> dict:
     return upload_decisions(
         csv_text=request.csv,
+        audit_name=request.audit_name,
         decision_column=request.decision_column,
         favorable_values=request.favorable_values,
         qualification_column=request.qualification_column,
@@ -122,6 +124,19 @@ def api_upload(request: UploadRequest) -> dict:
         candidate_id_column=request.candidate_id_column,
         minimum_group_size=request.minimum_group_size,
     )
+
+
+@app.get("/api/audits", tags=["audit history"])
+def audit_history(limit: int = 50) -> dict:
+    return {"audits": list_audits(limit)}
+
+
+@app.get("/api/audits/{audit_id}", tags=["audit history"])
+def audit_detail(audit_id: str) -> dict:
+    result = get_audit(audit_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Audit record not found.")
+    return result
 
 
 @app.get("/api/audit/export", response_class=JSONResponse, tags=["audit"])
