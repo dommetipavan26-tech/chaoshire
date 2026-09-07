@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from . import __version__
 from .chaos import run_chaos_suite
@@ -61,9 +61,9 @@ def meta() -> dict:
         "thresholds": FAIRNESS_THRESHOLDS,
         "sample_ids": ["C-1046", "C-1208", "C-1213", "C-1000", "C-1001"],
         "schema": (
-            "candidate_id,gender,ethnicity,age_band,decision[,qualified]\n"
-            "gender: M/F/NB · ethnicity: any label · age_band e.g. 26-35 · "
-            "decision: 1/0 · qualified(optional ground truth): 1/0"
+            "Minimum: one decision column + one group attribute column.\n"
+            "Optional: candidate ID and qualification/ground-truth columns. "
+            "Column names, favorable values, protected attributes, and minimum group size are configurable."
         ),
     }
 
@@ -112,7 +112,25 @@ def api_mitigate(request: MitigationRequest) -> dict:
 
 @app.post("/api/upload", tags=["audit"])
 def api_upload(request: UploadRequest) -> dict:
-    return upload_decisions(request.csv)
+    return upload_decisions(
+        csv_text=request.csv,
+        decision_column=request.decision_column,
+        favorable_values=request.favorable_values,
+        qualification_column=request.qualification_column,
+        qualified_values=request.qualified_values,
+        protected_attributes=request.protected_attributes,
+        candidate_id_column=request.candidate_id_column,
+        minimum_group_size=request.minimum_group_size,
+    )
+
+
+@app.get("/api/audit/export", response_class=JSONResponse, tags=["audit"])
+def export_uploaded_audit() -> JSONResponse:
+    result = uploaded_audit()
+    return JSONResponse(
+        content=result,
+        headers={"Content-Disposition": "attachment; filename=chaoshire-audit.json"},
+    )
 
 
 @app.get("/api/sample.csv", response_class=PlainTextResponse, tags=["audit"])

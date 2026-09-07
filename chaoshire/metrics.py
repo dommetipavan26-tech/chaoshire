@@ -10,7 +10,11 @@ def round4(value: float) -> float:
     return float(round(float(value), 4))
 
 
-def attribute_metrics(data: pd.DataFrame, attribute: str) -> dict[str, Any]:
+def attribute_metrics(
+    data: pd.DataFrame,
+    attribute: str,
+    minimum_group_size: int = MIN_CELL_SIZE,
+) -> dict[str, Any]:
     groups = []
     has_truth = "qualified" in data.columns
     for group_value in sorted(data[attribute].unique()):
@@ -21,7 +25,7 @@ def attribute_metrics(data: pd.DataFrame, attribute: str) -> dict[str, Any]:
             "group": str(group_value),
             "n": count,
             "selected": selected,
-            "low_n": count < MIN_CELL_SIZE,
+            "low_n": count < minimum_group_size,
             "selection_rate": round4(selected / max(1, count)),
             "tpr": None,
             "fpr": None,
@@ -105,12 +109,19 @@ def certificate(attribute_results: list[dict[str, Any]]) -> dict[str, Any]:
     return {"total": total, "grade": grade, "components": components}
 
 
-def audit(data: pd.DataFrame) -> dict[str, Any]:
-    attributes = [
+def audit(
+    data: pd.DataFrame,
+    attributes: list[str] | None = None,
+    minimum_group_size: int = MIN_CELL_SIZE,
+) -> dict[str, Any]:
+    selected_attributes = attributes or [
         attribute for attribute in ["gender", "ethnicity", "age_band"]
         if attribute in data.columns
     ]
-    results = [attribute_metrics(data, attribute) for attribute in attributes]
+    results = [
+        attribute_metrics(data, attribute, minimum_group_size)
+        for attribute in selected_attributes
+    ]
     count = int(len(data))
     accepted = int(data["accepted"].sum())
     return {
@@ -123,5 +134,10 @@ def audit(data: pd.DataFrame) -> dict[str, Any]:
             ),
         },
         "attributes": results,
+        "configuration": {
+            "protected_attributes": selected_attributes,
+            "minimum_group_size": minimum_group_size,
+            "has_ground_truth": "qualified" in data.columns,
+        },
         "certificate": certificate(results),
     }

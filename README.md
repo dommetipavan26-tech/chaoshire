@@ -53,7 +53,10 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Candidate-level additive explanations
 - Blind-screening, proxy-removal and threshold-calibration simulations
 - Candidate decision lookup and appeals workflow
-- CSV decision audit without exposing model weights
+- Configurable CSV audits without exposing model weights
+- Custom decision, qualification, candidate-ID, and protected-attribute columns
+- Configurable favorable values and minimum reliable group size
+- Downloadable JSON audit evidence
 - Responsive, dependency-free web dashboard
 
 ## Architecture
@@ -128,25 +131,32 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 19 tests and covers more than 97%.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 25 tests and covers more than 95%.
 
 ## Audit your own decisions
 
 The upload workflow accepts a CSV containing model **outcomes**, so a vendor does not need to expose weights or source code.
 
-Required columns:
+The minimum input is one outcome column and one group attribute. Their names and values are configurable in the UI or API:
 
 ```csv
-candidate_id,gender,ethnicity,age_band,decision,qualified
-C-001,F,G2,36-50,0,1
-C-002,M,G1,26-35,1,1
+person_id,region,disability_status,outcome,job_ready
+A-001,north,no,advance,qualified
+A-002,south,yes,reject,qualified
 ```
 
-- `decision`: accepted values include `1`, `true`, `yes`, and `accepted`
-- `qualified`: optional ground-truth label used for equal-opportunity analysis
-- At least one supported group column is required
+For this example, configure:
 
-Download a compatible synthetic sample from `/api/sample.csv`.
+- Decision column: `outcome`
+- Favorable value: `advance`
+- Qualification column: `job_ready` (optional; enables equal-opportunity analysis)
+- Qualified value: `qualified`
+- Protected attributes: `region, disability_status`
+- Minimum reliable group size: `30` by default, configurable from 2–500
+
+Column names are normalized for surrounding whitespace and case. Missing group values are retained as a visible `(missing)` group instead of silently discarded. High-cardinality fields that look like identifiers are rejected as protected attributes. Each successful upload returns its interpretation settings and warnings, and `/api/audit/export` downloads the result as JSON.
+
+The original schema remains backward-compatible. Download a compatible synthetic sample from `/api/sample.csv`.
 
 ## Three-minute walkthrough
 

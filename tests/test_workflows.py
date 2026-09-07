@@ -76,12 +76,12 @@ def test_upload_validation_and_uploaded_audit():
     )
     upload = client.post("/api/upload", json={"csv": csv_text})
     assert upload.status_code == 200
-    assert upload.json() == {
-        "ok": True,
-        "rows": 60,
-        "attributes_found": ["gender"],
-        "has_ground_truth": True,
-    }
+    upload_body = upload.json()
+    assert upload_body["ok"] is True
+    assert upload_body["rows"] == 60
+    assert upload_body["attributes_found"] == ["gender"]
+    assert upload_body["has_ground_truth"] is True
+    assert upload_body["configuration"]["minimum_group_size"] == 30
 
     result = client.get("/api/audit", params={"dataset": "uploaded"})
     assert result.status_code == 200

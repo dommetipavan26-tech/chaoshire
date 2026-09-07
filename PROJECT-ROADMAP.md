@@ -18,10 +18,12 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 
 ## Phase 2 — Real audit workflow
 
-- [ ] Configurable CSV column mapping
-- [ ] Configurable protected attributes and favorable outcome
-- [ ] Strong file and value validation
-- [ ] Confidence intervals and statistical warnings
+- [x] Configurable CSV column mapping
+- [x] Configurable protected attributes and favorable outcome
+- [x] Strong file and value validation
+- [x] Configurable minimum group size and missing-data warnings
+- [x] Downloadable JSON audit evidence
+- [ ] Confidence intervals and statistical significance indicators
 - [ ] Persistent audit runs and audit history
 - [ ] Intersectional group analysis
 

@@ -223,50 +223,166 @@ def mitigate(strategies: list[str]) -> dict[str, Any]:
     return {"applied": applied, "before": before, "after": after}
 
 
-def upload_decisions(csv_text: str) -> dict[str, Any]:
+def _normalise_name(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    return value.strip().lower()
+
+
+def _normalise_values(values: list[str]) -> set[str]:
+    return {str(value).strip().lower() for value in values if str(value).strip()}
+
+
+def upload_decisions(
+    csv_text: str,
+    decision_column: str = "decision",
+    favorable_values: list[str] | None = None,
+    qualification_column: str | None = None,
+    qualified_values: list[str] | None = None,
+    protected_attributes: list[str] | None = None,
+    candidate_id_column: str | None = "candidate_id",
+    minimum_group_size: int = 30,
+) -> dict[str, Any]:
+    """Validate and store a configurable model-decision export."""
     try:
         uploaded = pd.read_csv(io.StringIO(csv_text))
-        uploaded.columns = [column.strip().lower() for column in uploaded.columns]
-        if "decision" not in uploaded.columns:
-            return {"error": "CSV must contain a 'decision' column (1/0)."}
-        uploaded["accepted"] = (
-            uploaded["decision"]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-            .isin(["1", "true", "yes", "y", "accept", "accepted"])
-            .astype(int)
+    except Exception as error:
+        return {"error": f"Could not parse CSV: {error}"}
+
+    if uploaded.empty:
+        return {"error": "The CSV has headers but no data rows."}
+    if len(uploaded) > 100_000:
+        return {"error": "The public prototype accepts at most 100,000 rows per audit."}
+    if len(uploaded.columns) > 100:
+        return {"error": "The CSV has more than 100 columns; remove unused fields and retry."}
+
+    normalised_columns = [str(column).strip().lower() for column in uploaded.columns]
+    duplicates = sorted({column for column in normalised_columns if normalised_columns.count(column) > 1})
+    if duplicates:
+        return {"error": f"Duplicate columns after normalisation: {', '.join(duplicates)}."}
+    uploaded.columns = normalised_columns
+
+    decision = _normalise_name(decision_column)
+    if decision not in uploaded.columns:
+        return {
+            "error": f"Decision column '{decision_column}' was not found.",
+            "available_columns": normalised_columns,
+        }
+    favorable = _normalise_values(
+        favorable_values or ["1", "true", "yes", "y", "accept", "accepted"]
+    )
+    if not favorable:
+        return {"error": "Provide at least one favorable decision value."}
+
+    warnings = []
+    raw_decisions = uploaded[decision]
+    if raw_decisions.isna().any():
+        warnings.append(
+            f"{int(raw_decisions.isna().sum())} rows have a missing decision and were treated as unfavorable."
         )
+    uploaded["accepted"] = (
+        raw_decisions.astype(str).str.strip().str.lower().isin(favorable).astype(int)
+    )
+    if uploaded["accepted"].nunique() < 2:
+        warnings.append(
+            "Only one decision class was found; disparity metrics may be uninformative."
+        )
+
+    qualification = _normalise_name(qualification_column)
+    if qualification is None and "qualified" in uploaded.columns:
+        qualification = "qualified"
+    if qualification is not None:
+        if qualification not in uploaded.columns:
+            return {
+                "error": f"Qualification column '{qualification_column}' was not found.",
+                "available_columns": normalised_columns,
+            }
+        qualified = _normalise_values(qualified_values or ["1", "true", "yes", "y"])
+        uploaded["qualified"] = (
+            uploaded[qualification].astype(str).str.strip().str.lower().isin(qualified)
+        )
+
+    if protected_attributes is None:
         attributes = [
             attribute for attribute in ["gender", "ethnicity", "age_band"]
             if attribute in uploaded.columns
         ]
-        if not attributes:
-            return {"error": "Need at least one group column: gender, ethnicity, or age_band."}
-        if "qualified" in uploaded.columns:
-            uploaded["qualified"] = (
-                uploaded["qualified"]
-                .astype(str)
-                .str.strip()
-                .str.lower()
-                .isin(["1", "true", "yes", "y"])
+    else:
+        attributes = list(
+            dict.fromkeys(
+                attribute
+                for value in protected_attributes
+                if (attribute := _normalise_name(value)) is not None
             )
-        UPLOADED["df"] = uploaded
+        )
+    if not attributes:
         return {
-            "ok": True,
-            "rows": int(len(uploaded)),
-            "attributes_found": attributes,
-            "has_ground_truth": "qualified" in uploaded.columns,
+            "error": "Choose at least one protected attribute column.",
+            "available_columns": normalised_columns,
         }
-    except Exception as error:  # CSV parser exposes useful context to the demo user.
-        return {"error": f"Could not parse CSV: {error}"}
+    missing_attributes = [attribute for attribute in attributes if attribute not in uploaded.columns]
+    if missing_attributes:
+        return {
+            "error": f"Protected attribute columns not found: {', '.join(missing_attributes)}.",
+            "available_columns": normalised_columns,
+        }
+
+    for attribute in attributes:
+        missing_count = int(uploaded[attribute].isna().sum())
+        values = uploaded[attribute].astype("string").str.strip().fillna("(missing)")
+        values = values.mask(values == "", "(missing)")
+        uploaded[attribute] = values.astype(str)
+        group_count = int(uploaded[attribute].nunique())
+        if group_count > 100:
+            return {
+                "error": f"'{attribute}' has {group_count} groups and looks like an identifier, not a protected attribute."
+            }
+        if group_count < 2:
+            warnings.append(f"'{attribute}' contains only one group; no between-group comparison is possible.")
+        if missing_count:
+            warnings.append(
+                f"'{attribute}' has {missing_count} missing values, reported as a separate '(missing)' group."
+            )
+
+    candidate_id = _normalise_name(candidate_id_column)
+    if candidate_id and candidate_id not in uploaded.columns:
+        candidate_id = None
+        warnings.append("Candidate ID column was not found; row numbers will identify records.")
+
+    metadata = {
+        "decision_column": decision,
+        "favorable_values": sorted(favorable),
+        "qualification_column": qualification,
+        "protected_attributes": attributes,
+        "candidate_id_column": candidate_id,
+        "minimum_group_size": minimum_group_size,
+        "warnings": warnings,
+    }
+    UPLOADED["df"] = uploaded
+    UPLOADED["metadata"] = metadata
+    return {
+        "ok": True,
+        "rows": int(len(uploaded)),
+        "columns": normalised_columns,
+        "attributes_found": attributes,
+        "has_ground_truth": "qualified" in uploaded.columns,
+        "configuration": metadata,
+        "warnings": warnings,
+    }
 
 
 def uploaded_audit() -> dict[str, Any]:
     uploaded = UPLOADED["df"]
-    if uploaded is None:
+    metadata = UPLOADED["metadata"]
+    if uploaded is None or metadata is None:
         return {"error": "No dataset uploaded yet."}
-    return audit(uploaded.copy())
+    result = audit(
+        uploaded.copy(),
+        attributes=metadata["protected_attributes"],
+        minimum_group_size=metadata["minimum_group_size"],
+    )
+    result["upload"] = metadata
+    return result
 
 
 def sample_csv() -> str:

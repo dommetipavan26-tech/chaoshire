@@ -5,7 +5,5 @@ will replace these objects with persistent repositories.
 """
 from typing import Any
 
-import pandas as pd
-
 APPEALS: list[dict[str, Any]] = []
-UPLOADED: dict[str, pd.DataFrame | None] = {"df": None}
+UPLOADED: dict[str, Any] = {"df": None, "metadata": None}
