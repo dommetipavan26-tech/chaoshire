@@ -62,18 +62,38 @@ These are reproducible **synthetic demonstration results**, not findings about a
 Browser (vanilla HTML/CSS/JS)
              │ JSON/HTTP
              ▼
-       FastAPI application
-       ├── synthetic reference data
-       ├── model scoring
-       ├── fairness metrics
-       ├── chaos experiments
-       ├── explanations
-       └── mitigations + appeals
+      FastAPI route layer
+             │
+     Application services
+      ├── fairness metrics
+      ├── chaos experiments
+      ├── explanations
+      ├── mitigations
+      └── appeals / uploads
+             │
+ Reference models + synthetic data
              │
        NumPy + Pandas
 ```
 
-The current release intentionally keeps the architecture compact for reproducibility. Persistence, authentication, configurable schema mapping, and separated service modules are tracked for later releases.
+### Source layout
+
+```text
+backend.py                 # stable Render/uvicorn compatibility entry point
+chaoshire/
+├── app.py                 # FastAPI routes and OpenAPI organization
+├── chaos.py               # controlled counterfactual experiments
+├── config.py              # thresholds and deterministic demo settings
+├── data.py                # synthetic fixture generation
+├── metrics.py             # fairness metrics and certificate formula
+├── models.py              # feature transformations and scoring models
+├── schemas.py             # validated API request contracts
+├── services.py            # product workflows and orchestration
+└── state.py               # explicit temporary in-memory state
+tests/                     # API, metric, and workflow regression tests
+```
+
+`backend.py` remains intentionally small so existing deployments can continue using `uvicorn backend:app`. Persistence, authentication, and configurable schema mapping are tracked for later releases.
 
 ## Quick start
 
@@ -108,7 +128,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs the same tests on Python 3.11 and 3.12 for every pull request and push to `main`.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 19 tests and covers more than 97%.
 
 ## Audit your own decisions
 

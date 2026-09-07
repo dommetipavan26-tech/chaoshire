@@ -11,8 +11,9 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] GitHub Actions test workflow
 - [x] Docker image and health endpoint
 - [x] Professional README, license, changelog, security and contribution guidance
-- [ ] Split the monolithic backend into data, models, metrics, chaos, and API modules
-- [ ] Add linting, formatting, type checking, and coverage reporting
+- [x] Split the monolithic backend into data, models, metrics, chaos, and API modules
+- [x] Add linting and coverage reporting (Ruff + 90% CI coverage gate)
+- [ ] Add automated formatting and static type checking
 - [ ] Create the `v0.1.0` GitHub release
 
 ## Phase 2 — Real audit workflow
