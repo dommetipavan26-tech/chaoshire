@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- Modular `chaoshire` Python package with dedicated data, model, metric, chaos, schema, service, state, and route layers
+- Ruff linting and a 90% minimum coverage gate in GitHub Actions
+- End-to-end tests for explanations, filtered candidates, appeals, uploads, mitigations, and repeatable chaos experiments
+- Organized OpenAPI tags and bounded request validation
+
+### Changed
+- `backend.py` is now a backward-compatible deployment shim; `uvicorn backend:app` remains supported
+- Privilege-keyword injection now uses a local deterministic random generator, so repeated Chaos Lab calls are identical
+- Test suite expanded from 12 to 19 tests with more than 97% package coverage
+
 ### Planned
 - Configurable CSV schema mapping
 - Persistent audit history
