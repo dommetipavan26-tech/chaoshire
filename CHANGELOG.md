@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- Automated tag-driven GitHub releases with source, HTML/PDF reports, evidence, and SHA-256 checksums
+- Weekly CodeQL and dependency-vulnerability scanning plus Dependabot updates
+- Render free-tier blueprint, UptimeRobot runbook, release checklist, architecture diagram, and recruiter-facing case study
 - Deterministic, evidence-grounded Fairness Review Agent with prioritized findings and human-action plans
 - Pluggable `DecisionAdapter` contract for reference models, CSV outcomes, and in-process providers
 - Optional `X-API-Key` protection for mutation routes without breaking the open portfolio demo

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: chaoshire
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/ready
+    autoDeploy: true
+    envVars:
+      - key: CHAOSHIRE_DB_PATH
+        value: /app/data/chaoshire.db
+      - key: CHAOSHIRE_MAX_BODY_BYTES
+        value: "5500000"
+      - key: CHAOSHIRE_RATE_LIMIT_PER_MINUTE
+        value: "0"
+      - key: CHAOSHIRE_API_KEY
+        sync: false

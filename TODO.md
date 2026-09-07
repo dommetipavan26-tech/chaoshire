@@ -12,9 +12,12 @@
 - [x] Mobile accessibility and installable PWA shell
 - [x] Stable three-minute guided demo
 - [x] Full regression suite and documentation
-- [ ] Push release bundle and confirm GitHub Actions
+- [x] Push v0.20.0 implementation and confirm quality/fairness workflows
+- [x] Add automated security scanning and release workflow
+- [x] Add Render blueprint, monitoring runbook, architecture diagram, and case study
 - [ ] Verify Render v0.20.0 on a physical phone
-- [ ] Create GitHub v0.20.0 tag and release
+- [ ] Configure UptimeRobot alert contacts in the owner's account
+- [ ] Push the v0.20.0 tag and confirm the automated GitHub release
 
 ## Future engineering
 

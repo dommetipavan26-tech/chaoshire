@@ -2,7 +2,7 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Continuous fairness](docs/CONTINUOUS-FAIRNESS.md) · [Portfolio platform](docs/PORTFOLIO-PLATFORM.md) · [Persistence](docs/PERSISTENCE.md) · [Roadmap](PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Case study](docs/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/ARCHITECTURE.svg) · [Methodology](docs/METHODOLOGY.md) · [Platform](docs/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/MONITORING.md) · [Roadmap](PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
@@ -73,6 +73,8 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Responsive, dependency-free web dashboard
 
 ## Architecture
+
+[View the architecture diagram](docs/ARCHITECTURE.svg).
 
 ```text
 Browser (vanilla HTML/CSS/JS)
