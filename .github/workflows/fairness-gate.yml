@@ -1,0 +1,29 @@
+name: Fairness release gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  fairness-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compare candidate model with production baseline
+        run: >-
+          python -m chaoshire gate
+          --baseline legacy
+          --candidate fair
+          --min-certificate 75
+          --min-resilience 80
+          --min-di 0.80

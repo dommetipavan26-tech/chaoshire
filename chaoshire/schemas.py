@@ -11,6 +11,27 @@ class MitigationRequest(BaseModel):
     strategies: list[str]
 
 
+class VerdictThreshold(BaseModel):
+    warn: float = Field(ge=0, le=1)
+    fail: float = Field(ge=0, le=1)
+
+
+class ChaosRunRequest(BaseModel):
+    model: str = Field(default="legacy", pattern="^(legacy|fair)$")
+    thresholds: dict[str, VerdictThreshold] | None = None
+    evidence_limit: int = Field(default=10, ge=0, le=50)
+
+
+class FairnessGateRequest(BaseModel):
+    baseline_model: str = Field(default="legacy", pattern="^(legacy|fair)$")
+    candidate_model: str = Field(default="fair", pattern="^(legacy|fair)$")
+    minimum_certificate: int = Field(default=75, ge=0, le=100)
+    minimum_resilience: int = Field(default=80, ge=0, le=100)
+    minimum_disparate_impact: float = Field(default=0.8, ge=0, le=1)
+    maximum_certificate_regression: int = Field(default=0, ge=0, le=100)
+    maximum_resilience_regression: int = Field(default=0, ge=0, le=100)
+
+
 class UploadRequest(BaseModel):
     """Configuration for interpreting a model-decision CSV export."""
 

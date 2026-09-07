@@ -16,8 +16,16 @@ from .models import (
     build_decisions,
     get_model,
 )
+from .quality import compare_models, evaluate_fairness_gate
+from .reporting import render_html_report
 from .repository import get_audit, list_audits
-from .schemas import AppealRequest, MitigationRequest, UploadRequest
+from .schemas import (
+    AppealRequest,
+    ChaosRunRequest,
+    FairnessGateRequest,
+    MitigationRequest,
+    UploadRequest,
+)
 from .services import (
     candidate_decision,
     create_appeal,
@@ -79,6 +87,31 @@ def api_audit(model: str = "legacy", dataset: str = "demo") -> dict:
 @app.get("/api/chaos", tags=["chaos lab"])
 def api_chaos(model: str = "legacy") -> dict:
     return run_chaos_suite(model)
+
+
+@app.post("/api/chaos/run", tags=["chaos lab"])
+def configured_chaos_run(request: ChaosRunRequest) -> dict:
+    thresholds = (
+        {test_id: values.model_dump() for test_id, values in request.thresholds.items()}
+        if request.thresholds
+        else None
+    )
+    try:
+        return run_chaos_suite(request.model, thresholds, request.evidence_limit)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/api/compare", tags=["continuous fairness"])
+def model_comparison(baseline: str = "legacy", candidate: str = "fair") -> dict:
+    if baseline not in MODEL_META or candidate not in MODEL_META:
+        raise HTTPException(status_code=400, detail="Unknown reference model.")
+    return compare_models(baseline, candidate)
+
+
+@app.post("/api/gate", tags=["continuous fairness"])
+def fairness_gate(request: FairnessGateRequest) -> dict:
+    return evaluate_fairness_gate(**request.model_dump())
 
 
 @app.get("/api/filtered", tags=["explainability"])
@@ -145,6 +178,24 @@ def export_uploaded_audit() -> JSONResponse:
     return JSONResponse(
         content=result,
         headers={"Content-Disposition": "attachment; filename=chaoshire-audit.json"},
+    )
+
+
+@app.get("/api/report.html", response_class=HTMLResponse, tags=["reports"])
+def html_report(model: str = "legacy", dataset: str = "demo") -> HTMLResponse:
+    if dataset == "uploaded":
+        result = uploaded_audit()
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        chaos_result = None
+    else:
+        if model not in MODEL_META:
+            raise HTTPException(status_code=400, detail="Unknown reference model.")
+        result = audit(build_decisions(get_model(model)))
+        chaos_result = run_chaos_suite(model, evidence_limit=0)
+    return HTMLResponse(
+        render_html_report(result, chaos_result),
+        headers={"Content-Disposition": "attachment; filename=chaoshire-report.html"},
     )
 
 

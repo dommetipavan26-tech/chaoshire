@@ -33,16 +33,18 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 
 ## Phase 3 — Chaos Lab framework
 
-- [ ] Reusable test interface: transform → score → compare → verdict
-- [ ] Candidate-level evidence for every changed decision
-- [ ] User-configurable test thresholds
-- [ ] Reproducible experiment IDs
-- [ ] Comparison between model versions
-- [ ] Fairness regression gate for CI/CD
+- [x] Reusable test interface: transform → score → compare → verdict
+- [x] Candidate-level evidence for every changed decision
+- [x] User-configurable test thresholds
+- [x] Reproducible experiment IDs
+- [x] Comparison between model versions
+- [x] Fairness regression gate for CI/CD
+- [ ] Pluggable production-model scoring adapters
 
 ## Phase 4 — Reports and product polish
 
-- [ ] Downloadable HTML/PDF audit report
+- [x] Downloadable self-contained HTML audit report
+- [ ] Native PDF export
 - [ ] Guided demonstration mode
 - [ ] Authentication and auditor/reviewer roles
 - [ ] Accessibility and mobile QA

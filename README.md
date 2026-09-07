@@ -2,7 +2,7 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Persistence & privacy](docs/PERSISTENCE.md) · [Roadmap](PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Continuous fairness](docs/CONTINUOUS-FAIRNESS.md) · [Persistence](docs/PERSISTENCE.md) · [Roadmap](PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
@@ -52,7 +52,10 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Exploratory highest-vs-lowest two-proportion significance tests
 - Pairwise intersectional audits such as gender × age band
 - Minimum-cell-size warnings for unreliable group comparisons
-- Five counterfactual and stress tests in the Chaos Lab
+- Reusable counterfactual and stress-test framework with configurable thresholds
+- Deterministic experiment IDs and candidate-level before/after evidence
+- Side-by-side model-version comparison and automated CI/CD fairness release gate
+- Self-contained, printable HTML reports with no external assets
 - Candidate-level additive explanations
 - Blind-screening, proxy-removal and threshold-calibration simulations
 - Candidate decision lookup and appeals workflow
@@ -98,8 +101,11 @@ chaoshire/
 ├── schemas.py             # validated API request contracts
 ├── services.py            # product workflows and orchestration
 ├── repository.py          # SQLite aggregate audit-history repository
+├── quality.py             # model comparison and fairness release policies
+├── reporting.py           # self-contained HTML audit reports
+├── cli.py                 # CI gate and report command-line interface
 └── state.py               # explicit temporary raw-upload state
-tests/                     # API, metric, workflow, statistics, and persistence tests
+tests/                     # API, metrics, workflows, statistics, gates, and persistence
 ```
 
 `backend.py` remains intentionally small so existing deployments can continue using `uvicorn backend:app`. Persistence, authentication, and configurable schema mapping are tracked for later releases.
@@ -139,7 +145,20 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 38 tests and covers more than 95%.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 49 tests and covers more than 96%.
+
+### Continuous fairness commands
+
+```bash
+# exits 0 when the candidate passes, 1 when the release must be blocked
+python -m chaoshire gate --baseline legacy --candidate fair \
+  --min-certificate 75 --min-resilience 80 --min-di 0.80
+
+# self-contained report that opens offline and prints to PDF
+python -m chaoshire report --model legacy --output chaoshire-report.html
+```
+
+See [Continuous fairness engineering](docs/CONTINUOUS-FAIRNESS.md) for the test contract, experiment fingerprints, evidence format, comparison API, and CI policy.
 
 ## Audit your own decisions
 
@@ -193,12 +212,13 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - [x] Counterfactual Chaos Lab
 - [x] Explanations, mitigation simulations and appeals
 - [x] Public deployment, automated tests and container support
-- [ ] Configurable CSV schema and protected attributes
-- [ ] Persistent audit history and role-based access
+- [x] Configurable CSV schema and protected attributes
 - [x] Statistical uncertainty and pairwise intersectional fairness analysis
 - [x] Named SQLite-backed aggregate audit history
-- [ ] Downloadable HTML/PDF audit reports
-- [ ] Model-version regression gates for CI/CD
+- [x] Model-version comparison and regression gates for CI/CD
+- [x] Self-contained HTML report export
+- [ ] Authentication, role-based access, and durable managed storage
+- [ ] Native PDF report export
 - [ ] Pluggable scoring adapters and SHAP explanations
 
 ## Responsible use

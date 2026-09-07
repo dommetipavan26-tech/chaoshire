@@ -7,6 +7,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- Reusable `ChaosTest` experiment interface with normalized observations and verdict policies
+- Deterministic SHA-256 experiment IDs for reproducible model-and-policy runs
+- Candidate-level before/after score and decision evidence, capped from 0–50 records
+- Configurable PASS/WARN/FAIL thresholds through `POST /api/chaos/run`
+- Side-by-side reference model comparison through `GET /api/compare`
+- Automated absolute-floor and regression checks through `POST /api/gate`
+- CI-compatible command line (`python -m chaoshire gate`) with PASS=0 and BLOCK=1 exit codes
+- Dedicated GitHub Actions fairness-release-gate workflow
+- Self-contained offline HTML reports through API and CLI
+- Release Gate dashboard tab and expandable Chaos Lab evidence tables
+- Continuous-fairness architecture and integration documentation
+- Eleven continuous-fairness regression tests; suite now contains 49 tests with more than 96% coverage
 - SQLite-backed aggregate audit repository with random audit IDs, names, UTC timestamps, and provenance
 - Audit history and detail endpoints (`/api/audits`, `/api/audits/{audit_id}`)
 - Audit History dashboard tab with summary and detail views
