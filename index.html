@@ -85,6 +85,7 @@ const $=s=>document.querySelector(s);
 const jget=async(u)=>{let err;for(let i=0;i<4;i++){try{const r=await fetch(u);if(r.ok)return r.json();err=new Error('HTTP '+r.status);}catch(e){err=e;}await new Promise(s=>setTimeout(s,1400*(i+1)));}throw err;};
 const jpost=async(u,b)=>{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});return r.json();};
 const pc=x=>(x*100).toFixed(1)+'%';
+const pval=x=>x<.0001?'p < 0.0001':`p = ${Number(x).toFixed(4)}`;
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const gchar={M:'Male',F:'Female',NB:'Non-binary'},geth={G1:'Community A',G2:'Community B',G3:'Community C'};
 const attrTitle={gender:'Gender',ethnicity:'Ethnicity / Community',age_band:'Age band'};
@@ -137,11 +138,24 @@ async function loadOverview(dataset='demo'){
       ${chipFor(at.di_pass,'DI '+at.disparate_impact)}
       ${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}
       ${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div>
-      <div class="dim" style="margin-top:8px">${at.groups.map(g=>`${glabel(at.attribute,g.group)}: ${g.selected}/${g.n} selected${g.tpr!==null?`, TPR ${pc(g.tpr)}`:''}`).join(' · ')}</div>
+      <div class="dim" style="margin-top:8px">${at.groups.map(g=>`${glabel(at.attribute,g.group)}: ${g.selected}/${g.n} selected · 95% CI ${pc(g.selection_rate_ci.low)}–${pc(g.selection_rate_ci.high)}${g.tpr!==null?`, TPR ${pc(g.tpr)}`:''}`).join('<br>')}</div>
+      ${at.statistical_test?`<div class="dim" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">Highest vs lowest selection rate: <b style="color:${at.statistical_test.significant_at_0_05?'var(--rose)':'var(--green)'}">${pval(at.statistical_test.p_value)} · ${at.statistical_test.significant_at_0_05?'statistically significant':'not significant'}</b><br>Exploratory two-proportion test; formal studies should correct for multiple comparisons.</div>`:''}
       </div>`;
   }
   html+='</div>';
-  html+=`<div class="dim" style="margin-top:14px">Thresholds — disparate impact ≥ 0.80 (four-fifths rule) · parity gap ≤ 0.10 · equal-opportunity gap ≤ 0.10${MODEL==='legacy'?' · switch to <b>MeritFirst v2</b> (top right) to see what a clean audit looks like.':''}</div>`;
+  if(a.intersections&&a.intersections.length){
+    html+=`<div class="kicker">Intersectional risks — where identities overlap</div><div class="grid g2">`;
+    for(const at of a.intersections){
+      const reliable=at.groups.filter(g=>!g.low_n), pool=reliable.length?reliable:at.groups;
+      const worst=[...pool].sort((x,y)=>x.selection_rate-y.selection_rate).slice(0,4);
+      html+=`<div class="card"><h3>${esc(at.attribute.replaceAll('_',' '))}</h3>
+       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px">${chipFor(at.di_pass,'DI '+at.disparate_impact)} ${at.statistical_test?`<span class="chip ${at.statistical_test.significant_at_0_05?'bad':'ok'}">${pval(at.statistical_test.p_value)}</span>`:''}</div>
+       ${worst.map(g=>`<div class="grow"><span class="lbl" title="${esc(g.group)}">${esc(g.group)}</span><div class="bar"><i style="width:${g.selection_rate*100}%"></i></div><span class="val">${pc(g.selection_rate)}</span></div>`).join('')}
+       <div class="dim" style="margin-top:7px">Lowest reliable intersection groups shown. ⚠ groups below n=${a.configuration?.minimum_group_size||30} remain visible but are excluded when reliable groups exist.</div></div>`;
+    }
+    html+='</div>';
+  }
+  html+=`<div class="dim" style="margin-top:14px">95% intervals use the Wilson method. Significance indicators are exploratory, not proof of causation. Thresholds — disparate impact ≥ 0.80 · parity gap ≤ 0.10 · equal-opportunity gap ≤ 0.10${MODEL==='legacy'?' · switch to <b>MeritFirst v2</b> (top right) to see a cleaner audit.':''}</div>`;
   s.innerHTML=html;
 }
 

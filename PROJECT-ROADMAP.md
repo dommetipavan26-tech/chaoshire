@@ -23,9 +23,11 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Strong file and value validation
 - [x] Configurable minimum group size and missing-data warnings
 - [x] Downloadable JSON audit evidence
-- [ ] Confidence intervals and statistical significance indicators
+- [x] 95% Wilson confidence intervals
+- [x] Exploratory two-proportion significance indicators
+- [x] Pairwise intersectional group analysis
+- [x] Statistical methodology and limitations documentation
 - [ ] Persistent audit runs and audit history
-- [ ] Intersectional group analysis
 
 ## Phase 3 — Chaos Lab framework
 

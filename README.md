@@ -2,7 +2,7 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Development roadmap](PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Methodology](docs/METHODOLOGY.md) · [Roadmap](PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
@@ -48,6 +48,9 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Group audits for gender, ethnicity/community and age band
 - Disparate impact using the four-fifths threshold
 - Demographic-parity and equal-opportunity gaps
+- 95% Wilson confidence intervals for selection and true-positive rates
+- Exploratory highest-vs-lowest two-proportion significance tests
+- Pairwise intersectional audits such as gender × age band
 - Minimum-cell-size warnings for unreliable group comparisons
 - Five counterfactual and stress tests in the Chaos Lab
 - Candidate-level additive explanations
@@ -131,7 +134,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 25 tests and covers more than 95%.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 32 tests and covers more than 95%.
 
 ## Audit your own decisions
 
@@ -187,7 +190,7 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - [x] Public deployment, automated tests and container support
 - [ ] Configurable CSV schema and protected attributes
 - [ ] Persistent audit history and role-based access
-- [ ] Intersectional fairness analysis
+- [x] Statistical uncertainty and pairwise intersectional fairness analysis
 - [ ] Downloadable HTML/PDF audit reports
 - [ ] Model-version regression gates for CI/CD
 - [ ] Pluggable scoring adapters and SHAP explanations

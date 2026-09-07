@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- Two-sided 95% Wilson confidence intervals for selection rates and true-positive rates
+- Exploratory pooled two-proportion significance tests for highest-vs-lowest selection groups
+- Pairwise intersectional audits for every selected protected-attribute combination
+- Dedicated statistical methodology and limitations guide
+- Intersectional-risk dashboard cards that keep low-sample groups visible and marked
+- Seven statistical regression tests; suite now contains 32 tests with more than 95% coverage
 - Configurable bring-your-own-model audits for custom outcome, qualification, candidate-ID, and protected-attribute columns
 - Configurable favorable/qualified values and minimum reliable group size
 - Upload warnings for missing values, absent IDs, one-class decisions, and single-group attributes
