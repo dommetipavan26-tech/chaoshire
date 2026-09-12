@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Added `HEAD` support to health, liveness, and readiness endpoints for UptimeRobot and other uptime monitors
 
 ### Added
+- Recruiter-first landing page with direct Guided Demo and Dashboard entry points, verified engineering proof, project links, and an explicit responsible-use boundary
+- Deterministic scikit-learn logistic-regression decision-adapter example using 800 synthetic candidates
+- Playwright automation covering a 390 px mobile viewport, recruiter proof, CTA behavior, and keyboard activation
+- Reproducible desktop/mobile screenshot capture plus a three-minute demo script and résumé-ready project descriptions
 - Automated tag-driven GitHub releases with source, HTML/PDF reports, evidence, and SHA-256 checksums
 - Weekly CodeQL and dependency-vulnerability scanning plus Dependabot updates
 - Render free-tier blueprint, UptimeRobot runbook, release checklist, architecture diagram, and recruiter-facing case study
@@ -59,6 +63,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Organized OpenAPI tags and bounded request validation
 
 ### Changed
+- Renamed user-facing “Fairness Certificate” terminology to “Fairness Risk Score” to avoid implying independent or legal certification
+- Retained historical `certificate` JSON fields and `--min-certificate` CLI options for backward compatibility
 - `backend.py` is now a backward-compatible deployment shim; `uvicorn backend:app` remains supported
 - Privilege-keyword injection now uses a local deterministic random generator, so repeated Chaos Lab calls are identical
 - Test suite expanded from 12 to 19 tests with more than 97% package coverage

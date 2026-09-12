@@ -22,7 +22,7 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
             {
                 "id": "certificate-floor",
                 "severity": "HIGH",
-                "title": "Fairness certificate is below the release floor",
+                "title": "Fairness risk score is below the release floor",
                 "metric": "certificate.total",
                 "actual": certificate["total"],
                 "threshold": 75,

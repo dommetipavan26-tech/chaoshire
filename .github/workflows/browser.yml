@@ -1,0 +1,30 @@
+name: Browser and mobile checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements-browser.txt
+            requirements-examples.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements-browser.txt -r requirements-examples.txt
+      - name: Verify scikit-learn adapter
+        run: python -m examples.sklearn_decision_adapter
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Run mobile and keyboard browser checks
+        run: python -m pytest browser_tests -q

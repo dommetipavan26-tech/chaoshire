@@ -1,4 +1,4 @@
-"""Group-fairness metrics and the transparent certificate calculation."""
+"""Group-fairness metrics and the transparent fairness risk-score calculation."""
 from itertools import combinations
 from math import erfc, sqrt
 from typing import Any
@@ -146,7 +146,7 @@ def intersectional_metrics(
     attributes: list[str],
     minimum_group_size: int = MIN_CELL_SIZE,
 ) -> list[dict[str, Any]]:
-    """Audit every pair of protected attributes without affecting the certificate."""
+    """Audit every pair of protected attributes without affecting the primary risk score."""
     results = []
     for first, second in combinations(attributes, 2):
         temporary = data.copy()

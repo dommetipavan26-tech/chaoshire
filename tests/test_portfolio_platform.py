@@ -18,7 +18,7 @@ client = TestClient(backend.app)
 
 
 def test_v020_contract_and_operational_endpoints():
-    assert __version__ == "0.20.1"
+    assert __version__ == "0.21.0"
     assert client.get("/api/live").json() == {"status": "alive"}
     assert client.get("/api/ready").json()["status"] == "ready"
     assert client.head("/api/health").status_code == 200
