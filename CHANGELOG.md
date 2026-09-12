@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+Nothing is unreleased; v0.21.0 is the current head of `main`.
+
+## [0.21.0] - 2026-09-12
+
+### Added
+- Recruiter-first landing view served at `/`: problem statement, primary **Start the guided demo** call to action, secondary **Explore dashboard** action, three capability summaries, public-evidence links (source, OpenAPI docs, latest release), and an explicit responsible-use boundary
+- Machine-readable quality claims in `docs/VERIFIED-QUALITY.json` plus `scripts/verify_quality_claims.py`, which re-derives test count, coverage, the deployed version and every published demonstration number from the code itself
+- `tests/test_landing_contract.py` (10 tests) asserting the landing copy, entry points, evidence links, mobile disclosure and terminology invariants without a browser
+- Collapsible mobile section drawer with `aria-expanded`, Escape-to-close and 44 px touch targets; deep links (`#demo`, `#chaos`, `#overview`) open the application directly
+- `examples/scikit_learn_adapter.py`: two real scikit-learn pipelines on documented synthetic data, audited through `DecisionAdapter`, sealed with SHA-256 evidence and evaluated against a release policy that blocks the naive model
+- `docs/SCIKIT-LEARN-INTEGRATION.md` and `requirements-examples.txt`
+- `browser_tests/` Playwright suite for landing, dashboard, Chaos Lab, candidate `C-1046`, appeals, mitigations, release gate, review agent, guided demo, report/evidence/CSV downloads, and 390 px mobile navigation, with `tests` unaffected when Chromium is absent
+- `Browser and mobile checks` workflow plus `scripts/capture_portfolio.py` for reproducible portfolio screenshots
+- `docs/PORTFOLIO-EVIDENCE.md`: 20-second summary, three-minute demo script, résumé wording, and an evidence checklist
+
+### Changed
+- User-facing terminology now reads **Fairness Risk Score**; the “Fairness Certificate Score™” phrasing and trademark symbol are gone from the UI, reports, release-gate labels and agent findings
+- `scikit-learn` added to `requirements-dev.txt` so CI executes the integration example on every pull request
+- `ruff` now lints the whole repository (`backend.py chaoshire tests` → `.`) so examples, scripts and browser tests cannot drift
+- Published test count and coverage updated to the measured 82 tests / 96.83%; README links the verification command
+
+### Fixed
+- The dashboard no longer blocks the first paint on a cold free-tier server: the landing view is static and the audit boots on entry
+
+### Compatibility
+- JSON fields (`certificate`, `certificate.total`, `minimum_certificate`, `maximum_certificate_regression`) and the `--min-certificate` CLI flag are unchanged; only displayed labels were renamed
+
+## [0.20.1] - 2026-09-07
+
 ### Fixed
 - Added `HEAD` support to health, liveness, and readiness endpoints for UptimeRobot and other uptime monitors
 

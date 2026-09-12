@@ -25,6 +25,11 @@ data/
 *.db-wal
 reports/generated/
 
+# Local browser artifacts and measurement output
+portfolio-assets/
+coverage.json
+.playwright/
+
 # Packaging
 build/
 dist/

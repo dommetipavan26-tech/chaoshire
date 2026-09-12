@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
+markers = [
+  "browser: live Chromium test that needs a running ChaosHire server",
+]
 filterwarnings = [
   "ignore:Using `httpx` with `starlette.testclient` is deprecated.*",
 ]

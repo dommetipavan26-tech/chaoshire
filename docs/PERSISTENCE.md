@@ -15,7 +15,7 @@ For each successful uploaded audit, ChaosHire saves:
 - Audit interpretation configuration
 - Aggregate group metrics and confidence intervals
 - Intersectional metrics
-- Certificate score and grade
+- Fairness risk score and grade (stored as `certificate_score`)
 
 ## Not persisted
 

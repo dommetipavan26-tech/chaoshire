@@ -4,7 +4,34 @@
 
 [Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Case study](docs/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/ARCHITECTURE.svg) · [Methodology](docs/METHODOLOGY.md) · [Platform](docs/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/MONITORING.md) · [Roadmap](PROJECT-ROADMAP.md)
 
+[scikit-learn integration](docs/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence pack](docs/PORTFOLIO-EVIDENCE.md) · [Verified quality claims](docs/VERIFIED-QUALITY.json)
+
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
+
+**ChaosHire in 20 seconds:** an open-source responsible-AI platform that audits automated
+hiring decisions, stress-tests them with counterfactual identity swaps, and turns the result
+into candidate evidence and a CI/CD release gate.
+
+[![Quality checks](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/test.yml)
+[![Browser and mobile checks](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/browser.yml/badge.svg?branch=main)](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/browser.yml)
+[![Release](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/release.yml/badge.svg)](https://github.com/dommetipavan26-tech/chaoshire/releases/latest)
+
+| The recruiter landing view | The fairness dashboard |
+|---|---|
+| ![Landing page](docs/assets/landing-desktop.png) | ![Fairness dashboard](docs/assets/dashboard-desktop.png) |
+
+| Chaos Lab counterfactuals | Release gate |
+|---|---|
+| ![Chaos Lab](docs/assets/chaos-lab-desktop.png) | ![Release gate](docs/assets/release-gate-desktop.png) |
+
+Mobile (390 px) keeps every section reachable through a collapsible drawer and 44 px touch
+targets: ![Mobile landing](docs/assets/landing-mobile.png)
+
+Every number in this section is machine-verified — see [docs/VERIFIED-QUALITY.json](docs/VERIFIED-QUALITY.json):
+
+```bash
+python scripts/verify_quality_claims.py   # 82 core tests · 96.83% coverage · 5 experiments · deterministic fixtures
+```
 
 ChaosHire is an open-source fairness-auditing prototype for hiring models. It combines conventional group-fairness metrics with controlled counterfactual experiments, candidate-level explanations, mitigation simulations, and an appeals workflow.
 
@@ -28,7 +55,7 @@ Each experiment produces a `PASS`, `WARN`, or `FAIL`. Together they form a 0–1
 
 The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and two transparent reference models:
 
-| Reference model | Purpose | Fairness certificate | Chaos resilience |
+| Reference model | Purpose | Fairness risk score | Chaos resilience |
 |---|---|---:|---:|
 | **LegacyCorp Screen v1** | Intentionally biased test fixture | **42 / F** | **30 / 100** |
 | **MeritFirst v2** | Merit-based control fixture | **86 / B** | **100 / 100** |
@@ -103,7 +130,7 @@ chaoshire/
 ├── chaos.py               # controlled counterfactual experiments
 ├── config.py              # thresholds and deterministic demo settings
 ├── data.py                # synthetic fixture generation
-├── metrics.py             # fairness metrics and certificate formula
+├── metrics.py             # fairness metrics and risk-score formula
 ├── models.py              # feature transformations and scoring models
 ├── schemas.py             # validated API request contracts
 ├── services.py            # product workflows and orchestration
@@ -158,7 +185,17 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 65 tests and covers more than 96%.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 82 tests at 96.83% coverage, and `python scripts/verify_quality_claims.py` re-derives those published numbers (plus the deterministic fixture results) so this README and the landing page cannot quietly go stale.
+
+Browser and mobile behaviour is covered separately with Playwright and Chromium:
+
+```bash
+python -m pip install -r requirements-browser.txt
+python -m playwright install --with-deps chromium
+python -m pytest browser_tests -q          # starts its own ChaosHire server
+python scripts/capture_portfolio.py        # regenerates docs/assets screenshots
+```
+
 
 ### Continuous fairness commands
 
@@ -179,6 +216,17 @@ python -m chaoshire evidence --model legacy --output chaoshire-evidence.json
 ```
 
 See [Continuous fairness engineering](docs/CONTINUOUS-FAIRNESS.md) for the test contract, experiment fingerprints, evidence format, comparison API, and CI policy.
+
+### Try it with a real scikit-learn model
+
+The audit is not hard-coded to the bundled fixtures. [`examples/scikit_learn_adapter.py`](examples/scikit_learn_adapter.py) trains two `LogisticRegression` pipelines on synthetic applicants, feeds their decisions through the `DecisionAdapter` contract, and runs the same audit, evidence sealing and release policy the API exposes:
+
+```bash
+python -m pip install -r requirements-examples.txt
+python -m examples.scikit_learn_adapter
+```
+
+The naive resume model is **blocked** by the gate on its equal-opportunity gap while being the *more accurate* model; the blind model releases at a small utility cost. Details in [scikit-learn integration](docs/SCIKIT-LEARN-INTEGRATION.md).
 
 ## Audit your own decisions
 
@@ -207,7 +255,7 @@ The original schema remains backward-compatible. Download a compatible synthetic
 
 ## Three-minute walkthrough
 
-1. Open **LegacyCorp Screen v1** and note its 42/F certificate.
+1. Open **LegacyCorp Screen v1** and note its 42/F fairness risk score.
 2. Open **Chaos Lab** and run the suite; explain the 16.9% gender-swap flip rate.
 3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
 4. Apply all three mitigations and compare 42/F with 83/B.
@@ -240,10 +288,16 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - [x] Evidence-grounded fairness review agent and verified evidence bundles
 - [x] Pluggable decision-source adapters
 - [x] Optional API-key protection, platform safeguards, metrics, PWA, and guided demo
+- [x] Recruiter-first landing view, scikit-learn integration example, and Chromium/mobile automation
 - [ ] User accounts, role-based access, and durable managed storage
 - [ ] Remote REST scoring connector and SHAP explanations
 
 ## Responsible use
+
+The landing view states the same boundary as this README: the Fairness Risk Score is an
+engineering signal that prioritises investigation. It is **not** a legal certification, it does
+not certify compliance, and it neither proves nor disproves unlawful discrimination. ChaosHire
+audits decisions after a model produces them — it does not make hiring decisions itself.
 
 Do not upload real applicant data to the public demonstration. Use synthetic or properly anonymized data only. ChaosHire should support—not replace—qualified human, statistical, legal and domain review.
 

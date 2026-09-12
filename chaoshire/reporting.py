@@ -68,7 +68,7 @@ table{{border-collapse:collapse;width:100%;margin-top:10px}}th,td{{text-align:le
 </style></head><body><header><h1>ChaosHire Audit Report</h1><p><b>{name}</b><br>ID: {identity} · Created: {created}</p></header>
 <div class="summary"><div class="card"><div class="big">{audit['stats']['candidates']}</div>Candidates</div>
 <div class="card"><div class="big">{audit['stats']['accepted']}</div>Accepted</div>
-<div class="card"><div class="big">{certificate['total']} / {certificate['grade']}</div>Fairness certificate</div>
+<div class="card"><div class="big">{certificate['total']} / {certificate['grade']}</div>Fairness Risk Score</div>
 <div class="card"><div class="big">{len(audit.get('intersections', []))}</div>Intersection audits</div></div>
 <p class="notice"><b>Interpretation notice:</b> This is an exploratory technical assessment, not legal advice or an official certification. Statistical significance does not establish causation. Synthetic reference results are not findings about a real employer.</p>
 <h1>Primary attributes</h1>{primary}<h1>Intersectional analysis</h1>{intersections or '<p>Not available.</p>'}{chaos_html}

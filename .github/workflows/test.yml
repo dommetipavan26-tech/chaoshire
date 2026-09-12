@@ -24,6 +24,8 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Lint
-        run: python -m ruff check backend.py chaoshire tests
+        run: python -m ruff check .
       - name: Test with coverage
-        run: python -m pytest --cov=chaoshire --cov-report=term-missing -q
+        run: python -m pytest --cov=chaoshire --cov-report=term-missing --cov-report=json:coverage.json -q
+      - name: Verify published quality claims
+        run: python scripts/verify_quality_claims.py --coverage coverage.json

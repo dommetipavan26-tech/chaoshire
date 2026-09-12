@@ -49,7 +49,7 @@ def guided_demo() -> dict[str, Any]:
             {
                 "id": 5,
                 "title": "Mitigate and compare",
-                "message": f"Simulated controls improve the certificate to {improved['after']['certificate']['total']}/{improved['after']['certificate']['grade']}; MeritFirst scores {fair['certificate']['total']}/{fair['certificate']['grade']}.",
+                "message": f"Simulated controls improve the fairness risk score to {improved['after']['certificate']['total']}/{improved['after']['certificate']['grade']}; MeritFirst scores {fair['certificate']['total']}/{fair['certificate']['grade']}.",
                 "evidence": {"mitigation": improved, "comparison": comparison},
             },
             {

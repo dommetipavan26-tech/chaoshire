@@ -4,7 +4,7 @@ ChaosHire is a standalone open-source portfolio project. Its core does not depen
 
 ## Fairness Review Agent
 
-`POST /api/agent/review` runs a deterministic, evidence-grounded review. It ranks certificate, primary-attribute, intersectional, and Chaos findings; links every finding to an evidence path; and returns a human-action plan. It does not invent facts or send audit data to an external model.
+`POST /api/agent/review` runs a deterministic, evidence-grounded review. It ranks fairness risk-score, primary-attribute, intersectional, and Chaos findings; links every finding to an evidence path; and returns a human-action plan. It does not invent facts or send audit data to an external model.
 
 ```json
 {"model":"legacy","dataset":"demo","include_chaos":true}
@@ -45,7 +45,7 @@ python -m chaoshire evidence --model legacy --output evidence.json
 
 ## Native PDF
 
-`GET /api/report.pdf` generates a dependency-free PDF summary with the certificate, group metrics, intersections, Chaos outcomes, experiment ID, and limitations. HTML remains the richer report format.
+`GET /api/report.pdf` generates a dependency-free PDF summary with the fairness risk score, group metrics, intersections, Chaos outcomes, experiment ID, and limitations. HTML remains the richer report format.
 
 ```bash
 python -m chaoshire report --model legacy --format pdf --output report.pdf

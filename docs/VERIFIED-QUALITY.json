@@ -1,0 +1,34 @@
+{
+  "version": "0.21.0",
+  "measured_at": "2026-09-12",
+  "core_tests": 82,
+  "coverage_percent": 96.83,
+  "coverage_floor_percent": 90,
+  "measure_command": "python -m pytest -q --cov=chaoshire --cov-report=term-missing",
+  "verify_command": "python scripts/verify_quality_claims.py",
+  "ci_workflow": "Quality checks",
+  "python": "3.11",
+  "demo": {
+    "candidates": 1000,
+    "seed": 29,
+    "legacy_risk_score": 42,
+    "legacy_grade": "F",
+    "fair_risk_score": 86,
+    "fair_grade": "B",
+    "mitigated_risk_score": 83,
+    "risk_score_delta": 44,
+    "chaos_experiments": 5,
+    "legacy_resilience": 30,
+    "qualified_candidates_rejected": 42,
+    "gender_swap_decision_flips": 169,
+    "appeal_candidate": "C-1046",
+    "appeal_candidate_name": "Zara Lopez"
+  },
+  "deployment": {
+    "url": "https://chaoshire.onrender.com",
+    "health": "/api/health",
+    "readiness": "/api/ready",
+    "openapi": "/openapi.json"
+  },
+  "boundary": "All people, employers and outcomes are synthetic. The Fairness Risk Score prioritises engineering review; it is not a legal certification and does not by itself prove or disprove unlawful discrimination."
+}

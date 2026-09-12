@@ -84,11 +84,15 @@ region × disability_status
 
 It then applies the same group metrics, confidence intervals, small-cell rules, and exploratory significance test to the combined groups.
 
-Intersectional results are reported separately and **do not alter the Fairness Certificate**. This prevents the certificate from changing merely because more attributes were supplied and avoids double-counting overlapping evidence.
+Intersectional results are reported separately and **do not alter the Fairness Risk Score**. This prevents the risk score from changing merely because more attributes were supplied and avoids double-counting overlapping evidence.
 
-## Certificate stability
+## Risk-score stability
 
-The current certificate uses primary, non-intersectional attributes only:
+The Fairness Risk Score is an internal engineering signal, not a certification: it
+prioritises review and never claims to establish lawful or unlawful treatment. The JSON
+field is still named `certificate` for API compatibility.
+
+The current score uses primary, non-intersectional attributes only:
 
 - Disparate impact: 40 points
 - Demographic parity: 20 points

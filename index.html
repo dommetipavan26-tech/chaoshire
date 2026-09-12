@@ -66,10 +66,87 @@ footer{padding:24px 28px;color:var(--dim);font-size:12px;border-top:1px solid va
 button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
 [aria-busy="true"]{opacity:.72}
 @media(max-width:600px){header,nav,main,footer{padding-left:14px;padding-right:14px}.g2{grid-template-columns:1fr}.modelsel{width:100%;overflow:auto}.mbtn{min-width:210px}nav{flex-wrap:nowrap;overflow-x:auto}nav button{white-space:nowrap;min-height:44px}.card{padding:14px}.stat-num{font-size:24px}.btn{min-height:44px}table{min-width:620px}}
+/* ---------------- Recruiter landing view ---------------- */
+[hidden]{display:none!important}
+.lhero{padding:34px 0 8px}
+.lkicker{font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--blue)}
+.lhero h2{font-size:clamp(27px,4.2vw,44px);line-height:1.14;letter-spacing:-.4px;margin:12px 0 14px}
+.lhero h2 em{font-style:normal;color:var(--blue)}
+.lprob{color:var(--dim);font-size:16.5px;max-width:780px;line-height:1.62}
+.lprob b{color:var(--txt)}
+.lcta{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 10px}
+.btn.lg{padding:14px 24px;font-size:15.5px;border-radius:12px}
+.llinks{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.llink{background:var(--card2);color:var(--txt);border:1px solid var(--line);text-decoration:none;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px;min-height:38px;display:inline-flex;align-items:center}
+.llink:hover{border-color:var(--blue)}
+.lproof{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));margin-top:28px}
+.lproof .card{padding:15px 16px}
+.lproof b{display:block;font-size:23px;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.lproof .card a{font-size:12px}
+.lcaps{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));margin-top:12px}
+.lcaps h3{display:flex;gap:8px;align-items:baseline}
+.lcaps .n{color:var(--blue);font-variant-numeric:tabular-nums;font-size:13px}
+.lbound{margin:26px 0 6px;padding:14px 16px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:0 12px 12px 0;color:var(--dim);font-size:13.5px;line-height:1.6}
+.lbound b{color:var(--txt)}
+/* Mobile section drawer */
+.navbar{display:flex;align-items:center;gap:10px;padding:8px 28px;border-bottom:1px solid var(--line)}
+.navbar nav{padding:0;border-bottom:none;flex:1;min-width:0}
+#navtoggle{display:none;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-height:44px;font-size:14px;cursor:pointer;align-items:center;gap:7px;white-space:nowrap}
+#navtoggle .badge{background:var(--blue);color:#062033;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px}
+@media(max-width:600px){.navbar{flex-wrap:wrap;padding:8px 14px}#navtoggle{display:inline-flex}.navbar nav{display:none}.navbar nav.open{display:flex;flex-direction:column;align-items:stretch;order:3;width:100%;gap:2px}.navbar nav.open button{text-align:left;min-height:46px;white-space:normal}.lhero{padding-top:22px}.lhero h2{font-size:26px}.lprob{font-size:15px}.lcta{flex-direction:column;align-items:stretch}.lcta .btn{width:100%}.lproof{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.llinks{width:100%}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 </style>
 </head>
 <body>
+<!-- ==================== LANDING (recruiter-first entry view) ==================== -->
+<div id="landing">
+<a class="skip" href="#landing-main">Skip to main content</a>
+<header>
+  <div>
+    <h1>Chaos<span>Hire</span></h1>
+    <div class="tag">Statistical fairness audits and chaos testing for automated hiring decisions</div>
+  </div>
+  <div class="llinks">
+    <a class="llink" href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">Source on GitHub</a>
+    <a class="llink" href="/docs">API docs</a>
+    <a class="llink" href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release</a>
+  </div>
+</header>
+<main id="landing-main" tabindex="-1">
+  <div class="lhero">
+    <p class="lkicker">Audit · stress test · gate the release</p>
+    <h2>Would this hiring decision <em>change</em> if only the candidate&rsquo;s identity changed?</h2>
+    <p class="lprob">Most fairness dashboards stop at &ldquo;did groups receive different outcomes?&rdquo; ChaosHire also flips <b>gender, community, age and career-gap markers on the same synthetic r&eacute;sum&eacute;</b> and reports exactly which decisions change &mdash; then turns those findings into candidate-level evidence, an appeals path, and a CI/CD release gate.</p>
+    <div class="lcta">
+      <button class="btn lg" id="cta-demo" data-goto="demo">Start the guided demo</button>
+      <button class="btn ghost lg" id="cta-dash" data-goto="overview">Explore dashboard</button>
+    </div>
+    <p class="dim">Deterministic public demo &middot; fixed seed &middot; 1,000 synthetic candidates &middot; no sign-up, no real applicant data.</p>
+
+    <div class="lproof" data-verified-tests="82" data-verified-coverage="96.83" data-verified-release="0.21.0">
+      <div class="card"><b>82</b><div class="dim">automated tests, all green</div><a class="dim" href="https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/test.yml" target="_blank" rel="noreferrer">CI run &rarr;</a></div>
+      <div class="card"><b>96.83%</b><div class="dim">package coverage (gate: &ge;90%)</div><a class="dim" href="docs/METHODOLOGY.md">methodology &rarr;</a></div>
+      <div class="card"><b>5</b><div class="dim">counterfactual chaos experiments</div><a class="dim" href="#" data-goto="chaos">see the Chaos Lab &rarr;</a></div>
+      <div class="card"><b>v0.21.0</b><div class="dim">deployed release, tagged publicly</div><a class="dim" href="https://github.com/dommetipavan26-tech/chaoshire/releases" target="_blank" rel="noreferrer">release notes &rarr;</a></div>
+    </div>
+
+    <p class="kicker">Three capabilities that make a hiring audit defensible</p>
+    <div class="lcaps">
+      <div class="card"><h3><span class="n">01</span> Measure the group outcome gap</h3><div class="dim" style="font-size:14px;line-height:1.7">Disparate impact (four-fifths rule), demographic parity, equal opportunity, Wilson 95% confidence intervals, pairwise intersectional cuts and minimum-cell-size warnings &mdash; with exploratory significance tests instead of hand-waving.</div></div>
+      <div class="card"><h3><span class="n">02</span> Break the decision on purpose</h3><div class="dim" style="font-size:14px;line-height:1.7">Five controlled counterfactuals perturb only identity signals and record every decision flip, with deterministic experiment IDs and before/after evidence for each affected candidate.</div></div>
+      <div class="card"><h3><span class="n">03</span> Gate the next release</h3><div class="dim" style="font-size:14px;line-height:1.7">Mitigation re-audits, candidate explanations and appeals, tamper-evident SHA-256 evidence bundles, and a policy check that can block a weaker model in CI/CD.</div></div>
+    </div>
+
+    <div class="lbound">
+      <b>What this project is honest about.</b> Every person, employer and outcome here is synthetic. The <b>Fairness Risk Score</b> is an engineering signal for prioritising investigation &mdash; it is <b>not</b> a legal certification, and a passing or failing score does not by itself prove or disprove unlawful discrimination. ChaosHire audits decisions a model has already produced — it does not make hiring decisions. Statistics depend on group size, base rates and label quality; see the methodology note before quoting any number.
+    </div>
+  </div>
+</main>
+<footer>Open-source prototype (MIT) &middot; FastAPI + NumPy/Pandas + vanilla JS &middot; <a href="/docs">OpenAPI docs</a> &middot; <a href="README.md">README</a> &middot; <a href="docs/PORTFOLIO-CASE-STUDY.md">case study</a></footer>
+</div>
+
+<!-- ==================== APPLICATION (technical dashboard) ==================== -->
+<div id="app" hidden>
 <a class="skip" href="#main">Skip to main content</a>
 <header>
   <div>
@@ -78,7 +155,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   </div>
   <div class="modelsel" id="modelsel"></div>
 </header>
-<nav id="tabs" aria-label="Product sections"></nav>
+<div class="navbar">
+  <button id="navtoggle" aria-expanded="false" aria-controls="tabs">☰ Sections <span class="badge" id="navcount">10</span></button>
+  <nav id="tabs" aria-label="Product sections"></nav>
+</div>
 <main id="main" tabindex="-1">
     <section id="tab-overview" aria-live="polite"><p class="dim" style="margin-top:30px">⏳ Waking up the server — first load on the free tier can take up to 60 seconds, please wait…</p></section>
   <section id="tab-chaos" class="hidden"></section>
@@ -91,7 +171,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   <section id="tab-agent" class="hidden" aria-live="polite"></section>
   <section id="tab-demo" class="hidden" aria-live="polite"></section>
 </main>
-<footer>Portfolio prototype · 1,000 synthetic candidates with hidden ground-truth “qualified” labels · do not upload real applicant data.</footer>
+<footer>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+    <span>Portfolio prototype · 1,000 synthetic candidates with hidden ground-truth “qualified” labels · do not upload real applicant data.</span>
+    <button class="btn ghost" id="backhome" style="padding:8px 14px;font-size:13px">← Back to overview</button>
+  </div>
+</footer>
+</div>
 <script>
 let META=null, MODEL='legacy';
 const $=s=>document.querySelector(s);
@@ -110,14 +196,68 @@ const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${
 const TABS=[['overview','Fairness Dashboard'],['chaos','⚡ Chaos Lab'],['filtered','Who Got Filtered Out'],
   ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model'],['history','Audit History'],['compare','Release Gate'],['agent','Review Agent'],['demo','Guided Demo']];
 $('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${id}" class="${i===0?'on':''}">${l}</button>`).join('');
-$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  TABS.forEach(([id])=>$('#tab-'+id).classList.toggle('hidden',id!==b.dataset.t));
-  if(b.dataset.t==='filtered')loadFiltered();
-  if(b.dataset.t==='history')loadHistory();
-  if(b.dataset.t==='compare')loadComparison();
-  if(b.dataset.t==='agent')loadAgent();
-  if(b.dataset.t==='demo')loadDemo();
+$('#navcount').textContent=TABS.length;
+
+/* ---------------- shell: landing view <-> dashboard application ---------------- */
+let BOOTED=false,BOOTING=null;
+function bootOnce(){
+  if(BOOTED)return Promise.resolve();
+  if(BOOTING)return BOOTING;
+  BOOTING=(async()=>{
+    try{
+      META=await jget('/api/meta');
+      renderModelSel();
+      $('#sid').textContent=META.sample_ids.join(', ');
+      $('#schema').textContent=META.schema;
+      await loadOverview();
+      BOOTED=true;BOOTING=null;
+    }catch(e){
+      BOOTING=null;
+      $('#tab-overview').innerHTML='<div class="err">The free server was asleep and is still waking up (takes ~60 seconds after being idle).<br><br><button class="btn" onclick="location.reload()">Retry now</button></div>';
+    }
+  })();
+  return BOOTING;
+}
+function selectTab(id){
+  if(!TABS.some(([t])=>t===id))id='overview';
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x.dataset.t===id));
+  TABS.forEach(([t])=>$('#tab-'+t).classList.toggle('hidden',t!==id));
+  closeNavDrawer();
+  if(id==='filtered')loadFiltered();
+  if(id==='history')loadHistory();
+  if(id==='compare')loadComparison();
+  if(id==='agent')loadAgent();
+  if(id==='demo')loadDemo();
+}
+function closeNavDrawer(){const nav=$('#tabs');if(nav.classList.contains('open')){nav.classList.remove('open');$('#navtoggle').setAttribute('aria-expanded','false');}}
+function setHash(hash){if(history.replaceState)history.replaceState(null,'',hash||location.pathname);}
+async function openApp(tab){
+  $('#landing').hidden=true;$('#app').hidden=false;
+  const want=['overview','chaos','filtered','mitigations','appeals','upload','history','compare','agent','demo'].includes(tab)?tab:'overview';
+  setHash('#'+want);
+  $('#main').focus({preventScroll:true});
+  window.scrollTo(0,0);
+  await bootOnce();
+  selectTab(want);
+}
+function openLanding(){
+  $('#app').hidden=true;$('#landing').hidden=false;
+  closeNavDrawer();setHash('');
+  $('#landing-main').focus({preventScroll:true});
+  window.scrollTo(0,0);
+}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;selectTab(b.dataset.t);});
+$('#navtoggle').addEventListener('click',()=>{
+  const nav=$('#tabs'),open=!nav.classList.contains('open');
+  nav.classList.toggle('open',open);
+  $('#navtoggle').setAttribute('aria-expanded',open?'true':'false');
+  if(open)(nav.querySelector('button.on')||nav.querySelector('button')).focus();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeNavDrawer();}});
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-goto]');
+  if(g){e.preventDefault();openApp(g.dataset.goto);return;}
+  if(e.target.closest('#backhome'))openLanding();
 });
 
 function renderModelSel(){
@@ -142,7 +282,7 @@ async function loadOverview(dataset='demo'){
     <div class="card"><h3>Ground truth</h3><div class="stat-num">${a.stats.qualified_share!==null?pc(a.stats.qualified_share):'n/a'}</div><div class="dim">truly qualified (hidden from model)</div></div>
     <div class="card" style="display:flex;align-items:center;gap:14px">${ring}
       <div style="flex:1">${c.components.map(x=>`<div class="grow"><span class="lbl" style="width:auto;flex:1">${x.label}</span><span class="val">${x.pts}/${x.max}</span></div>`).join('')}
-      <div class="dim">Fairness Certificate Score™</div></div></div></div>`;
+      <div class="dim" title="Relative risk signal for engineering review — not a legal certification">Fairness Risk Score</div></div></div></div>`;
   html+=`<div class="kicker">Group fairness metrics</div><div class="grid g2">`;
   for(const at of a.attributes){
     html+=`<div class="card"><h3>${attrTitle[at.attribute]||at.attribute}</h3>`;
@@ -205,6 +345,7 @@ $('#tab-chaos').addEventListener('click',async e=>{
 
 /* ---------------- FILTERED ---------------- */
 async function loadFiltered(){
+  if(!META)await bootOnce();
   const r=await jget(`/api/filtered?model=${MODEL}`);
   const s=$('#tab-filtered');
   if(r.error){s.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
@@ -245,7 +386,7 @@ $('#tab-mitigations').addEventListener('click',async e=>{
   const b=r.before,a=r.after.certificate;
   o.innerHTML=`<div class="card" style="background:var(--card2)"><h3>Result</h3>
     ${r.applied.map(x=>`<div class="grow" style="margin:4px 0"><span class="chip ok">applied</span><span style="font-size:13.5px">${x}</span></div>`).join('')}
-    <div class="grow" style="margin-top:12px"><span class="lbl" style="width:auto">Fairness Certificate</span>
+    <div class="grow" style="margin-top:12px"><span class="lbl" style="width:auto">Fairness Risk Score</span>
     <b style="color:${gradeColor(b.grade)}">${b.total} (${b.grade})</b><span class="dim">→</span>
     <b style="color:${gradeColor(a.grade)};font-size:22px">${a.total} (${a.grade})</b></div></div>
     <div class="grid g2" style="margin-top:14px">${r.after.attributes.map(at=>`<div class="card"><h3>${attrTitle[at.attribute]||at.attribute}</h3>
@@ -322,7 +463,7 @@ $('#tab-upload').innerHTML=`<div class="grid g2">
   <div class="dim" style="font-size:14px;line-height:1.9">✔ Custom outcome and protected-attribute columns<br>
   ✔ Configurable favorable values and minimum group size<br>
   ✔ Disparate impact, demographic parity &amp; equal opportunity<br>
-  ✔ Transparent Fairness Certificate Score™<br>
+  ✔ Transparent Fairness Risk Score with published weights<br>
   ✔ Downloadable JSON evidence for review or CI pipelines<br>
   ✔ IP-safe: upload decisions, never model weights</div></div></div>`;
 $('#tab-upload').addEventListener('change',async e=>{
@@ -364,7 +505,7 @@ async function loadHistory(){
   const r=await jget('/api/audits');
   if(!r.audits.length){s.innerHTML=`<div class="card"><h3>Audit history</h3><p class="dim">No saved audits yet. Upload a synthetic decision CSV to create the first record.</p></div>`;return;}
   s.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h3>Saved aggregate audits</h3><p class="dim">Raw applicant rows are never written to this history database.</p></div><button class="btn ghost" id="refreshhistory">Refresh</button></div>
-   <div style="overflow:auto;margin-top:12px"><table><tr><th>Audit</th><th>Created</th><th>Rows</th><th>Attributes</th><th>Certificate</th><th></th></tr>
+   <div style="overflow:auto;margin-top:12px"><table><tr><th>Audit</th><th>Created</th><th>Rows</th><th>Attributes</th><th>Risk score</th><th></th></tr>
    ${r.audits.map(a=>`<tr><td><b>${esc(a.name)}</b><br><span class="dim">${esc(a.audit_id)}</span></td><td>${new Date(a.created_at).toLocaleString()}</td><td>${a.candidates}</td><td>${a.protected_attributes.map(esc).join(', ')}</td><td><span class="chip ${a.certificate.grade==='A'||a.certificate.grade==='B'?'ok':a.certificate.grade==='F'?'bad':'warn'}">${a.certificate.total} / ${a.certificate.grade}</span></td><td><button class="btn ghost history-view" data-audit="${esc(a.audit_id)}">View</button></td></tr>`).join('')}</table></div></div><div id="historydetail" style="margin-top:14px"></div>`;
 }
 $('#tab-history').addEventListener('click',async e=>{
@@ -384,8 +525,8 @@ async function loadComparison(){
   const r=await jget('/api/compare?baseline=legacy&candidate=fair');
   const modelCard=(x,label)=>`<div class="card"><div class="dim">${label}</div><h3>${esc(x.model.title)}</h3><div class="stat-num">${x.certificate.total} / ${x.certificate.grade}</div><div class="grow"><span class="lbl">Chaos resilience</span><div class="bar"><i style="width:${x.chaos_resilience}%"></i></div><span class="val">${x.chaos_resilience}</span></div><div class="grow"><span class="lbl">Worst DI</span><div class="bar"><i style="width:${x.worst_disparate_impact*100}%"></i></div><span class="val">${x.worst_disparate_impact}</span></div><div class="dim">Experiment ${esc(x.experiment_id)}</div></div>`;
   s.innerHTML=`<div class="grid g2">${modelCard(r.baseline,'BASELINE')}${modelCard(r.candidate,'CANDIDATE')}</div>
-   <div class="card" style="margin-top:14px"><h3>Change summary</h3><div class="grid g4"><div><div class="dim">Certificate Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.certificate}</div></div><div><div class="dim">Resilience Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.chaos_resilience}</div></div><div><div class="dim">Worst DI Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.worst_disparate_impact}</div></div></div></div>
-   <div class="card" style="margin-top:14px"><h3>CI/CD fairness policy</h3><p class="dim">Block a model release automatically when it fails an absolute floor or regresses from the baseline.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px"><div><label>Minimum certificate</label><input id="gatecert" type="number" value="75" min="0" max="100"></div><div><label>Minimum resilience</label><input id="gateres" type="number" value="80" min="0" max="100"></div><div><label>Minimum disparate impact</label><input id="gatedi" type="number" value="0.8" min="0" max="1" step="0.01"></div></div><button class="btn" id="rungate" style="margin-top:12px">Evaluate release gate</button><div id="gateout" style="margin-top:12px"></div></div>`;
+   <div class="card" style="margin-top:14px"><h3>Change summary</h3><div class="grid g4"><div><div class="dim">Risk score Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.certificate}</div></div><div><div class="dim">Resilience Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.chaos_resilience}</div></div><div><div class="dim">Worst DI Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.worst_disparate_impact}</div></div></div></div>
+   <div class="card" style="margin-top:14px"><h3>CI/CD fairness policy</h3><p class="dim">Block a model release automatically when it fails an absolute floor or regresses from the baseline.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px"><div><label>Minimum risk score</label><input id="gatecert" type="number" value="75" min="0" max="100"></div><div><label>Minimum resilience</label><input id="gateres" type="number" value="80" min="0" max="100"></div><div><label>Minimum disparate impact</label><input id="gatedi" type="number" value="0.8" min="0" max="1" step="0.01"></div></div><button class="btn" id="rungate" style="margin-top:12px">Evaluate release gate</button><div id="gateout" style="margin-top:12px"></div></div>`;
 }
 $('#tab-compare').addEventListener('click',async e=>{
   if(e.target.id!=='rungate')return;
@@ -417,16 +558,12 @@ async function loadDemo(){
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/service-worker.js').catch(()=>{}));}
 
 /* ---------------- boot ---------------- */
-(async()=>{ 
-  try{
-    META=await jget('/api/meta');
-    renderModelSel();
-    $('#sid').textContent=META.sample_ids.join(', ');
-    $('#schema').textContent=META.schema;
-    await loadOverview();
-  }catch(e){
-    $('#tab-overview').innerHTML='<div class="err">The free server was asleep and is still waking up (takes ~60 seconds after being idle).<br><br><button class="btn" onclick="location.reload()">Retry now</button></div>';
-  }
+(async()=>{
+  const hash=(location.hash||'').replace(/^#/,'').split('?')[0].split('&')[0];
+  if(hash==='landing')return;
+  if(hash==='dashboard'){await openApp('overview');return;}
+  if(TABS.some(([t])=>t===hash)){await openApp(hash);return;}
+  /* No deep link: stay on the landing view and let the visitor choose. */
 })();
 </script>
 </body>

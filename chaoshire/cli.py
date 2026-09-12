@@ -19,7 +19,12 @@ def build_parser() -> argparse.ArgumentParser:
     gate = commands.add_parser("gate", help="Evaluate a reference model release gate")
     gate.add_argument("--baseline", choices=["legacy", "fair"], default="legacy")
     gate.add_argument("--candidate", choices=["legacy", "fair"], default="fair")
-    gate.add_argument("--min-certificate", type=int, default=75)
+    gate.add_argument(
+        "--min-certificate",
+        type=int,
+        default=75,
+        help="Minimum fairness risk score (0-100). The flag name is kept for API compatibility.",
+    )
     gate.add_argument("--min-resilience", type=int, default=80)
     gate.add_argument("--min-di", type=float, default=0.8)
     report = commands.add_parser("report", help="Generate a self-contained HTML or PDF report")

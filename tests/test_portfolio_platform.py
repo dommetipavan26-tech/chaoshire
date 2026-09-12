@@ -17,8 +17,8 @@ from chaoshire.platform import SlidingWindowLimiter
 client = TestClient(backend.app)
 
 
-def test_v020_contract_and_operational_endpoints():
-    assert __version__ == "0.20.1"
+def test_version_and_operational_endpoints():
+    assert __version__ == "0.21.0"
     assert client.get("/api/live").json() == {"status": "alive"}
     assert client.get("/api/ready").json()["status"] == "ready"
     assert client.head("/api/health").status_code == 200
@@ -151,7 +151,7 @@ def test_pwa_and_mobile_accessibility_markers():
     manifest = client.get("/manifest.webmanifest")
     assert manifest.status_code == 200
     assert manifest.json()["display"] == "standalone"
-    assert "chaoshire-v020" in client.get("/service-worker.js").text
+    assert "chaoshire-v021" in client.get("/service-worker.js").text
     page = client.get("/").text
     assert 'href="#main"' in page
     assert "@media(max-width:600px)" in page
