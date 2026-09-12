@@ -131,9 +131,12 @@ def page(context, base_url: str):
 
 
 @pytest.fixture
-def dashboard(page, base_url: str):
-    """Enter the application the same way a visitor does: click, then wait for data."""
+def dashboard(page):
+    """Enter the application the same way a visitor does: click, then wait for data.
+
+    The shell updates the URL with history.replaceState, which is deliberately *not* a
+    navigation, so tests must wait on rendered content rather than on a URL change.
+    """
     page.get_by_role("button", name="Explore dashboard").click()
-    page.wait_for_url(f"{base_url}#overview")
     page.locator("#tab-overview .grade-ring").wait_for()
     return page

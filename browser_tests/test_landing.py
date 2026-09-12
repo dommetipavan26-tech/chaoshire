@@ -82,17 +82,25 @@ def test_visitor_can_return_to_the_landing_view(dashboard):
     assert dashboard.locator("#tab-demo").is_visible()
 
 
-def test_hash_deeplinks_open_the_application_directly(page, base_url):
-    page.goto(f"{base_url}/#chaos", wait_until="domcontentloaded")
-    assert page.locator("#landing").is_hidden()
-    assert page.locator("#tab-chaos").is_visible()
-    assert "Chaos Engineering for Fairness" in page.locator("#tab-chaos").inner_text()
+def test_hash_deeplinks_open_the_application_directly(context, base_url):
+    """A shared link into #chaos must land in the application, not on the landing view.
 
-    # A hash-only change does not re-run the boot script, so force a real load.
-    page.goto(f"{base_url}/#landing", wait_until="domcontentloaded")
-    page.reload(wait_until="domcontentloaded")
-    assert page.locator("#landing").is_visible()
-    assert page.locator("#app").is_hidden()
+    Each assertion needs a fresh page: navigating from "/" to "/#chaos" only changes the
+    fragment, so the browser never re-runs the boot script.
+    """
+    chaos = context.new_page()
+    chaos.goto(f"{base_url}/#chaos", wait_until="domcontentloaded")
+    assert chaos.locator("#landing").is_hidden()
+    assert chaos.locator("#tab-chaos").is_visible()
+    assert "Chaos Engineering for Fairness" in chaos.locator("#tab-chaos").inner_text()
+    assert chaos.evaluate("() => location.hash") == "#chaos"
+    chaos.close()
+
+    landing = context.new_page()
+    landing.goto(f"{base_url}/#landing", wait_until="domcontentloaded")
+    assert landing.locator("#landing").is_visible()
+    assert landing.locator("#app").is_hidden()
+    landing.close()
 
 
 def test_keyboard_navigation_reaches_and_activates_the_cta(page):
@@ -122,9 +130,9 @@ def test_focus_is_visible_for_keyboard_users(page):
 
 @pytest.mark.parametrize("context", [{"width": 390, "height": 844}], indirect=True)
 def test_mobile_viewport_collapses_sections_into_a_drawer(page):
-    assert page.locator("#navtoggle").is_visible()
     page.get_by_role("button", name="Explore dashboard").click()
     page.locator("#tab-overview .grade-ring").wait_for()
+    assert page.locator("#navtoggle").is_visible(), "the drawer control belongs to the app shell"
 
     tabs = page.locator("#tabs")
     assert not tabs.is_visible(), "section list should start collapsed on a phone"

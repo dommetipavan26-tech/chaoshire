@@ -31,8 +31,11 @@ jobs:
           if [ "$status" -ne 0 ]; then
             # Emit failures as check annotations so the Checks tab explains the red X
             # even when the raw job log is unavailable to the reviewer.
-            grep -E "^(FAILED|E )" browser-log.txt | head -30 \
-              | sed -e 's/%/%25/g' -e 's/^/::error::/'
+            {
+              grep -E "^(FAILED|ERROR)" browser-log.txt || true
+              grep -E "^E " browser-log.txt | head -20 || true
+              tail -3 browser-log.txt | grep -E "failed|passed|error" || true
+            } | sed -e 's/%/%25/g' -e 's/^/::error::/' | head -40
           fi
           exit "$status"
 

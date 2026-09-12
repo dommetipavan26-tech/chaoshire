@@ -1,0 +1,61 @@
+name: Portfolio screenshots
+
+# Dispatch-only helper: renders the committed UI in real Chromium and pushes the PNGs to a
+# disposable branch so they can be reviewed before landing in docs/assets/.
+# It is intentionally NOT triggered by pull_request, because it needs write access and runs
+# repository code; `gh workflow run portfolio-assets.yml -f source_ref=<branch>` is the entry point.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Ref to render screenshots from (branch, tag or SHA)
+        required: false
+        default: main
+      full_page:
+        description: Capture the whole page instead of the first viewport
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portfolio-screenshots
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Render and publish assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-browser.txt
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Render screenshots from the running application
+        run: |
+          args="--output docs/assets"
+          if [ "${{ inputs.full_page }}" != "true" ]; then args="$args --viewport-only"; fi
+          python scripts/capture_portfolio.py $args
+      - name: Publish to the portfolio-assets branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/assets
+          if git diff --cached --quiet; then
+            echo "No screenshot changes to publish."
+            exit 0
+          fi
+          git commit -m "chore: capture portfolio screenshots from ${GITHUB_REF_NAME}"
+          git push --force-with-lease origin "HEAD:refs/heads/portfolio-assets"
+          echo "Published PNGs to the portfolio-assets branch (source: ${GITHUB_REF_NAME})."
