@@ -2,9 +2,11 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Case study](docs/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/ARCHITECTURE.svg) · [Methodology](docs/METHODOLOGY.md) · [Platform](docs/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/MONITORING.md) · [Roadmap](PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [scikit-learn example](docs/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence](docs/PORTFOLIO-EVIDENCE.md) · [Case study](docs/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/ARCHITECTURE.svg) · [Methodology](docs/METHODOLOGY.md) · [Platform](docs/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/MONITORING.md) · [Roadmap](PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
+
+![ChaosHire recruiter landing page](docs/assets/landing-desktop.png)
 
 ChaosHire is an open-source fairness-auditing prototype for hiring models. It combines conventional group-fairness metrics with controlled counterfactual experiments, candidate-level explanations, mitigation simulations, and an appeals workflow.
 
@@ -28,7 +30,7 @@ Each experiment produces a `PASS`, `WARN`, or `FAIL`. Together they form a 0–1
 
 The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and two transparent reference models:
 
-| Reference model | Purpose | Fairness certificate | Chaos resilience |
+| Reference model | Purpose | Fairness risk score | Chaos resilience |
 |---|---|---:|---:|
 | **LegacyCorp Screen v1** | Intentionally biased test fixture | **42 / F** | **30 / 100** |
 | **MeritFirst v2** | Merit-based control fixture | **86 / B** | **100 / 100** |
@@ -42,6 +44,8 @@ The LegacyCorp fixture produces:
 - A simulated mitigation improvement from **42/F to 83/B**
 
 These are reproducible **synthetic demonstration results**, not findings about a real employer. The model names are fictional.
+
+> **Responsible-use boundary:** The fairness risk score is a transparent heuristic for investigation and human review. It is not an independent certification, does not establish legal compliance, and does not by itself prove or disprove discrimination. The public API retains the historical `certificate` JSON key and `--min-certificate` CLI option for backward compatibility.
 
 ## Product capabilities
 
@@ -103,7 +107,7 @@ chaoshire/
 ├── chaos.py               # controlled counterfactual experiments
 ├── config.py              # thresholds and deterministic demo settings
 ├── data.py                # synthetic fixture generation
-├── metrics.py             # fairness metrics and certificate formula
+├── metrics.py             # fairness metrics and risk-score formula
 ├── models.py              # feature transformations and scoring models
 ├── schemas.py             # validated API request contracts
 ├── services.py            # product workflows and orchestration
@@ -158,7 +162,18 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the current suite contains 65 tests and covers more than 96%.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.20.1 baseline contains **65 tests with 96.83% package coverage**.
+
+### Audit scikit-learn predictions
+
+A runnable example trains a deterministic logistic-regression pipeline on synthetic data, normalizes its predictions through the `DecisionAdapter` contract, and prints group-audit results:
+
+```bash
+python -m pip install -r requirements-examples.txt
+python -m examples.sklearn_decision_adapter
+```
+
+See the [scikit-learn integration guide](docs/SCIKIT-LEARN-INTEGRATION.md) for the data contract, adaptation steps, and responsible-use limits.
 
 ### Continuous fairness commands
 
@@ -207,7 +222,7 @@ The original schema remains backward-compatible. Download a compatible synthetic
 
 ## Three-minute walkthrough
 
-1. Open **LegacyCorp Screen v1** and note its 42/F certificate.
+1. Open **LegacyCorp Screen v1** and note its 42/F risk score.
 2. Open **Chaos Lab** and run the suite; explain the 16.9% gender-swap flip rate.
 3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
 4. Apply all three mitigations and compare 42/F with 83/B.

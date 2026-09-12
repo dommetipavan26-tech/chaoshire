@@ -34,7 +34,7 @@ Evidence explains *which decisions changed*; it does not itself determine whethe
 GET /api/compare?baseline=legacy&candidate=fair
 ```
 
-The response compares certificate score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs.
+The response compares fairness risk score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs.
 
 ## Fairness release gate
 
@@ -44,10 +44,10 @@ POST /api/gate
 
 The gate enforces absolute floors and regression tolerances:
 
-- Minimum certificate score
+- Minimum fairness risk score
 - Minimum chaos resilience
 - Minimum worst-case disparate impact
-- Maximum certificate regression
+- Maximum risk-score regression
 - Maximum resilience regression
 
 A successful candidate returns `PASS`; any failed check returns `BLOCK`.

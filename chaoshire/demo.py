@@ -25,7 +25,7 @@ def guided_demo() -> dict[str, Any]:
             {
                 "id": 1,
                 "title": "Establish the baseline",
-                "message": f"LegacyCorp scores {legacy['certificate']['total']}/{legacy['certificate']['grade']} across 1,000 synthetic candidates.",
+                "message": f"LegacyCorp has a fairness risk score of {legacy['certificate']['total']}/{legacy['certificate']['grade']} across 1,000 synthetic candidates.",
                 "evidence": {"certificate": legacy["certificate"], "stats": legacy["stats"]},
             },
             {
@@ -49,7 +49,7 @@ def guided_demo() -> dict[str, Any]:
             {
                 "id": 5,
                 "title": "Mitigate and compare",
-                "message": f"Simulated controls improve the certificate to {improved['after']['certificate']['total']}/{improved['after']['certificate']['grade']}; MeritFirst scores {fair['certificate']['total']}/{fair['certificate']['grade']}.",
+                "message": f"Simulated controls improve the fairness risk score to {improved['after']['certificate']['total']}/{improved['after']['certificate']['grade']}; MeritFirst scores {fair['certificate']['total']}/{fair['certificate']['grade']}.",
                 "evidence": {"mitigation": improved, "comparison": comparison},
             },
             {

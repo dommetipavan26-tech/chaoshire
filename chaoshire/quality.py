@@ -53,7 +53,7 @@ def evaluate_fairness_gate(
     checks = [
         {
             "id": "minimum_certificate",
-            "label": f"Certificate ≥ {minimum_certificate}",
+            "label": f"Risk score ≥ {minimum_certificate}",
             "actual": candidate["certificate"]["total"],
             "passed": candidate["certificate"]["total"] >= minimum_certificate,
         },
@@ -71,7 +71,7 @@ def evaluate_fairness_gate(
         },
         {
             "id": "certificate_regression",
-            "label": f"Certificate regression ≤ {maximum_certificate_regression}",
+            "label": f"Risk score regression ≤ {maximum_certificate_regression}",
             "actual": baseline["certificate"]["total"] - candidate["certificate"]["total"],
             "passed": (
                 candidate["certificate"]["total"]

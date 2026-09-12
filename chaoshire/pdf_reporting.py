@@ -16,7 +16,7 @@ def _report_lines(audit: dict[str, Any], chaos: dict[str, Any] | None) -> list[s
         "",
         f"Candidates: {audit['stats']['candidates']}",
         f"Accepted: {audit['stats']['accepted']}",
-        f"Fairness certificate: {certificate['total']} / {certificate['grade']}",
+        f"Fairness risk score: {certificate['total']} / {certificate['grade']}",
         "",
         "Primary attributes",
     ]
