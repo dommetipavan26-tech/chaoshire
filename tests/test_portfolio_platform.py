@@ -18,7 +18,7 @@ client = TestClient(backend.app)
 
 
 def test_v020_contract_and_operational_endpoints():
-    assert __version__ == "0.21.0"
+    assert __version__ == "0.21.1"
     assert client.get("/api/live").json() == {"status": "alive"}
     assert client.get("/api/ready").json()["status"] == "ready"
     assert client.head("/api/health").status_code == 200
@@ -153,6 +153,9 @@ def test_pwa_and_mobile_accessibility_markers():
     assert manifest.json()["display"] == "standalone"
     assert "chaoshire-v020" in client.get("/service-worker.js").text
     page = client.get("/").text
+    assert page.count("</body>") == 1
+    assert page.count("</html>") == 1
+    assert page.rstrip().endswith("</html>")
     assert 'href="#main"' in page
     assert "@media(max-width:600px)" in page
     assert "prefers-reduced-motion" in page
