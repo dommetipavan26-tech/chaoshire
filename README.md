@@ -16,16 +16,15 @@ into candidate evidence and a CI/CD release gate.
 [![Browser and mobile checks](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/browser.yml/badge.svg?branch=main)](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/browser.yml)
 [![Release](https://github.com/dommetipavan26-tech/chaoshire/actions/workflows/release.yml/badge.svg)](https://github.com/dommetipavan26-tech/chaoshire/releases/latest)
 
-| The recruiter landing view | The fairness dashboard |
-|---|---|
-| ![Landing page](docs/assets/landing-desktop.png) | ![Fairness dashboard](docs/assets/dashboard-desktop.png) |
+In the browser: **[live demo →](https://chaoshire.onrender.com)** (opens on the landing view —
+*Start the guided demo* runs the six-step walkthrough, *Explore dashboard* goes straight to the
+audit). Static screenshots are regenerated from the deployed build by
+`.github/workflows/portfolio-assets.yml` and committed under `docs/assets/`, so the pictures can
+never drift from the shipped UI:
 
-| Chaos Lab counterfactuals | Release gate |
-|---|---|
-| ![Chaos Lab](docs/assets/chaos-lab-desktop.png) | ![Release gate](docs/assets/release-gate-desktop.png) |
-
-Mobile (390 px) keeps every section reachable through a collapsible drawer and 44 px touch
-targets: ![Mobile landing](docs/assets/landing-mobile.png)
+```bash
+python scripts/capture_portfolio.py --base-url https://chaoshire.onrender.com --output docs/assets
+```
 
 Every number in this section is machine-verified — see [docs/VERIFIED-QUALITY.json](docs/VERIFIED-QUALITY.json):
 
