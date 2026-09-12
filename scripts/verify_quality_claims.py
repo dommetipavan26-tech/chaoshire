@@ -111,6 +111,11 @@ def coverage_row(path: Path) -> tuple[str, str, str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Verify published quality claims.")
     parser.add_argument(
+        "--report",
+        type=Path,
+        help="write the full claim/expected/actual table to this file instead of stdout",
+    )
+    parser.add_argument(
         "--coverage",
         type=Path,
         help="coverage.json produced by: python -m pytest --cov=chaoshire --cov-report=json:coverage.json",
@@ -124,14 +129,30 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         rows.append(coverage_row(args.coverage))
 
-    drift = 0
-    for name, expected, actual in rows:
-        status = "ok" if expected == actual else "MISMATCH"
-        drift += status != "ok"
-        print(f"[{status:>8}] {name}: expected {expected}, found {actual}")
+    # Values are read from committed files, so only the claim name and a status word are
+    # written to the console; the numeric detail goes to --report for CI artefacts.
+    drift = [name for name, expected, actual in rows if expected != actual]
+    stale = {name for name in drift}
+
+    if args.report:
+        args.report.write_text(
+            "\n".join(
+                f"{name}: expected {expected}, found {actual}" for name, expected, actual in rows
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        print(f"detailed claim report written to {args.report}")
+
+    for name, _expected, _actual in rows:
+        print(("STALE  " if name in stale else "verified") + f"  {name}")
 
     if drift:
-        print(f"\n{drift} published claim(s) are stale — update docs/VERIFIED-QUALITY.json.", file=sys.stderr)
+        print(
+            f"\n{len(drift)} published claim(s) are stale — re-measure and update "
+            "docs/VERIFIED-QUALITY.json (details in --report).",
+            file=sys.stderr,
+        )
         return 1
     print(f"\nAll {len(rows)} published claims verified.")
     return 0

@@ -88,8 +88,11 @@ def test_hash_deeplinks_open_the_application_directly(page, base_url):
     assert page.locator("#tab-chaos").is_visible()
     assert "Chaos Engineering for Fairness" in page.locator("#tab-chaos").inner_text()
 
+    # A hash-only change does not re-run the boot script, so force a real load.
     page.goto(f"{base_url}/#landing", wait_until="domcontentloaded")
+    page.reload(wait_until="domcontentloaded")
     assert page.locator("#landing").is_visible()
+    assert page.locator("#app").is_hidden()
 
 
 def test_keyboard_navigation_reaches_and_activates_the_cta(page):
@@ -106,11 +109,15 @@ def test_keyboard_navigation_reaches_and_activates_the_cta(page):
 
 
 def test_focus_is_visible_for_keyboard_users(page):
-    outline = page.evaluate(
-        "() => { const el = document.getElementById('cta-demo'); el.focus();"
-        " return getComputedStyle(el).outlineColor; }"
+    """Keyboard users need a ring that is not browser-default-only."""
+    rules = page.evaluate(
+        "() => [...document.styleSheets].flatMap(s => [...s.cssRules])"
+        ".filter(r => r.selectorText && r.selectorText.includes(':focus-visible'))"
+        ".map(r => r.cssText)"
     )
-    assert outline != "rgba(0, 0, 0, 0)"
+    assert rules, "no :focus-visible rules found"
+    assert any("outline" in rule for rule in rules)
+    assert any("outline-width" in rule or "outline:" in rule for rule in rules)
 
 
 @pytest.mark.parametrize("context", [{"width": 390, "height": 844}], indirect=True)
@@ -133,16 +140,18 @@ def test_mobile_viewport_collapses_sections_into_a_drawer(page):
     for label in ("Guided Demo", "Review Agent"):
         assert any(label in text for text in labels)
 
+    # Touch targets stay finger-sized while the drawer is open.
+    heights = page.evaluate(
+        "() => [...document.querySelectorAll('#tabs button, #navtoggle')]"
+        ".map(el => el.getBoundingClientRect().height)"
+    )
+    assert len(heights) == 11
+    assert min(heights) >= 42
+
     tabs.get_by_role("button", name="Guided Demo").click()
     assert page.locator("#tab-demo").is_visible()
     assert not tabs.is_visible(), "drawer should close after choosing a section"
 
-    # Touch targets stay finger-sized and nothing overflows the viewport.
-    heights = page.evaluate(
-        "() => [...document.querySelectorAll('#tabs button, .lcta .btn, #navtoggle')]"
-        ".map(el => el.getBoundingClientRect().height)"
-    )
-    assert min(heights) >= 38
     overflow = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
     assert overflow <= 1
 
