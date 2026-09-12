@@ -1,0 +1,38 @@
+name: Browser and mobile checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    name: Chromium (desktop + mobile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-browser.txt
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Run browser tests
+        run: python -m pytest browser_tests -q -p no:cacheprovider
+      - name: Capture portfolio screenshots
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        run: python scripts/capture_portfolio.py --output portfolio-assets
+      - name: Upload screenshots
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: portfolio-screenshots
+          path: portfolio-assets/*.png
+          if-no-files-found: error
+          retention-days: 30
