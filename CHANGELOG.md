@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Fixed
-- Hide model controls on Home so the fixed LegacyCorp demonstration cannot conflict with a previously selected model
+- Keep the model switcher on Home and update the demonstration card immediately: LegacyCorp shows 42/F, 169 gender flips, 111 community flips, and 30 resilience; MeritFirst shows 86/B, zero identity flips, and 100 resilience
 - Force immediate service-worker activation, rotate the app-shell cache, and disable HTML/service-worker HTTP caching so deployed UI fixes reach returning browsers
 - Model selector now opens the fairness dashboard, preventing the static LegacyCorp landing example from appearing to represent both models
 - Updated the landing proof strip to the verified v0.21.0 public release
