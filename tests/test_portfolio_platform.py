@@ -153,6 +153,9 @@ def test_pwa_and_mobile_accessibility_markers():
     assert manifest.json()["display"] == "standalone"
     assert "chaoshire-v020" in client.get("/service-worker.js").text
     page = client.get("/").text
+    assert page.count("</body>") == 1
+    assert page.count("</html>") == 1
+    assert page.rstrip().endswith("</html>")
     assert 'href="#main"' in page
     assert "@media(max-width:600px)" in page
     assert "prefers-reduced-motion" in page
