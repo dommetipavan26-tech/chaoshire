@@ -87,7 +87,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     <h1>Chaos<span>Hire</span></h1>
     <div class="tag">Chaos Simulator for Fair Hiring · break your hiring AI before it breaks someone's career</div>
   </div>
-  <div class="modelsel" id="modelsel"></div>
+  <div class="modelsel hidden" id="modelsel" aria-label="Audit model selector"></div>
 </header>
 <nav id="tabs" aria-label="Product sections"></nav>
 <main id="main" tabindex="-1">
@@ -132,6 +132,7 @@ const TABS=[['welcome','Home'],['overview','Fairness Dashboard'],['chaos','⚡ C
 $('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${id}" class="${i===0?'on':''}" aria-current="${i===0?'page':'false'}">${l}</button>`).join('');
 function showTab(id){
   document.querySelectorAll('nav button').forEach(x=>{const on=x.dataset.t===id;x.classList.toggle('on',on);x.setAttribute('aria-current',on?'page':'false');});
+  $('#modelsel').classList.toggle('hidden',id==='welcome');
   TABS.forEach(([tab])=>$('#tab-'+tab).classList.toggle('hidden',tab!==id));
   if(id==='filtered')loadFiltered();
   if(id==='history')loadHistory();

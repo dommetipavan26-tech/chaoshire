@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Fixed
+- Hide model controls on Home so the fixed LegacyCorp demonstration cannot conflict with a previously selected model
+- Force immediate service-worker activation, rotate the app-shell cache, and disable HTML/service-worker HTTP caching so deployed UI fixes reach returning browsers
 - Model selector now opens the fairness dashboard, preventing the static LegacyCorp landing example from appearing to represent both models
 - Updated the landing proof strip to the verified v0.21.0 public release
 - Added `HEAD` support to health, liveness, and readiness endpoints for UptimeRobot and other uptime monitors

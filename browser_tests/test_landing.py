@@ -57,11 +57,15 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
             assert page.get_by_text(proof, exact=True).is_visible()
         assert page.get_by_text("does not make hiring decisions", exact=False).is_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        assert page.locator("#modelsel").is_hidden()
 
+        page.get_by_role("button", name="Explore dashboard").click()
+        assert page.locator("#modelsel").is_visible()
         page.get_by_role("button", name="MeritFirst v2").click()
         page.locator("#tab-overview .grade-ring b", has_text="86").wait_for()
         assert page.locator("#tab-overview").is_visible()
         page.get_by_role("button", name="Home").click()
+        assert page.locator("#modelsel").is_hidden()
 
         demo = page.get_by_role("button", name="Start the 3-minute demo")
         demo.focus()

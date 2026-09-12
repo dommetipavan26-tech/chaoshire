@@ -151,8 +151,14 @@ def test_pwa_and_mobile_accessibility_markers():
     manifest = client.get("/manifest.webmanifest")
     assert manifest.status_code == 200
     assert manifest.json()["display"] == "standalone"
-    assert "chaoshire-v020" in client.get("/service-worker.js").text
-    page = client.get("/").text
+    service_worker = client.get("/service-worker.js")
+    assert "chaoshire-v0211" in service_worker.text
+    assert "skipWaiting" in service_worker.text
+    assert "clients.claim" in service_worker.text
+    assert "no-cache" in service_worker.headers["cache-control"]
+    home = client.get("/")
+    assert home.headers["cache-control"] == "no-cache"
+    page = home.text
     assert page.count("</body>") == 1
     assert page.count("</html>") == 1
     assert page.rstrip().endswith("</html>")
