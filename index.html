@@ -96,7 +96,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
       <div><span class="chip info">OPEN-SOURCE RESPONSIBLE AI</span><h2 style="margin-top:14px">Stress-test hiring AI <span>before unfair decisions reach candidates.</span></h2><p>ChaosHire combines statistical fairness audits with controlled counterfactual experiments, candidate-level evidence, and automated release gates.</p><div class="hero-actions"><button class="btn" id="startdemo">Start the 3-minute demo</button><button class="btn ghost" id="exploredashboard">Explore dashboard</button></div><div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="/docs" target="_blank">API documentation ↗</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release ↗</a></div></div>
       <aside class="hero-panel"><div class="dim">DETERMINISTIC DEMONSTRATION</div><div style="font-size:52px;font-weight:800;color:var(--rose);margin-top:6px">42 / F</div><div>LegacyCorp technical fairness risk score</div><hr style="border:0;border-top:1px solid var(--line);margin:17px 0"><div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar"><i style="width:84.5%"></i></div><b>169</b></div><div class="grow"><span class="lbl">Community flips</span><div class="bar badbar"><i style="width:55.5%"></i></div><b>111</b></div><div class="grow"><span class="lbl">Resilience</span><div class="bar badbar"><i style="width:30%"></i></div><b>30</b></div><p class="dim" style="margin-top:14px">All people, employers, and findings are synthetic.</p></aside>
     </div>
-    <div class="proof"><div class="card"><b>65</b><span class="dim">automated tests</span></div><div class="card"><b>96.83%</b><span class="dim">package coverage</span></div><div class="card"><b>5</b><span class="dim">Chaos experiments</span></div><div class="card"><b>v0.20.1</b><span class="dim">verified public release</span></div></div>
+    <div class="proof"><div class="card"><b>65</b><span class="dim">automated tests</span></div><div class="card"><b>96.83%</b><span class="dim">package coverage</span></div><div class="card"><b>5</b><span class="dim">Chaos experiments</span></div><div class="card"><b>v0.21.0</b><span class="dim">verified public release</span></div></div>
     <div class="kicker">From measurement to accountable release</div><div class="grid g4"><article class="card feature-card"><h3>Measure disparities</h3><p class="dim">Selection rates, confidence intervals, significance indicators, and intersectional analysis.</p></article><article class="card feature-card"><h3>Break decisions safely</h3><p class="dim">Identity swaps and demographic stress tests reveal decision sensitivity.</p></article><article class="card feature-card"><h3>Inspect human impact</h3><p class="dim">Before/after evidence, explanations, appeals, and qualified candidates missed.</p></article><article class="card feature-card"><h3>Block regressions</h3><p class="dim">Model comparisons and CI/CD policy prevent a weaker release from shipping.</p></article></div>
     <div class="card" style="margin-top:18px"><b>Responsible boundary:</b> ChaosHire supports investigation and human review. It does not make hiring decisions, prove unlawful discrimination, or provide legal certification.</div>
   </section>
@@ -148,7 +148,7 @@ function renderModelSel(){
     `<button class="mbtn ${m.id===MODEL?'on':''}" data-m="${m.id}"><b>${m.title}</b><br><span style="font-size:11px">${m.blurb}</span></button>`).join('');
 }
 $('#modelsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MODEL=b.dataset.m;renderModelSel();
-  loadOverview();$('#tab-chaos').innerHTML=chaosIntro();$('#tab-filtered').innerHTML='<p class="dim">Open this tab to load…</p>';$('#tab-mitigations').innerHTML=mitHTML();});
+  showTab('overview');loadOverview();$('#tab-chaos').innerHTML=chaosIntro();$('#tab-filtered').innerHTML='<p class="dim">Open this tab to load…</p>';$('#tab-mitigations').innerHTML=mitHTML();});
 
 /* ---------------- OVERVIEW ---------------- */
 async function loadOverview(dataset='demo'){
@@ -452,5 +452,8 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
   }
 })();
 </script>
+</body>
+</html>
+pt>
 </body>
 </html>

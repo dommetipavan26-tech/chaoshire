@@ -53,10 +53,15 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         page.goto(url, wait_until="networkidle")
 
         page.get_by_role("heading", name="Stress-test hiring AI").wait_for()
-        for proof in ("65", "96.83%", "5", "v0.20.1"):
+        for proof in ("65", "96.83%", "5", "v0.21.0"):
             assert page.get_by_text(proof, exact=True).is_visible()
         assert page.get_by_text("does not make hiring decisions", exact=False).is_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+        page.get_by_role("button", name="MeritFirst v2").click()
+        page.locator("#tab-overview .grade-ring b", has_text="86").wait_for()
+        assert page.locator("#tab-overview").is_visible()
+        page.get_by_role("button", name="Home").click()
 
         demo = page.get_by_role("button", name="Start the 3-minute demo")
         demo.focus()
