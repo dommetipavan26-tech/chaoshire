@@ -73,6 +73,23 @@ The default minimum reliable group size is 30 and can be configured from 2 to 50
 
 This rule prevents tiny cells from dominating the score; it does not make larger cells automatically representative.
 
+## Assessability guards
+
+A fairness risk score is only meaningful when the data actually supports a
+between-group comparison. ChaosHire therefore marks an audit **not assessable**
+(grade `N/A`, score 0, with explicit reasons) when:
+
+- the dataset is empty;
+- every candidate received the same decision (all selected or all rejected), so selection rates carry no information;
+- no protected attribute was supplied or detected; or
+- no protected attribute has at least two groups above the minimum reliable size.
+
+Without these guards a model that rejects everybody would score a perfect
+100/A, because ratios of identical rates are trivially equal. Not-assessable
+audits still report their group metrics for inspection, appear as `N/A` in the
+dashboard, reports, and audit history, and raise a HIGH finding in the review
+agent.
+
 ## Intersectional analysis
 
 ChaosHire creates every pairwise combination of selected protected attributes. For example:

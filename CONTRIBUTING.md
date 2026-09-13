@@ -8,7 +8,7 @@ Thank you for helping improve responsible testing of automated decisions.
 2. Create a focused branch: `git checkout -b feature/short-description`.
 3. Create and activate a virtual environment.
 4. Install development dependencies: `python -m pip install -r requirements-dev.txt`.
-5. Run `python -m pytest -q` before opening a pull request.
+5. Run `python -m ruff check .` and `python -m pytest -q` before opening a pull request; the Quality workflow enforces both.
 
 ## Pull-request expectations
 

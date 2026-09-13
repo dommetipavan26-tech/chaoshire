@@ -20,7 +20,7 @@ from .models import (
     score,
 )
 from .repository import save_audit
-from .state import APPEALS, UPLOADED
+from .state import APPEALS, UPLOADED, UPLOADED_LOCK
 
 
 def filtered_candidates(model: str = "legacy") -> dict[str, Any]:
@@ -185,9 +185,18 @@ def list_appeals() -> dict[str, list[dict[str, Any]]]:
     return {"appeals": list(reversed(APPEALS))}
 
 
+MITIGATION_STRATEGIES = ("blind", "proxy", "calibrate")
+
+
 def mitigate(strategies: list[str]) -> dict[str, Any]:
     if not strategies:
         return {"error": "Select at least one strategy."}
+    unknown = [strategy for strategy in strategies if strategy not in MITIGATION_STRATEGIES]
+    if unknown:
+        return {
+            "error": f"Unknown mitigation strategies: {', '.join(sorted(set(unknown)))}.",
+            "available_strategies": list(MITIGATION_STRATEGIES),
+        }
     coefficients = dict(LEGACY)
     applied = []
     if "blind" in strategies:
@@ -219,9 +228,14 @@ def mitigate(strategies: list[str]) -> dict[str, Any]:
                     thresholds[mask] = np.minimum(thresholds[mask], quantile)
         applied.append("Threshold calibration — per-group cutoffs aligned to the highest selection rate")
 
-    before = audit(build_decisions(LEGACY))["certificate"]
+    before = audit(build_decisions(LEGACY))
     after = audit(build_decisions(coefficients, thresholds))
-    return {"applied": applied, "before": before, "after": after}
+    return {
+        "applied": applied,
+        "model": MODEL_META["legacy"],
+        "before": before,
+        "after": after,
+    }
 
 
 def _normalise_name(value: str | None) -> str | None:
@@ -369,9 +383,10 @@ def upload_decisions(
     safe_name = audit_name.strip() or "Untitled CSV audit"
     audit_id = save_audit(result, safe_name, metadata)
 
-    UPLOADED["df"] = uploaded
-    UPLOADED["metadata"] = metadata
-    UPLOADED["audit"] = result
+    with UPLOADED_LOCK:
+        UPLOADED["df"] = uploaded
+        UPLOADED["metadata"] = metadata
+        UPLOADED["audit"] = result
     return {
         "ok": True,
         "audit_id": audit_id,
@@ -387,7 +402,14 @@ def upload_decisions(
 
 
 def uploaded_audit() -> dict[str, Any]:
-    result = UPLOADED["audit"]
+    """Return the most recently uploaded aggregate audit.
+
+    The prototype keeps a single shared slot, so on a public deployment this is
+    the latest upload made by *any* visitor. Only aggregate metrics are exposed;
+    raw rows never leave the uploading process's memory.
+    """
+    with UPLOADED_LOCK:
+        result = UPLOADED["audit"]
     if result is None:
         return {"error": "No dataset uploaded yet."}
     return result

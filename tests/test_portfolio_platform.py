@@ -18,7 +18,7 @@ client = TestClient(backend.app)
 
 
 def test_v020_contract_and_operational_endpoints():
-    assert __version__ == "0.21.1"
+    assert __version__ == "0.22.0"
     assert client.get("/api/live").json() == {"status": "alive"}
     assert client.get("/api/ready").json()["status"] == "ready"
     assert client.head("/api/health").status_code == 200
@@ -150,9 +150,20 @@ def test_portfolio_cli_commands(tmp_path, capsys):
 def test_pwa_and_mobile_accessibility_markers():
     manifest = client.get("/manifest.webmanifest")
     assert manifest.status_code == 200
-    assert manifest.json()["display"] == "standalone"
+    body = manifest.json()
+    assert body["display"] == "standalone"
+    purposes = {icon["purpose"] for icon in body["icons"]}
+    assert {"any", "maskable"} <= purposes
+    sizes = {icon["sizes"] for icon in body["icons"]}
+    assert "192x192" in sizes and "512x512" in sizes
+    for icon in body["icons"]:
+        icon_response = client.get(icon["src"])
+        assert icon_response.status_code == 200
+        assert icon_response.headers["content-type"] == "image/png"
+        assert icon_response.content.startswith(b"\x89PNG")
     service_worker = client.get("/service-worker.js")
-    assert "chaoshire-v0211" in service_worker.text
+    assert "chaoshire-v0220" in service_worker.text
+    assert "/icons/icon-192.png" in service_worker.text
     assert "skipWaiting" in service_worker.text
     assert "clients.claim" in service_worker.text
     assert "no-cache" in service_worker.headers["cache-control"]

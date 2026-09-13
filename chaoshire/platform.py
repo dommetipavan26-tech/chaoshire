@@ -87,7 +87,13 @@ async def platform_middleware(request: Request, call_next):
             headers={"Retry-After": "60", "X-Request-ID": request_id},
         )
     started = time.perf_counter()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        # Unhandled endpoint exceptions are converted to a 500 further up the
+        # stack, so record them here or operational metrics would never see them.
+        OPERATIONS.record(500, (time.perf_counter() - started) * 1000)
+        raise
     duration = (time.perf_counter() - started) * 1000
     OPERATIONS.record(response.status_code, duration)
     response.headers["X-Request-ID"] = request_id

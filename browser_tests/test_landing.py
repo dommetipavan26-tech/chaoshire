@@ -53,7 +53,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         page.goto(url, wait_until="networkidle")
 
         page.get_by_role("heading", name="Stress-test hiring AI").wait_for()
-        for proof in ("65", "96.83%", "5", "v0.21.0"):
+        for proof in ("98", "97.65%", "5", "v0.21.0"):
             assert page.get_by_text(proof, exact=True).is_visible()
         assert page.get_by_text("does not make hiring decisions", exact=False).is_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")

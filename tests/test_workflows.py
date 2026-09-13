@@ -59,7 +59,7 @@ def test_mitigation_endpoint_preserves_reviewed_improvement():
     )
     assert response.status_code == 200
     body = response.json()
-    assert (body["before"]["total"], body["before"]["grade"]) == (42, "F")
+    assert (body["before"]["certificate"]["total"], body["before"]["certificate"]["grade"]) == (42, "F")
     assert (
         body["after"]["certificate"]["total"],
         body["after"]["certificate"]["grade"],
@@ -72,7 +72,7 @@ def test_upload_validation_and_uploaded_audit():
     assert "error" in missing_decision.json()
 
     csv_text = "gender,decision,qualified\n" + "\n".join(
-        ["F,1,1"] * 30 + ["M,1,1"] * 30
+        ["F,1,1"] * 25 + ["F,0,1"] * 5 + ["M,1,1"] * 25 + ["M,0,1"] * 5
     )
     upload = client.post("/api/upload", json={"csv": csv_text})
     assert upload.status_code == 200

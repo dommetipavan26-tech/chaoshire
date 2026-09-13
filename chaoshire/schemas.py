@@ -1,4 +1,6 @@
 """Pydantic request models for the public API."""
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -7,8 +9,12 @@ class AppealRequest(BaseModel):
     message: str = Field(min_length=1, max_length=5000)
 
 
+# Must stay in sync with ``chaoshire.services.MITIGATION_STRATEGIES``.
+MitigationStrategy = Literal["blind", "proxy", "calibrate"]
+
+
 class MitigationRequest(BaseModel):
-    strategies: list[str]
+    strategies: list[MitigationStrategy] = Field(min_length=1, max_length=3)
 
 
 class VerdictThreshold(BaseModel):

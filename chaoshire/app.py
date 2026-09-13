@@ -1,7 +1,8 @@
 """FastAPI route layer for ChaosHire."""
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 from . import __version__
@@ -47,6 +48,39 @@ from .services import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
+# Constant lookup table: request strings select an entry but never become part
+# of a filesystem path, which keeps the icon route free of path-injection taint.
+ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / name for name in ICON_FILES}
+DATASETS = ("demo", "uploaded")
+
+
+def require_known_model(
+    model: str = Query("legacy", description="Reference model identifier."),
+) -> str:
+    """Reject unknown model identifiers instead of silently substituting one."""
+    if model not in MODEL_META:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown reference model '{model}'. Available models: {', '.join(MODEL_META)}.",
+        )
+    return model
+
+
+def require_known_dataset(
+    dataset: str = Query("demo", description="'demo' for reference fixtures, 'uploaded' for a CSV audit."),
+) -> str:
+    if dataset not in DATASETS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown dataset '{dataset}'. Available datasets: {', '.join(DATASETS)}.",
+        )
+    return dataset
+
+
+ModelQuery = Annotated[str, Depends(require_known_model)]
+DatasetQuery = Annotated[str, Depends(require_known_dataset)]
 
 app = FastAPI(
     title="ChaosHire API",
@@ -89,20 +123,44 @@ def web_manifest() -> JSONResponse:
         {
             "name": "ChaosHire Fairness Auditor",
             "short_name": "ChaosHire",
+            "id": "/",
             "start_url": "/",
+            "scope": "/",
             "display": "standalone",
             "background_color": "#0b1220",
             "theme_color": "#0b1220",
             "description": "Evidence-grounded chaos testing for hiring-model fairness.",
+            "icons": [
+                {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                {
+                    "src": "/icons/icon-maskable-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "maskable",
+                },
+            ],
         },
         media_type="application/manifest+json",
     )
 
 
+@app.get("/icons/{name}", include_in_schema=False)
+def app_icon(name: str) -> Response:
+    icon_path = ICON_PATHS.get(name)
+    if icon_path is None:
+        raise HTTPException(status_code=404, detail="Icon not found.")
+    return Response(
+        icon_path.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/service-worker.js", include_in_schema=False)
 def service_worker() -> Response:
-    script = """const CACHE='chaoshire-v0211';
-self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest'])),self.skipWaiting()])));
+    script = """const CACHE='chaoshire-v0220';
+self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/icons/icon-192.png','/icons/icon-512.png'])),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))),self.clients.claim()])));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request.url).pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))});"""
     return Response(
@@ -148,14 +206,14 @@ def demo_story() -> dict:
 
 
 @app.get("/api/audit", tags=["audit"])
-def api_audit(model: str = "legacy", dataset: str = "demo") -> dict:
+def api_audit(model: ModelQuery, dataset: DatasetQuery) -> dict:
     if dataset == "uploaded":
         return uploaded_audit()
-    return audit(build_decisions(get_model(model)))
+    return {"model": MODEL_META[model], **audit(build_decisions(get_model(model)))}
 
 
 @app.get("/api/chaos", tags=["chaos lab"])
-def api_chaos(model: str = "legacy") -> dict:
+def api_chaos(model: ModelQuery) -> dict:
     return run_chaos_suite(model)
 
 
@@ -185,12 +243,12 @@ def fairness_gate(request: FairnessGateRequest) -> dict:
 
 
 @app.get("/api/filtered", tags=["explainability"])
-def api_filtered(model: str = "legacy") -> dict:
+def api_filtered(model: ModelQuery) -> dict:
     return filtered_candidates(model)
 
 
 @app.get("/api/explain/{candidate_id}", tags=["explainability"])
-def api_explain(candidate_id: str, model: str = "legacy") -> dict:
+def api_explain(candidate_id: str, model: ModelQuery) -> dict:
     return explain_candidate(candidate_id, model)
 
 
@@ -251,14 +309,13 @@ def export_uploaded_audit() -> JSONResponse:
     )
 
 
-def _report_inputs(model: str, dataset: str) -> tuple[dict, dict | None]:
+def _report_inputs(model: ModelQuery, dataset: DatasetQuery) -> tuple[dict, dict | None]:
+    """Resolve report inputs; both identifiers are validated by the route layer."""
     if dataset == "uploaded":
         result = uploaded_audit()
         if "error" in result:
             raise HTTPException(status_code=404, detail=result["error"])
         return result, None
-    if model not in MODEL_META:
-        raise HTTPException(status_code=400, detail="Unknown reference model.")
     return audit(build_decisions(get_model(model))), run_chaos_suite(model, evidence_limit=0)
 
 
@@ -269,7 +326,7 @@ def agent_review(request: AgentReviewRequest) -> dict:
 
 
 @app.get("/api/evidence", tags=["evidence"])
-def evidence_bundle(model: str = "legacy", dataset: str = "demo") -> dict:
+def evidence_bundle(model: ModelQuery, dataset: DatasetQuery) -> dict:
     result, chaos_result = _report_inputs(model, dataset)
     review = review_audit(result, chaos_result)
     return build_evidence_bundle(result, chaos_result, review)
@@ -281,7 +338,7 @@ def verify_evidence(request: EvidenceVerifyRequest) -> dict:
 
 
 @app.get("/api/report.html", response_class=HTMLResponse, tags=["reports"])
-def html_report(model: str = "legacy", dataset: str = "demo") -> HTMLResponse:
+def html_report(model: ModelQuery, dataset: DatasetQuery) -> HTMLResponse:
     result, chaos_result = _report_inputs(model, dataset)
     return HTMLResponse(
         render_html_report(result, chaos_result),
@@ -290,7 +347,7 @@ def html_report(model: str = "legacy", dataset: str = "demo") -> HTMLResponse:
 
 
 @app.get("/api/report.pdf", tags=["reports"])
-def pdf_report(model: str = "legacy", dataset: str = "demo") -> Response:
+def pdf_report(model: ModelQuery, dataset: DatasetQuery) -> Response:
     result, chaos_result = _report_inputs(model, dataset)
     return Response(
         render_pdf_report(result, chaos_result),

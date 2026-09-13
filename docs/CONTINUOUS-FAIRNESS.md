@@ -22,6 +22,20 @@ EXP-2F4A...
 
 The same model, policy, and results produce the same ID. Changing policy or model behavior changes the ID, making runs reproducible and comparable without persisting raw candidate rows.
 
+## Known limit of the privilege-injection fixture
+
+The Privilege-Keyword Injection experiment submits deliberately weak,
+prestige-heavy synthetic résumés. Against the shipped fixtures those résumés
+score at most 0.4043 against the 0.5 decision threshold, so the experiment
+currently PASSES for both reference models: LegacyCorp's prestige weight (0.09)
+is roughly three times smaller than the ~0.27 required to accept the strongest
+injected résumé. The experiment's detail string therefore reports the score
+headroom and the required prestige weight, and the regression suite verifies
+that a prestige-heavy variant of the fixture (prestige weight 0.35) FAILS while
+the merit-only fixture PASSES. Re-tuning the shipped fixture would change the
+published resilience constants, so it is tracked as an owner decision rather
+than a silent change.
+
 ## Candidate-level evidence
 
 Counterfactual and stress tests return the affected synthetic candidate IDs with before/after scores, decisions, and score deltas. API callers can cap evidence from 0–50 records. The public GET endpoint defaults to 10.
