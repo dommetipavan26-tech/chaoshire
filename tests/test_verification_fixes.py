@@ -225,6 +225,9 @@ def test_write_protection_still_blocks_appeals(monkeypatch):
 
 def test_missing_icon_returns_404():
     assert client.get("/icons/does-not-exist.png").status_code == 404
+    # Path-traversal attempts resolve to a dict miss, never a filesystem lookup.
+    assert client.get("/icons/..%2Fapp.py").status_code == 404
+    assert client.get("/icons/..%2f..%2fbackend.py").status_code == 404
 
 
 def test_uploaded_dataset_feeds_reports_and_evidence():

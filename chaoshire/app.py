@@ -50,6 +50,9 @@ from .services import (
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
+# Constant lookup table: request strings select an entry but never become part
+# of a filesystem path, which keeps the icon route free of path-injection taint.
+ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / name for name in ICON_FILES}
 DATASETS = ("demo", "uploaded")
 
 
@@ -144,10 +147,11 @@ def web_manifest() -> JSONResponse:
 
 @app.get("/icons/{name}", include_in_schema=False)
 def app_icon(name: str) -> Response:
-    if name not in ICON_FILES:
+    icon_path = ICON_PATHS.get(name)
+    if icon_path is None:
         raise HTTPException(status_code=404, detail="Icon not found.")
     return Response(
-        (STATIC_DIR / name).read_bytes(),
+        icon_path.read_bytes(),
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400"},
     )
