@@ -9,6 +9,7 @@ ChaosHire's public deployment is a demonstration environment. **Do not upload re
 - Render free-tier storage is ephemeral and must not be treated as a durable record system.
 - Optional `CHAOSHIRE_API_KEY` protection is available for uploads and appeal submissions, but the public portfolio demo may intentionally run without it; full user accounts and role-based authorization are not implemented.
 - Aggregate history remains readable to visitors when the portfolio demo is operated publicly.
+- The demo keeps a single shared upload slot: `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and the uploaded report endpoints return the most recent upload made by any visitor. Only aggregate metrics and interpretation settings are exposed, and the slot is swapped under a lock so concurrent uploads cannot interleave.
 - Responses include request IDs, security headers, a same-origin content policy, request-size enforcement, and optional rate limiting; these controls have not undergone an independent security assessment.
 - The application has not undergone an independent security or privacy assessment.
 - The demonstration is not designed for sensitive production workloads.

@@ -1,0 +1,34 @@
+# Version control and sandbox state
+.git/
+.gitignore
+.github/
+
+# Local environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Local databases and generated artifacts
+data/
+*.db
+*.db-shm
+*.db-wal
+reports/
+release/
+
+# Documentation sources not needed at runtime
+docs/
+browser_tests/
+examples/
+scripts/
+tests/
+
+# Packaging metadata
+build/
+dist/
+*.egg-info/

@@ -64,7 +64,7 @@ def test_all_mitigations_improve_but_do_not_overstate_grade():
     response = backend.api_mitigate(
         backend.MitigateReq(strategies=["blind", "proxy", "calibrate"])
     )
-    assert response["before"]["total"] == 42
-    assert response["before"]["grade"] == "F"
+    assert response["before"]["certificate"]["total"] == 42
+    assert response["before"]["certificate"]["grade"] == "F"
     assert response["after"]["certificate"]["total"] == 83
     assert response["after"]["certificate"]["grade"] == "B"

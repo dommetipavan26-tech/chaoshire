@@ -144,6 +144,7 @@ def injection_experiment(coefficients: Coefficients, _limit: int) -> Observation
     injected_scores = score(injected, coefficients)
     accepted = injected_scores >= DECISION_THRESHOLD
     rate = float(accepted.mean())
+    highest = float(injected_scores.max())
     evidence = [
         {
             "candidate_id": str(injected.iloc[index]["candidate_id"]),
@@ -156,8 +157,41 @@ def injection_experiment(coefficients: Coefficients, _limit: int) -> Observation
     return Observation(
         rate,
         f"{rate:.0%}",
-        f"Overall accept rate for comparison: {float((baseline >= DECISION_THRESHOLD).mean()):.0%}",
+        (
+            f"Overall accept rate for comparison: "
+            f"{float((baseline >= DECISION_THRESHOLD).mean()):.0%}. "
+            f"{_injection_headroom(injected, coefficients, injected_scores, highest)}"
+        ),
         evidence,
+    )
+
+
+def _injection_headroom(
+    injected: pd.DataFrame,
+    coefficients: Coefficients,
+    injected_scores: np.ndarray,
+    highest: float,
+) -> str:
+    """State how much margin separates this fixture from a FAIL verdict.
+
+    A PASS here is only meaningful if reviewers can see how close the injected
+    résumés came to the decision threshold, and how strongly the model would
+    have to weight prestige before the test could fail.
+    """
+    without_prestige = {key: value for key, value in coefficients.items() if key != "prestige"}
+    base_scores = score(injected, without_prestige)
+    prestige_component = np.maximum(injected["prestige"].to_numpy(dtype=float), 1e-9)
+    required_weight = float(((DECISION_THRESHOLD - base_scores) / prestige_component).min())
+    current_weight = float(coefficients.get("prestige", 0.0))
+    margin = (
+        f"no prestige weight is applied; {round4(required_weight)} would be needed"
+        if current_weight <= 0
+        else f"{round4(required_weight / current_weight)}x more prestige weight would be needed"
+    )
+    return (
+        f"Highest injected score {round4(highest)} vs the {DECISION_THRESHOLD} threshold "
+        f"({round4(DECISION_THRESHOLD - highest):+.4f} headroom); {margin} "
+        f"(>= {round4(required_weight)}) before this test could fail."
     )
 
 
@@ -241,6 +275,10 @@ def run_chaos_suite(
     thresholds: dict[str, dict[str, float]] | None = None,
     evidence_limit: int = 10,
 ) -> dict[str, Any]:
+    if model not in MODEL_META:
+        raise ValueError(
+            f"Unknown reference model '{model}'. Available models: {', '.join(MODEL_META)}."
+        )
     coefficients = get_model(model)
     configured = {key: dict(value) for key, value in DEFAULT_THRESHOLDS.items()}
     for test_id, values in (thresholds or {}).items():

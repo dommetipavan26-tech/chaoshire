@@ -17,7 +17,21 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
     """Create a deterministic risk review and human-action plan."""
     findings: list[dict[str, Any]] = []
     certificate = audit["certificate"]
-    if certificate["total"] < 75:
+    if not certificate.get("assessable", True):
+        findings.append(
+            {
+                "id": "audit-not-assessable",
+                "severity": "HIGH",
+                "title": "Fairness audit cannot be assessed from this data",
+                "metric": "certificate.assessable",
+                "actual": False,
+                "threshold": True,
+                "evidence_path": "/certificate/assessable",
+                "explanation": " ".join(certificate.get("reasons") or [])
+                or "Group-disparity metrics carry no information for this dataset.",
+            }
+        )
+    elif certificate["total"] < 75:
         findings.append(
             {
                 "id": "certificate-floor",
@@ -76,6 +90,11 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
     disposition = "BLOCK_AND_REVIEW" if critical or high else "REVIEW" if findings else "MONITOR"
 
     actions = []
+    if any(item["id"] == "audit-not-assessable" for item in findings):
+        actions.append(
+            "Repair the audit input before drawing conclusions: supply decision variation and at "
+            "least two groups above the minimum reliable size for every protected attribute."
+        )
     if any(item["id"].startswith("chaos-") for item in findings):
         actions.append("Inspect candidate-level before/after evidence for every failed Chaos experiment.")
     if any(item["metric"] == "disparate_impact" for item in findings):

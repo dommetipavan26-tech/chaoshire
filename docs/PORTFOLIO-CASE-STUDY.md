@@ -19,7 +19,7 @@ ChaosHire combines group metrics, uncertainty estimates, pairwise intersectional
 - Configurable CSV schema, Wilson confidence intervals, two-proportion indicators, and intersectional analysis.
 - SHA-256 tamper-evident evidence, offline HTML and native PDF reports.
 - Optional API-key write protection, rate limiting, request IDs, readiness checks, operational metrics, CodeQL, dependency audit, Dependabot, and automated releases.
-- 65 automated tests, more than 96% package coverage, and fairness policy enforcement in GitHub Actions.
+- 98 automated tests, 97.65% package coverage, and fairness policy enforcement in GitHub Actions.
 
 ## Measurable demonstration
 
@@ -33,4 +33,4 @@ All built-in records and employers are synthetic. The platform supports investig
 
 - Built and deployed a FastAPI fairness-auditing platform for hiring models, combining disparate-impact, equal-opportunity, confidence intervals, intersectional analysis, and controlled counterfactual stress tests.
 - Designed deterministic candidate-level evidence and SHA-256 experiment bundles, plus a CI/CD release gate that blocks fairness regressions with meaningful exit codes.
-- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 65 tests at over 96% coverage.
+- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 98 tests at 97.65% coverage.

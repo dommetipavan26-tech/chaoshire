@@ -2,7 +2,7 @@
 
 ## 20-second recruiter summary
 
-ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 65 tests and 96.83% package coverage.
+ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 98 tests and 97.65% package coverage.
 
 ## Three-minute live-demo script
 
@@ -56,12 +56,12 @@ Open **Release Gate** and compare LegacyCorp with MeritFirst.
 
 ### One line
 
-Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **65 tests and 96.83% coverage**.
+Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **98 tests and 97.65% coverage**.
 
 ### Two bullets
 
 - Engineered a deterministic hiring-AI audit platform with group/intersectional metrics, Wilson confidence intervals, counterfactual identity swaps, mitigation simulations, appeals, tamper-evident evidence, and automated model-release policy.
-- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **65 tests**, and **96.83% package coverage**.
+- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **98 tests**, and **97.65% package coverage**.
 
 ## Evidence checklist
 

@@ -62,3 +62,9 @@ GET /api/audits/{audit_id}   # complete stored aggregate result
 ```
 
 Unknown IDs return HTTP 404. The list limit is bounded to 1–100 records.
+
+The in-memory upload slot is shared by the whole process, so on a public
+deployment `/api/audit?dataset=uploaded`, `/api/audit/export`,
+`/api/evidence?dataset=uploaded`, and the uploaded report endpoints return the
+most recent upload made by *any* visitor. They expose the same aggregate
+content described above and never the raw rows.

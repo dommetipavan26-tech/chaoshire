@@ -14,7 +14,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Split the monolithic backend into data, models, metrics, chaos, and API modules
 - [x] Add linting and coverage reporting (Ruff + 90% CI coverage gate)
 - [ ] Add automated formatting and static type checking
-- [ ] Create the `v0.1.0` GitHub release
+- [x] Tagged GitHub releases (v0.20.0 through v0.22.0)
 
 ## Phase 2 — Real audit workflow
 
@@ -29,6 +29,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Statistical methodology and limitations documentation
 - [x] SQLite-backed aggregate audit runs and history
 - [x] Raw-row non-persistence privacy boundary
+- [x] Non-assessable audit verdicts and strict reference-model validation
 - [ ] Managed PostgreSQL adapter for durable cloud history
 
 ## Phase 3 — Chaos Lab framework
@@ -52,9 +53,11 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Optional API-key write protection
 - [x] Accessibility and mobile/PWA hardening
 - [x] Request IDs, operational metrics, rate limiting, and privacy controls
+- [x] Installable PWA icons, manifest metadata, and offline icon caching
 - [ ] User accounts and auditor/reviewer roles
 - [ ] Structured external log shipping
-- [ ] Architecture diagram and short demonstration video
+- [x] Architecture diagram (`docs/ARCHITECTURE.svg`)
+- [ ] Short demonstration video
 
 ## Definition of portfolio-ready
 
