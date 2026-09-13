@@ -1,6 +1,7 @@
 """Tamper-evident aggregate evidence bundles."""
 import hashlib
 import json
+from secrets import compare_digest
 from typing import Any
 
 
@@ -34,11 +35,12 @@ def verify_evidence_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {"valid": False, "reason": "Bundle payload is missing or invalid."}
     expected = evidence_digest(payload)
-    supplied = integrity.get("digest")
+    supplied = integrity.get("digest") if isinstance(integrity, dict) else None
+    valid = isinstance(supplied, str) and compare_digest(supplied, expected)
     return {
-        "valid": supplied == expected,
+        "valid": valid,
         "algorithm": "SHA-256",
         "expected": expected,
         "supplied": supplied,
-        "reason": "Digest matches canonical aggregate evidence." if supplied == expected else "Digest mismatch.",
+        "reason": "Digest matches canonical aggregate evidence." if valid else "Digest mismatch.",
     }

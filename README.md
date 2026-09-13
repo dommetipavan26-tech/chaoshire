@@ -56,6 +56,8 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Exploratory highest-vs-lowest two-proportion significance tests
 - Pairwise intersectional audits such as gender × age band
 - Minimum-cell-size warnings for unreliable group comparisons
+- Strict reference-model and dataset validation: unknown identifiers return HTTP 400, never a substituted audit
+- Explicit "not assessable" verdicts when decisions show no variation or groups are too small to compare
 - Reusable counterfactual and stress-test framework with configurable thresholds
 - Deterministic experiment IDs and candidate-level before/after evidence
 - Side-by-side model-version comparison and automated CI/CD fairness release gate
@@ -162,7 +164,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.20.1 baseline contains **65 tests with 96.83% package coverage**.
+GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.22.0 baseline contains **98 tests with 97.65% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
 
 ### Audit scikit-learn predictions
 
@@ -239,6 +241,7 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - Equal-opportunity analysis depends on trustworthy qualification labels.
 - Threshold calibration may create legal or operational concerns and requires expert review.
 - The current in-memory upload and appeals state is not suitable for sensitive production data.
+- The public demonstration keeps a single shared upload slot, so the latest upload's aggregate result is readable by every visitor; raw rows never leave process memory.
 - Real deployments require privacy assessment, access controls, encryption, retention policies, monitoring, and legal review.
 
 ## Roadmap

@@ -78,9 +78,25 @@ MODEL_META = {
 }
 
 
+def known_models() -> tuple[str, ...]:
+    """Return the identifiers of every bundled reference model."""
+    return tuple(MODEL_META)
+
+
 def get_model(model: str) -> Coefficients:
-    """Return a named reference model; preserve the original fair fallback."""
-    return LEGACY if model == "legacy" else FAIR
+    """Return a named reference model.
+
+    Unknown identifiers raise ``ValueError`` instead of silently falling back to
+    another model, so an audit can never be reported for a model the caller did
+    not request.
+    """
+    if model == "legacy":
+        return LEGACY
+    if model == "fair":
+        return FAIR
+    raise ValueError(
+        f"Unknown reference model '{model}'. Available models: {', '.join(known_models())}."
+    )
 
 
 def feature_components(data: pd.DataFrame) -> dict[str, pd.Series]:

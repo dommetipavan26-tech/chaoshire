@@ -9,7 +9,7 @@ Deploy from `render.yaml` or keep the existing Docker web service. Health check:
 1. Create an HTTPS monitor named `ChaosHire production`.
 2. URL: `https://chaoshire.onrender.com/api/ready`.
 3. Interval: the shortest interval offered by the free plan.
-4. Expected status: HTTP 200. ChaosHire v0.20.1 accepts both GET and HEAD monitoring requests.
+4. Expected status: HTTP 200. ChaosHire accepts both GET and HEAD monitoring requests.
 5. Optional keyword monitoring must use GET because HEAD responses do not contain a body.
 6. Add an email alert contact and trigger alerts after two failed checks.
 7. Create a second monitor for `https://chaoshire.onrender.com/` if desired.
@@ -20,7 +20,7 @@ UptimeRobot configuration lives in the owner's account and cannot be proven from
 
 1. Check `/api/live`; if unavailable, inspect Render events and logs.
 2. Check `/api/ready`; if live succeeds but ready fails, inspect database path and permissions.
-3. Check `/api/metrics` for 5xx counts and latency.
+3. Check `/api/metrics` for 5xx counts and latency; unhandled endpoint exceptions are recorded there as server errors and 500 status counts.
 4. Reproduce with the deterministic `/api/demo` workflow.
 5. Roll back to the previous successful GitHub commit if necessary.
 

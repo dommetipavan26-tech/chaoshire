@@ -17,7 +17,14 @@
 - [x] Add Render blueprint, monitoring runbook, architecture diagram, and case study
 - [ ] Verify Render v0.20.0 on a physical phone
 - [ ] Configure UptimeRobot alert contacts in the owner's account
-- [ ] Push the v0.20.0 tag and confirm the automated GitHub release
+- [x] Push the v0.20.0 tag and confirm the automated GitHub release
+
+## Release v0.22.0
+
+- [x] Verification-driven hardening: strict model/dataset validation, honest 500 accounting, non-assessable audit verdicts, mitigation contract hardening, dashboard escaping, evidence-verification robustness, upload-slot locking
+- [x] Installable PWA icons and manifest metadata
+- [x] 33 new regression tests (suite: 98 tests, 97.65% coverage)
+- [ ] Push the v0.22.0 tag and confirm the automated GitHub release
 
 ## Future engineering
 

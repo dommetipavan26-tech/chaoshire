@@ -1,4 +1,9 @@
-"""Audit deterministic scikit-learn predictions through ChaosHire's adapter contract.
+"""Audit reproducible scikit-learn predictions through ChaosHire's adapter contract.
+
+The seed and inputs are fixed, so repeated runs produce identical output.
+``CallableDecisionAdapter.describe()`` still reports ``deterministic: False``
+because the adapter contract cannot prove determinism for an arbitrary
+provider; reproducibility here comes from the fixed seed, not the contract.
 
 This is an educational integration example, not a hiring model or legal assessment.
 It trains only on synthetic data and keeps protected attributes out of model features.

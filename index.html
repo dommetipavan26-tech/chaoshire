@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b1220">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <title>ChaosHire — Chaos Simulator for Fair Hiring</title>
 <style>
 :root{--bg:#0b1220;--card:#121c30;--card2:#16233c;--line:#1f2c48;--txt:#e5ecf8;--dim:#8fa1c2;
@@ -96,7 +98,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
       <div><span class="chip info">OPEN-SOURCE RESPONSIBLE AI</span><h2 style="margin-top:14px">Stress-test hiring AI <span>before unfair decisions reach candidates.</span></h2><p>ChaosHire combines statistical fairness audits with controlled counterfactual experiments, candidate-level evidence, and automated release gates.</p><div class="hero-actions"><button class="btn" id="startdemo">Start the 3-minute demo</button><button class="btn ghost" id="exploredashboard">Explore dashboard</button></div><div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="/docs" target="_blank">API documentation ↗</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release ↗</a></div></div>
       <aside class="hero-panel" aria-live="polite"><div class="dim">DETERMINISTIC DEMONSTRATION</div><div id="home-score" style="font-size:52px;font-weight:800;color:var(--rose);margin-top:6px">42 / F</div><div id="home-model">LegacyCorp fairness risk score</div><hr style="border:0;border-top:1px solid var(--line);margin:17px 0"><div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i style="width:84.5%"></i></div><b id="home-gender">169</b></div><div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i style="width:55.5%"></i></div><b id="home-community">111</b></div><div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i style="width:30%"></i></div><b id="home-resilience">30</b></div><p class="dim" style="margin-top:14px">All people, employers, and findings are synthetic.</p></aside>
     </div>
-    <div class="proof"><div class="card"><b>65</b><span class="dim">automated tests</span></div><div class="card"><b>96.83%</b><span class="dim">package coverage</span></div><div class="card"><b>5</b><span class="dim">Chaos experiments</span></div><div class="card"><b>v0.21.0</b><span class="dim">verified public release</span></div></div>
+    <div class="proof"><div class="card"><b>98</b><span class="dim">automated tests</span></div><div class="card"><b>97.65%</b><span class="dim">package coverage</span></div><div class="card"><b>5</b><span class="dim">Chaos experiments</span></div><div class="card"><b>v0.21.0</b><span class="dim">verified public release</span></div></div>
     <div class="kicker">From measurement to accountable release</div><div class="grid g4"><article class="card feature-card"><h3>Measure disparities</h3><p class="dim">Selection rates, confidence intervals, significance indicators, and intersectional analysis.</p></article><article class="card feature-card"><h3>Break decisions safely</h3><p class="dim">Identity swaps and demographic stress tests reveal decision sensitivity.</p></article><article class="card feature-card"><h3>Inspect human impact</h3><p class="dim">Before/after evidence, explanations, appeals, and qualified candidates missed.</p></article><article class="card feature-card"><h3>Block regressions</h3><p class="dim">Model comparisons and CI/CD policy prevent a weaker release from shipping.</p></article></div>
     <div class="card" style="margin-top:18px"><b>Responsible boundary:</b> ChaosHire supports investigation and human review. It does not make hiring decisions, prove unlawful discrimination, or provide legal certification.</div>
   </section>
@@ -166,11 +168,12 @@ async function loadOverview(dataset='demo'){
   const a=await jget(`/api/audit?model=${MODEL}&dataset=${dataset}`);
   const s=$('#tab-overview');
   if(a.error){s.innerHTML=`<div class="err">${esc(a.error)}</div>`;return;}
-  const c=a.certificate, col=gradeColor(c.grade);
-  const ring=`<div class="grade-ring" style="background:conic-gradient(${col} ${c.total*3.6}deg, var(--card2) 0)">
+  const c=a.certificate, col=gradeColor(c.grade), assessable=c.assessable!==false;
+  const ring=`<div class="grade-ring" style="background:conic-gradient(${col} ${assessable?c.total*3.6:0}deg, var(--card2) 0)">
     <div style="width:96px;height:96px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center">
-    <b style="color:${col}">${c.total}</b><small>Grade ${c.grade}</small></div></div>`;
-  let html=`<div class="grid g4">
+    <b style="color:${col}">${assessable?c.total:'N/A'}</b><small>${assessable?`Grade ${c.grade}`:'Not assessable'}</small></div></div>`;
+  let html=assessable?'':`<div class="err" style="margin-bottom:14px">Fairness risk score not assessable: ${(c.reasons||[]).map(esc).join(' ')} The group metrics below are shown for inspection only.</div>`;
+  html+=`<div class="grid g4">
     <div class="card"><h3>Candidates</h3><div class="stat-num">${a.stats.candidates}</div><div class="dim">in audit pool</div></div>
     <div class="card"><h3>Accepted</h3><div class="stat-num">${a.stats.accepted} <span class="dim" style="font-size:14px">(${pc(a.stats.accept_rate)})</span></div><div class="dim">overall selection rate</div></div>
     <div class="card"><h3>Ground truth</h3><div class="stat-num">${a.stats.qualified_share!==null?pc(a.stats.qualified_share):'n/a'}</div><div class="dim">truly qualified (hidden from model)</div></div>
@@ -179,9 +182,9 @@ async function loadOverview(dataset='demo'){
       <div class="dim">Fairness Risk Score</div></div></div></div>`;
   html+=`<div class="kicker">Group fairness metrics</div><div class="grid g2">`;
   for(const at of a.attributes){
-    html+=`<div class="card"><h3>${attrTitle[at.attribute]||at.attribute}</h3>`;
+    html+=`<div class="card"><h3>${esc(attrTitle[at.attribute]||at.attribute)}</h3>`;
     for(const g of at.groups){
-      html+=`<div class="grow"><span class="lbl">${glabel(at.attribute,g.group)}${g.low_n?' <span class="dim" title="Small sample — interpret with caution">⚠</span>':''}</span>
+      html+=`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}${g.low_n?' <span class="dim" title="Small sample — interpret with caution">⚠</span>':''}</span>
         <div class="bar"><i style="width:${g.selection_rate*100}%"></i></div>
         <span class="val">${pc(g.selection_rate)}</span></div>`;
     }
@@ -189,7 +192,7 @@ async function loadOverview(dataset='demo'){
       ${chipFor(at.di_pass,'DI '+at.disparate_impact)}
       ${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}
       ${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div>
-      <div class="dim" style="margin-top:8px">${at.groups.map(g=>`${glabel(at.attribute,g.group)}: ${g.selected}/${g.n} selected · 95% CI ${pc(g.selection_rate_ci.low)}–${pc(g.selection_rate_ci.high)}${g.tpr!==null?`, TPR ${pc(g.tpr)}`:''}`).join('<br>')}</div>
+      <div class="dim" style="margin-top:8px">${at.groups.map(g=>`${esc(glabel(at.attribute,g.group))}: ${g.selected}/${g.n} selected · 95% CI ${pc(g.selection_rate_ci.low)}–${pc(g.selection_rate_ci.high)}${g.tpr!==null?`, TPR ${pc(g.tpr)}`:''}`).join('<br>')}</div>
       ${at.statistical_test?`<div class="dim" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">Highest vs lowest selection rate: <b style="color:${at.statistical_test.significant_at_0_05?'var(--rose)':'var(--green)'}">${pval(at.statistical_test.p_value)} · ${at.statistical_test.significant_at_0_05?'statistically significant':'not significant'}</b><br>Exploratory two-proportion test; formal studies should correct for multiple comparisons.</div>`:''}
       </div>`;
   }
@@ -273,17 +276,19 @@ $('#tab-mitigations').innerHTML=mitHTML();
 $('#tab-mitigations').addEventListener('click',async e=>{
   if(e.target.id!=='applymit')return;
   const sel=[...document.querySelectorAll('.mit-check:checked')].map(x=>x.value);
-  const r=await jpost('/api/mitigate',{strategies:sel});
   const o=$('#mitout');
-  if(r.error){o.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
-  const b=r.before,a=r.after.certificate;
+  if(!sel.length){o.innerHTML='<div class="err">Select at least one mitigation strategy.</div>';return;}
+  const r=await jpost('/api/mitigate',{strategies:sel});
+  const problem=r.error||(r.detail?'Validation error: '+JSON.stringify(r.detail):null);
+  if(problem){o.innerHTML=`<div class="err">${esc(problem)}</div>`;return;}
+  const b=r.before.certificate,a=r.after.certificate;
   o.innerHTML=`<div class="card" style="background:var(--card2)"><h3>Result</h3>
     ${r.applied.map(x=>`<div class="grow" style="margin:4px 0"><span class="chip ok">applied</span><span style="font-size:13.5px">${x}</span></div>`).join('')}
     <div class="grow" style="margin-top:12px"><span class="lbl" style="width:auto">Fairness Risk Score</span>
     <b style="color:${gradeColor(b.grade)}">${b.total} (${b.grade})</b><span class="dim">→</span>
     <b style="color:${gradeColor(a.grade)};font-size:22px">${a.total} (${a.grade})</b></div></div>
-    <div class="grid g2" style="margin-top:14px">${r.after.attributes.map(at=>`<div class="card"><h3>${attrTitle[at.attribute]||at.attribute}</h3>
-      ${at.groups.map(g=>`<div class="grow"><span class="lbl">${glabel(at.attribute,g.group)}</span><div class="bar"><i style="width:${g.selection_rate*100}%"></i></div><span class="val">${pc(g.selection_rate)}</span></div>`).join('')}
+    <div class="grid g2" style="margin-top:14px">${r.after.attributes.map(at=>`<div class="card"><h3>${esc(attrTitle[at.attribute]||at.attribute)}</h3>
+      ${at.groups.map(g=>`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}</span><div class="bar"><i style="width:${g.selection_rate*100}%"></i></div><span class="val">${pc(g.selection_rate)}</span></div>`).join('')}
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${chipFor(at.di_pass,'DI '+at.disparate_impact)}${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div></div>`).join('')}</div>`;
 });
 

@@ -9,6 +9,10 @@ def _pdf_escape(text: object) -> str:
 
 def _report_lines(audit: dict[str, Any], chaos: dict[str, Any] | None) -> list[str]:
     certificate = audit["certificate"]
+    assessable = certificate.get("assessable", True)
+    score = (
+        f"{certificate['total']} / {certificate['grade']}" if assessable else "not assessable"
+    )
     lines = [
         "ChaosHire Audit Report",
         f"Audit: {audit.get('audit_name', 'Reference model audit')}",
@@ -16,10 +20,13 @@ def _report_lines(audit: dict[str, Any], chaos: dict[str, Any] | None) -> list[s
         "",
         f"Candidates: {audit['stats']['candidates']}",
         f"Accepted: {audit['stats']['accepted']}",
-        f"Fairness risk score: {certificate['total']} / {certificate['grade']}",
-        "",
-        "Primary attributes",
+        f"Fairness risk score: {score}",
     ]
+    if not assessable:
+        lines.append(
+            "Not assessable: " + " ".join(certificate.get("reasons") or [])
+        )
+    lines.extend(["", "Primary attributes"])
     for attribute in audit["attributes"]:
         lines.append(
             f"- {attribute['attribute']}: DI {attribute['disparate_impact']}; "

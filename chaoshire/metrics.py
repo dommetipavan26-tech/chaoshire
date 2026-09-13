@@ -160,7 +160,66 @@ def intersectional_metrics(
     return results
 
 
-def certificate(attribute_results: list[dict[str, Any]]) -> dict[str, Any]:
+def assessability(
+    data: pd.DataFrame,
+    attribute_results: list[dict[str, Any]],
+) -> tuple[bool, list[str]]:
+    """Report whether group-disparity metrics can carry any meaning.
+
+    A model that selects everybody or nobody has no decision variation to
+    compare, and an attribute without two reliable groups has no between-group
+    comparison. In both cases the risk score would otherwise report a perfect
+    grade for evidence that does not exist, so the audit is marked
+    "not assessable" instead.
+    """
+    reasons: list[str] = []
+    count = int(len(data))
+    if count == 0:
+        reasons.append("The audit contains no candidate rows.")
+        return False, reasons
+    accepted = int(data["accepted"].sum())
+    if accepted == 0:
+        reasons.append(
+            "No candidate was selected, so selection-rate comparisons carry no information."
+        )
+    elif accepted == count:
+        reasons.append(
+            "Every candidate was selected, so selection-rate comparisons carry no information."
+        )
+    if not attribute_results:
+        reasons.append("No protected attribute was supplied or detected in the dataset.")
+    else:
+        comparable = [
+            result
+            for result in attribute_results
+            if len([group for group in result["groups"] if not group["low_n"]]) >= 2
+        ]
+        if not comparable:
+            reasons.append(
+                "No protected attribute has at least two reliable groups, so no "
+                "between-group comparison is possible."
+            )
+    return (not reasons), reasons
+
+
+def certificate(
+    attribute_results: list[dict[str, Any]],
+    assessable: bool = True,
+    reasons: list[str] | None = None,
+) -> dict[str, Any]:
+    if not assessable or not attribute_results:
+        return {
+            "total": 0,
+            "grade": "N/A",
+            "assessable": False,
+            "reasons": list(reasons or ["No protected attribute was supplied or detected."]),
+            "components": [
+                {"label": "Disparate impact (4/5ths rule)", "pts": 0.0, "max": 40},
+                {"label": "Demographic parity gap", "pts": 0.0, "max": 20},
+                {"label": "Equal opportunity gap", "pts": 0.0, "max": 25},
+                {"label": "Transparency (XAI + appeals)", "pts": 0, "max": 15},
+            ],
+        }
     impacts = [result["disparate_impact"] for result in attribute_results]
     parity_gaps = [result["parity_gap"] for result in attribute_results]
     opportunity_gaps = [
@@ -195,7 +254,7 @@ def certificate(attribute_results: list[dict[str, Any]]) -> dict[str, Any]:
     components.append(
         {"label": "Transparency (XAI + appeals)", "pts": 15, "max": 15}
     )
-    return {"total": total, "grade": grade, "components": components}
+    return {"total": total, "grade": grade, "assessable": True, "reasons": [], "components": components}
 
 
 def audit(
@@ -213,6 +272,7 @@ def audit(
     ]
     count = int(len(data))
     accepted = int(data["accepted"].sum())
+    assessable, reasons = assessability(data, results)
     return {
         "stats": {
             "candidates": count,
@@ -231,5 +291,5 @@ def audit(
             "minimum_group_size": minimum_group_size,
             "has_ground_truth": "qualified" in data.columns,
         },
-        "certificate": certificate(results),
+        "certificate": certificate(results, assessable, reasons),
     }
