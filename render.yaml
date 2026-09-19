@@ -10,7 +10,39 @@ services:
         value: /app/data/chaoshire.db
       - key: CHAOSHIRE_MAX_BODY_BYTES
         value: "5500000"
-      - key: CHAOSHIRE_RATE_LIMIT_PER_MINUTE
-        value: "0"
+
+      # --- write access -----------------------------------------------------
+      # A real secret is generated at deploy time, not left unset. Holding it
+      # makes an upload "published": it is written to the persistent audit
+      # history and becomes the shared dataset=uploaded artifact. Operators and
+      # CI send it as X-API-Key.
       - key: CHAOSHIRE_API_KEY
-        sync: false
+        generateValue: true
+
+      # The public portfolio demo deliberately stays interactive, so anonymous
+      # writes are allowed — but they are bounded and they are NOT published.
+      # An anonymous upload is audited, returned to the caller, and discarded,
+      # which removes the defacement path (an attacker-chosen audit name in the
+      # history every visitor reads) without killing the demo.
+      # Set this to "0" for a private deployment and writes require the key.
+      - key: CHAOSHIRE_ALLOW_ANONYMOUS_WRITES
+        value: "1"
+
+      # --- rate limits ------------------------------------------------------
+      # Non-zero by design. "0" disabled the limiter entirely, which on a 512 MB
+      # free instance made unbounded POST traffic trivial.
+      - key: CHAOSHIRE_RATE_LIMIT_PER_MINUTE
+        value: "120"
+      - key: CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE
+        value: "6"
+
+      # Render fronts the service with a trusted proxy; without this every
+      # visitor would share one rate-limit bucket. Only the right-most
+      # X-Forwarded-For entry is used, so a client cannot rotate the header.
+      - key: CHAOSHIRE_TRUST_FORWARDED_FOR
+        value: "1"
+
+      # --- bounded demo state ----------------------------------------------
+      # The appeal queue is a capped FIFO, not an unbounded in-memory list.
+      - key: CHAOSHIRE_MAX_APPEALS
+        value: "200"

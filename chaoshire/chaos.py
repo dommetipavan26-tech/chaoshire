@@ -1,4 +1,5 @@
 """Reusable controlled-experiment framework for hiring-model chaos tests."""
+
 import hashlib
 import json
 from collections.abc import Callable
@@ -71,18 +72,25 @@ def _decision_evidence(
     after_scores: np.ndarray,
     changed: np.ndarray,
 ) -> list[dict[str, Any]]:
-    indexes = np.flatnonzero(changed)
-    indexes = sorted(indexes, key=lambda index: abs(after_scores[index] - before_scores[index]), reverse=True)
+    ordered = sorted(
+        np.flatnonzero(changed),
+        key=lambda index: abs(after_scores[index] - before_scores[index]),
+        reverse=True,
+    )
     return [
         {
             "candidate_id": str(data.iloc[index]["candidate_id"]),
             "before_score": round4(before_scores[index]),
             "after_score": round4(after_scores[index]),
             "score_delta": round4(after_scores[index] - before_scores[index]),
-            "before_decision": "Accepted" if before_scores[index] >= DECISION_THRESHOLD else "Rejected",
-            "after_decision": "Accepted" if after_scores[index] >= DECISION_THRESHOLD else "Rejected",
+            "before_decision": "Accepted"
+            if before_scores[index] >= DECISION_THRESHOLD
+            else "Rejected",
+            "after_decision": "Accepted"
+            if after_scores[index] >= DECISION_THRESHOLD
+            else "Rejected",
         }
-        for index in indexes
+        for index in ordered
     ]
 
 
@@ -289,13 +297,16 @@ def run_chaos_suite(
         configured[test_id] = {"warn": float(values["warn"]), "fail": float(values["fail"])}
 
     tests = [
-        test.execute(coefficients, configured[test.id], evidence_limit)
-        for test in CHAOS_TESTS
+        test.execute(coefficients, configured[test.id], evidence_limit) for test in CHAOS_TESTS
     ]
     score_map = {"PASS": 1.0, "WARN": 0.5, "FAIL": 0.0}
     resilience = int(round(100 * np.mean([score_map[test["verdict"]] for test in tests])))
     fingerprint = json.dumps(
-        {"model": model, "thresholds": configured, "results": [(t["id"], t["rate"]) for t in tests]},
+        {
+            "model": model,
+            "thresholds": configured,
+            "results": [(t["id"], t["rate"]) for t in tests],
+        },
         sort_keys=True,
     ).encode()
     experiment_id = f"EXP-{hashlib.sha256(fingerprint).hexdigest()[:12].upper()}"

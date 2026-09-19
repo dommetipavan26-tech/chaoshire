@@ -28,12 +28,13 @@ Each experiment produces a `PASS`, `WARN`, or `FAIL`. Together they form a 0–1
 
 ## Demonstration results
 
-The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and two transparent reference models:
+The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and three transparent reference models:
 
 | Reference model | Purpose | Fairness risk score | Chaos resilience |
 |---|---|---:|---:|
-| **LegacyCorp Screen v1** | Intentionally biased test fixture | **42 / F** | **30 / 100** |
-| **MeritFirst v2** | Merit-based control fixture | **86 / B** | **100 / 100** |
+| **LegacyCorp Screen v1** | Intentionally biased test fixture | **32 / F** | **30 / 100** |
+| **MeritFirst v2** | Merit-based control fixture | **84 / B** | **100 / 100** |
+| **TalentFit v3** | Trained-on-merit fixture with a biased proxy feature | **66 / C** | **100 / 100** |
 
 The LegacyCorp fixture produces:
 
@@ -41,11 +42,52 @@ The LegacyCorp fixture produces:
 - **11.1%** decision flips under name/community swapping
 - **32.7%** newly rejected hires under the ageing stress test
 - **42** qualified candidates incorrectly rejected
-- A simulated mitigation improvement from **42/F to 83/B**
+- A simulated mitigation improvement from **32/F to 80/B** using blind screening plus proxy removal
+
+TalentFit v3 is the more interesting fixture, because it defeats a naive reading of
+the Chaos Lab: it was trained on the same synthetic population, it reproduces the
+merit-only model's decisions on every counterfactual and stress test
+(**resilience 100/100**), and it still fails the four-fifths rule
+(**disparate impact 0.78**). Perfect counterfactual resilience alongside failing
+disparate impact is the whole argument for measuring both — a model can be
+robust to every perturbation ChaosHire can generate and still screen a protected
+group out at 78% of the rate of the favoured group. Its coefficients are pinned
+in `chaoshire/training.py` with a SHA-256 digest; `python -m chaoshire train --check`
+re-derives them and fails CI if they drift (agreement floor 0.90).
 
 These are reproducible **synthetic demonstration results**, not findings about a real employer. The model names are fictional.
 
 > **Responsible-use boundary:** The fairness risk score is a transparent heuristic for investigation and human review. It is not an independent certification, does not establish legal compliance, and does not by itself prove or disprove discrimination. The public API retains the historical `certificate` JSON key and `--min-certificate` CLI option for backward compatibility.
+
+### How the score is computed
+
+`total = measured / available × 100` over group-fairness components only:
+
+| Component | Points |
+|---|---:|
+| Disparate impact (four-fifths rule) | 40 |
+| Demographic parity gap | 20 |
+| Equal opportunity gap | 25 |
+| **Available with ground-truth qualification labels** | **85** |
+| **Available without them** (equal opportunity is not measurable) | **60** |
+
+Two properties follow, and both are stated in every `certificate` payload rather
+than left for a reader to infer:
+
+- **Nothing is awarded for free.** Earlier versions added an unconditional 15
+  "transparency" points for disclosure, release gates, CI and appeal routes.
+  None of that is a property of the model under audit and none of it was ever
+  measured, so it gave a badly biased model 47/D instead of 32/F and capped a
+  perfect one at 85. Those points are gone; a perfect group-fairness result now
+  scores 100/A on merit. The platform capabilities are still disclosed — as
+  `platform_disclosure` text, with `scored: false`.
+- **The denominator is part of the result.** `basis` is `"full"` (85 available
+  points) or `"selection-rate-only"` (60), `available_points` and
+  `measured_points` are reported, `unmeasured_components` names what could not
+  be measured and why, and `comparable_with_full_basis` is `false` whenever the
+  score rests on less evidence. A 60-point-basis score must not be ranked
+  against an 85-point-basis score; the HTML and PDF reports say so in the same
+  place they print the number.
 
 ## Product capabilities
 
@@ -65,10 +107,10 @@ These are reproducible **synthetic demonstration results**, not findings about a
 - Pluggable decision-adapter contract for reference, CSV, and production providers
 - Tamper-evident SHA-256 evidence bundles with verification API and CLI
 - Self-contained HTML reports plus dependency-free native PDF summaries
-- Optional API-key write protection, request-size limits, rate limiting, security headers, and operational metrics
+- API-key write protection, request-size limits, separate read and write rate limits, a nonce-based Content-Security-Policy, a bounded appeal queue, and operational metrics
 - Accessible mobile/PWA shell and a stable three-minute guided portfolio demo
 - Candidate-level additive explanations
-- Blind-screening, proxy-removal and threshold-calibration simulations
+- Blind-screening and proxy-removal simulations, plus a research-only per-group threshold contrast that is refused by default and cites [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2)
 - Candidate decision lookup and appeals workflow
 - Configurable CSV audits without exposing model weights
 - Custom decision, qualification, candidate-ID, and protected-attribute columns
@@ -164,7 +206,17 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting plus the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.22.0 baseline contains **98 tests with 97.65% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
+GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.23.0 baseline contains **188 tests with 97.5% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
+
+`chaoshire/build_info.py` is the single source of truth for every number the
+landing page and this README quote. Version, model count, experiment count and
+fixture size are derived from the running package at import time, so they cannot
+drift. The test count and coverage figure cannot be derived that way, so
+`scripts/check_build_info.py` re-derives both from a real pytest run and fails
+the build if `chaoshire/build_info.py` disagrees. `GET /api/meta` serves the
+result as `build`, and `index.html` renders that payload instead of hardcoding a
+version string — the failure mode that once left the landing page advertising
+v0.21.0 while the package said v0.22.0.
 
 ### Audit scikit-learn predictions
 
@@ -224,12 +276,13 @@ The original schema remains backward-compatible. Download a compatible synthetic
 
 ## Three-minute walkthrough
 
-1. Open **LegacyCorp Screen v1** and note its 42/F risk score.
+1. Open **LegacyCorp Screen v1** and note its **32/F** risk score — and the scoring-basis line beside it, which says the score is 27.1 of 85 available points measured.
 2. Open **Chaos Lab** and run the suite; explain the 16.9% gender-swap flip rate.
 3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
-4. Apply all three mitigations and compare 42/F with 83/B.
-5. Switch to **MeritFirst v2** to demonstrate that the same tests can certify a cleaner model.
-6. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
+4. Apply both mitigations and compare **32/F with 80/B**. Note the panel explaining why per-group threshold "calibration" is *not* one of them, with the statute cited.
+5. Switch to **MeritFirst v2** (**84/B**, resilience 100/100) to demonstrate that the same tests can certify a cleaner model.
+6. Switch to **TalentFit v3** (**66/C**, resilience 100/100, disparate impact 0.78): it passes every counterfactual ChaosHire can throw at it and still fails the four-fifths rule. This is the step that shows why resilience alone is not a fairness result.
+7. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
 
 ## Methodology and limitations
 
@@ -239,7 +292,7 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - Observed disparity is evidence requiring investigation; it does not by itself prove unlawful discrimination.
 - The four-fifths threshold is a screening heuristic, not a universal definition of fairness.
 - Equal-opportunity analysis depends on trustworthy qualification labels.
-- Threshold calibration may create legal or operational concerns and requires expert review.
+- Per-group threshold calibration is **not offered as a mitigation**. Setting different cutoff scores by race, colour, religion, sex or national origin in an employment test is an unlawful employment practice under [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2) (Civil Rights Act of 1991). ChaosHire can still compute it as a labelled research contrast — `threshold_contrast_acknowledged=true`, refused otherwise, reported under its own key and never merged into a mitigation result — but nothing here is legal advice.
 - The current in-memory upload and appeals state is not suitable for sensitive production data.
 - The public demonstration keeps a single shared upload slot, so the latest upload's aggregate result is readable by every visitor; raw rows never leave process memory.
 - Real deployments require privacy assessment, access controls, encryption, retention policies, monitoring, and legal review.

@@ -8,6 +8,7 @@ provider; reproducibility here comes from the fixed seed, not the contract.
 This is an educational integration example, not a hiring model or legal assessment.
 It trains only on synthetic data and keeps protected attributes out of model features.
 """
+
 from __future__ import annotations
 
 import numpy as np

@@ -1,4 +1,5 @@
 """Statistical-rigor and intersectional-audit tests."""
+
 import pandas as pd
 
 import backend
@@ -24,7 +25,9 @@ def test_group_rows_include_selection_and_tpr_intervals():
     result = audit(backend.build_decisions(backend.LEGACY))
     female = next(
         group
-        for group in next(item for item in result["attributes"] if item["attribute"] == "gender")["groups"]
+        for group in next(item for item in result["attributes"] if item["attribute"] == "gender")[
+            "groups"
+        ]
         if group["group"] == "F"
     )
     assert female["selection_rate_ci"]["low"] < female["selection_rate"]
@@ -45,7 +48,7 @@ def test_legacy_audit_reports_exploratory_significance():
 def test_pairwise_intersections_do_not_change_certificate():
     data = backend.build_decisions(backend.LEGACY)
     result = audit(data)
-    assert result["certificate"]["total"] == 42
+    assert result["certificate"]["total"] == 32
     assert len(result["intersections"]) == 3
     assert {tuple(item["source_attributes"]) for item in result["intersections"]} == {
         ("gender", "ethnicity"),

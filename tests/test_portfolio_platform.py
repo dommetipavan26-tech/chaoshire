@@ -1,24 +1,29 @@
 """Days 11-20: agent, adapters, security, evidence, PDF, operations, and demo."""
+
 import json
+import re
 
 import pandas as pd
-from fastapi.testclient import TestClient
+from conftest import operator_client
 
-import backend
 from chaoshire import __version__
 from chaoshire.adapters import CallableDecisionAdapter, DecisionAdapter, ReferenceModelAdapter
 from chaoshire.agent import review_audit
+from chaoshire.build_info import SERVICE_WORKER_CACHE, VERSION
 from chaoshire.cli import main
 from chaoshire.evidence import build_evidence_bundle, verify_evidence_bundle
 from chaoshire.metrics import audit
 from chaoshire.models import LEGACY, build_decisions
 from chaoshire.platform import SlidingWindowLimiter
 
-client = TestClient(backend.app)
+client = operator_client()
 
 
 def test_v020_contract_and_operational_endpoints():
-    assert __version__ == "0.22.0"
+    # Not a literal: build_info.VERSION is the single source of truth and
+    # tests/test_build_info.py pins it to the package version.
+    assert __version__ == VERSION
+    assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
     assert client.get("/api/live").json() == {"status": "alive"}
     assert client.get("/api/ready").json()["status"] == "ready"
     assert client.head("/api/health").status_code == 200
@@ -82,7 +87,10 @@ def test_adapter_catalog_endpoint():
     result = client.get("/api/adapters").json()
     assert result["required_normalized_columns"] == ["accepted"]
     assert {item["id"] for item in result["adapters"]} == {
-        "reference-model", "csv-decisions", "callable-decisions"
+        "reference-model",
+        "csv-decisions",
+        "callable-decisions",
+        "remote-http",
     }
 
 
@@ -131,8 +139,8 @@ def test_native_pdf_is_downloadable_and_valid():
 def test_guided_demo_preserves_reviewed_story():
     result = client.get("/api/demo").json()
     assert result["duration_minutes"] == 3
-    assert len(result["steps"]) == 6
-    assert result["steps"][0]["evidence"]["certificate"]["total"] == 42
+    assert len(result["steps"]) == 8
+    assert result["steps"][0]["evidence"]["certificate"]["total"] == 32
     assert result["steps"][-1]["evidence"]["status"] == "PASS"
 
 
@@ -162,7 +170,8 @@ def test_pwa_and_mobile_accessibility_markers():
         assert icon_response.headers["content-type"] == "image/png"
         assert icon_response.content.startswith(b"\x89PNG")
     service_worker = client.get("/service-worker.js")
-    assert "chaoshire-v0220" in service_worker.text
+    assert SERVICE_WORKER_CACHE in service_worker.text
+    assert "__CACHE_NAME__" not in service_worker.text
     assert "/icons/icon-192.png" in service_worker.text
     assert "skipWaiting" in service_worker.text
     assert "clients.claim" in service_worker.text

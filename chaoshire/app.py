@@ -1,13 +1,16 @@
 """FastAPI route layer for ChaosHire."""
-from pathlib import Path
-from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+import logging
+from pathlib import Path
+from typing import Annotated, Any
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 
 from . import __version__
-from .adapters import adapter_catalog
+from .adapters import adapter_catalog, find_remote_adapter, remote_adapters_from_env
 from .agent import review_audit
+from .build_info import SERVICE_WORKER_CACHE, build_info
 from .chaos import run_chaos_suite
 from .config import FAIRNESS_THRESHOLDS
 from .demo import guided_demo
@@ -22,7 +25,13 @@ from .models import (
     get_model,
 )
 from .pdf_reporting import render_pdf_report
-from .platform import OPERATIONS, platform_middleware, require_write_access
+from .platform import (
+    OPERATIONS,
+    WriteAccess,
+    platform_middleware,
+    require_write_access,
+    write_posture,
+)
 from .quality import compare_models, evaluate_fairness_gate
 from .reporting import render_html_report
 from .repository import get_audit, initialise_database, list_audits
@@ -30,6 +39,7 @@ from .schemas import (
     AgentReviewRequest,
     AppealRequest,
     ChaosRunRequest,
+    ConnectorAuditRequest,
     EvidenceVerifyRequest,
     FairnessGateRequest,
     MitigationRequest,
@@ -46,6 +56,9 @@ from .services import (
     upload_decisions,
     uploaded_audit,
 )
+
+#: Upstream failure detail is logged, never echoed into a response body.
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -69,7 +82,9 @@ def require_known_model(
 
 
 def require_known_dataset(
-    dataset: str = Query("demo", description="'demo' for reference fixtures, 'uploaded' for a CSV audit."),
+    dataset: str = Query(
+        "demo", description="'demo' for reference fixtures, 'uploaded' for a CSV audit."
+    ),
 ) -> str:
     if dataset not in DATASETS:
         raise HTTPException(
@@ -93,23 +108,38 @@ app = FastAPI(
 app.middleware("http")(platform_middleware)
 
 
-@app.api_route("/api/health", methods=["GET", "HEAD"], tags=["system"])
+@app.get("/api/health", tags=["system"])
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "ChaosHire"}
 
 
-@app.api_route("/api/live", methods=["GET", "HEAD"], tags=["system"])
+@app.head("/api/health", include_in_schema=False)
+def health_head() -> dict[str, str]:
+    return health()
+
+
+@app.get("/api/live", tags=["system"])
 def liveness() -> dict[str, str]:
     return {"status": "alive"}
 
 
-@app.api_route("/api/ready", methods=["GET", "HEAD"], tags=["system"])
+@app.head("/api/live", include_in_schema=False)
+def liveness_head() -> dict[str, str]:
+    return liveness()
+
+
+@app.get("/api/ready", tags=["system"])
 def readiness() -> dict[str, str]:
     try:
         initialise_database()
     except Exception as error:
         raise HTTPException(status_code=503, detail="Audit repository is unavailable.") from error
     return {"status": "ready", "database": "available"}
+
+
+@app.head("/api/ready", include_in_schema=False)
+def readiness_head() -> dict[str, str]:
+    return readiness()
 
 
 @app.get("/api/metrics", tags=["system"])
@@ -131,8 +161,18 @@ def web_manifest() -> JSONResponse:
             "theme_color": "#0b1220",
             "description": "Evidence-grounded chaos testing for hiring-model fairness.",
             "icons": [
-                {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-                {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                {
+                    "src": "/icons/icon-192.png",
+                    "sizes": "192x192",
+                    "type": "image/png",
+                    "purpose": "any",
+                },
+                {
+                    "src": "/icons/icon-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "any",
+                },
                 {
                     "src": "/icons/icon-maskable-512.png",
                     "sizes": "512x512",
@@ -159,10 +199,14 @@ def app_icon(name: str) -> Response:
 
 @app.get("/service-worker.js", include_in_schema=False)
 def service_worker() -> Response:
-    script = """const CACHE='chaoshire-v0220';
+    # The cache name is derived from the package version so a release cannot ship
+    # a service worker that keeps serving the previous version's precached shell.
+    script = """const CACHE='__CACHE_NAME__';
 self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/icons/icon-192.png','/icons/icon-512.png'])),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))),self.clients.claim()])));
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request.url).pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))});"""
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request.url).pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))});""".replace(
+        "__CACHE_NAME__", SERVICE_WORKER_CACHE
+    )
     return Response(
         script,
         media_type="application/javascript",
@@ -171,11 +215,14 @@ self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def home() -> HTMLResponse:
-    return HTMLResponse(
-        content=(PROJECT_ROOT / "index.html").read_text(encoding="utf-8"),
-        headers={"Cache-Control": "no-cache"},
-    )
+def home(request: Request) -> HTMLResponse:
+    html = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+    nonce = getattr(request.state, "csp_nonce", "")
+    if nonce:
+        # The nonce-based CSP forbids 'unsafe-inline', so the single inline
+        # script must carry the per-request nonce.
+        html = html.replace("<script>", f'<script nonce="{nonce}">', 1)
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/meta", tags=["system"])
@@ -187,6 +234,8 @@ def meta() -> dict:
         "bias_features": BIAS_FEATURES,
         "thresholds": FAIRNESS_THRESHOLDS,
         "sample_ids": ["C-1046", "C-1208", "C-1213", "C-1000", "C-1001"],
+        "platform": write_posture(),
+        "build": build_info(),
         "schema": (
             "Minimum: one decision column + one group attribute column.\n"
             "Optional: candidate ID and qualification/ground-truth columns. "
@@ -200,15 +249,52 @@ def adapters() -> dict:
     return adapter_catalog()
 
 
+@app.post(
+    "/api/connectors/audit",
+    tags=["integrations"],
+    dependencies=[Depends(require_write_access)],
+)
+def audit_remote_connector(request: ConnectorAuditRequest) -> Any:
+    """Fetch decisions from an operator-configured remote model and audit them."""
+    adapter = find_remote_adapter(request.model_id)
+    if adapter is None:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": f"No remote connector is configured for '{request.model_id}'.",
+                "configured": [configured.model_id for configured in remote_adapters_from_env()],
+            },
+        )
+    try:
+        frame = adapter.decisions()
+    except Exception as error:
+        # Upstream, network, credential, and normalisation failures are a bad
+        # gateway, not a ChaosHire server error. The raw exception text can carry
+        # the upstream URL, proxy details or a credential-adjacent fragment, so it
+        # is logged here and only the failure category is returned to the caller.
+        logger.warning("remote model %r audit failed: %r", request.model_id, error)
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": f"Remote model '{request.model_id}' could not be audited.",
+                "reason": type(error).__name__,
+            },
+        )
+    return {"model_id": request.model_id, "adapter": adapter.describe(), "audit": audit(frame)}
+
+
 @app.get("/api/demo", tags=["guided demo"])
 def demo_story() -> dict:
     return guided_demo()
 
 
 @app.get("/api/audit", tags=["audit"])
-def api_audit(model: ModelQuery, dataset: DatasetQuery) -> dict:
+def api_audit(model: ModelQuery, dataset: DatasetQuery) -> Any:
     if dataset == "uploaded":
-        return uploaded_audit()
+        result = uploaded_audit()
+        if "error" in result:
+            return JSONResponse(status_code=404, content=result)
+        return result
     return {"model": MODEL_META[model], **audit(build_decisions(get_model(model)))}
 
 
@@ -248,18 +334,27 @@ def api_filtered(model: ModelQuery) -> dict:
 
 
 @app.get("/api/explain/{candidate_id}", tags=["explainability"])
-def api_explain(candidate_id: str, model: ModelQuery) -> dict:
-    return explain_candidate(candidate_id, model)
+def api_explain(candidate_id: str, model: ModelQuery) -> Any:
+    result = explain_candidate(candidate_id, model)
+    if "error" in result:
+        return JSONResponse(status_code=404, content=result)
+    return result
 
 
 @app.get("/api/candidate/{candidate_id}", tags=["appeals"])
-def api_candidate(candidate_id: str) -> dict:
-    return candidate_decision(candidate_id)
+def api_candidate(candidate_id: str) -> Any:
+    result = candidate_decision(candidate_id)
+    if "error" in result:
+        return JSONResponse(status_code=404, content=result)
+    return result
 
 
 @app.post("/api/appeals", tags=["appeals"], dependencies=[Depends(require_write_access)])
-def post_appeal(request: AppealRequest) -> dict:
-    return create_appeal(request.candidate_id, request.message)
+def post_appeal(request: AppealRequest) -> Any:
+    result = create_appeal(request.candidate_id, request.message)
+    if "error" in result:
+        return JSONResponse(status_code=404, content=result)
+    return result
 
 
 @app.get("/api/appeals", tags=["appeals"])
@@ -268,13 +363,25 @@ def get_appeals() -> dict:
 
 
 @app.post("/api/mitigate", tags=["mitigation"])
-def api_mitigate(request: MitigationRequest) -> dict:
-    return mitigate(request.strategies)
+def api_mitigate(request: MitigationRequest) -> Any:
+    result = mitigate(
+        list(request.strategies),
+        threshold_contrast_acknowledged=request.threshold_contrast_acknowledged,
+    )
+    if "error" in result:
+        return JSONResponse(status_code=422, content=result)
+    return result
 
 
-@app.post("/api/upload", tags=["audit"], dependencies=[Depends(require_write_access)])
-def api_upload(request: UploadRequest) -> dict:
-    return upload_decisions(
+@app.post("/api/upload", tags=["audit"])
+def api_upload(
+    request: UploadRequest,
+    access: Annotated[WriteAccess, Depends(require_write_access)],
+) -> Any:
+    # Only an authenticated operator may publish an audit to the shared slot and
+    # the persistent history that every visitor reads. Anonymous uploads are
+    # computed and returned inline, then discarded.
+    result = upload_decisions(
         csv_text=request.csv,
         audit_name=request.audit_name,
         decision_column=request.decision_column,
@@ -284,7 +391,11 @@ def api_upload(request: UploadRequest) -> dict:
         protected_attributes=request.protected_attributes,
         candidate_id_column=request.candidate_id_column,
         minimum_group_size=request.minimum_group_size,
+        publish=access.authenticated,
     )
+    if "error" in result:
+        return JSONResponse(status_code=422, content=result)
+    return result
 
 
 @app.get("/api/audits", tags=["audit history"])
@@ -303,6 +414,8 @@ def audit_detail(audit_id: str) -> dict:
 @app.get("/api/audit/export", response_class=JSONResponse, tags=["audit"])
 def export_uploaded_audit() -> JSONResponse:
     result = uploaded_audit()
+    if "error" in result:
+        return JSONResponse(status_code=404, content=result)
     return JSONResponse(
         content=result,
         headers={"Content-Disposition": "attachment; filename=chaoshire-audit.json"},

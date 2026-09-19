@@ -2,7 +2,7 @@
 
 ## 20-second recruiter summary
 
-ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 98 tests and 97.65% package coverage.
+ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 188 tests and 97.5% package coverage, both re-derived from a real test run by a CI job that fails on drift.
 
 ## Three-minute live-demo script
 
@@ -18,7 +18,7 @@ Point to the synthetic-data boundary and verified engineering proof.
 
 Select **Fairness Dashboard** and **LegacyCorp Screen v1**.
 
-> “This intentionally biased fixture scores 42/F. The score is a risk signal for review—not legal certification.”
+> “This intentionally biased fixture scores 32/F — 27.1 of 85 available points measured. The score is a risk signal for review—not legal certification.”
 
 Mention that every run uses the same seed and 1,000 synthetic candidates.
 
@@ -40,7 +40,7 @@ Open **Who Got Filtered Out**, then candidate **C-1046**.
 
 Open **Mitigations** and run the combined simulation.
 
-> “Blind screening and proxy removal improve the synthetic fixture from 42/F to 83/B. This is a controlled simulation, not a claim that remediation is complete.”
+> “Blind screening and proxy removal improve the synthetic fixture from 32/F to 80/B. This is a controlled simulation, not a claim that remediation is complete. Per-group threshold calibration is not offered: 42 U.S.C. § 2000e-2(l) makes different cutoff scores by race, colour, religion, sex or national origin an unlawful employment practice.”
 
 ### 2:25–2:50 — Enforce the standard
 
@@ -56,12 +56,12 @@ Open **Release Gate** and compare LegacyCorp with MeritFirst.
 
 ### One line
 
-Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **98 tests and 97.65% coverage**.
+Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **188 tests and 97.5% coverage**.
 
 ### Two bullets
 
 - Engineered a deterministic hiring-AI audit platform with group/intersectional metrics, Wilson confidence intervals, counterfactual identity swaps, mitigation simulations, appeals, tamper-evident evidence, and automated model-release policy.
-- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **98 tests**, and **97.65% package coverage**.
+- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **188 tests**, and **97.5% package coverage**.
 
 ## Evidence checklist
 

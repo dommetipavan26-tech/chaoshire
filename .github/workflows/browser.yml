@@ -27,4 +27,22 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
       - name: Run mobile and keyboard browser checks
-        run: python -m pytest browser_tests -q
+        # Playwright failures are only legible in the raw job log, so the failure
+        # summary is re-emitted through ::error:: to reach the PR page too.
+        run: |
+          set +e
+          output="$(python -m pytest browser_tests -q 2>&1)"
+          code=$?
+          printf '%s\n' "$output"
+          if [ "$code" -ne 0 ]; then
+            # GitHub caps a check run at ten annotations per level, so emit only
+            # pytest's own detail lines - the failing statement, the assertion and
+            # the summary - rather than the whole traceback.
+            printf '%s\n' "$output" \
+              | grep -E '^(_{5,}|> |E |FAILED|ERROR)' \
+              | head -n 9 \
+              | while IFS= read -r line; do
+                  printf '::error title=browser checks exit %s::%s\n' "$code" "$line"
+                done
+          fi
+          exit "$code"

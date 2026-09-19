@@ -1,0 +1,40 @@
+{
+  "model_id": "trained",
+  "label": "qualified",
+  "algorithm": "LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)",
+  "train_features": [
+    "skills",
+    "experience",
+    "education",
+    "certs",
+    "prestige",
+    "gap"
+  ],
+  "excluded_protected_features": [
+    "gender_M",
+    "gender_NB",
+    "eth_G2",
+    "eth_G3",
+    "age_36-50",
+    "age_50+"
+  ],
+  "calibration": "affine; the logistic decision boundary (probability 0.5) is mapped onto the platform decision threshold 0.5 and the observed score range is scaled to fit inside [0, 1]",
+  "rows": 1000,
+  "sklearn_version": "1.9.1",
+  "coefficient_digest": "sha256:744bb1dcb8d07e3c5785521406ebc2765be18e47cced39f90c2415e4fce44684",
+  "coefficients": {
+    "skills": 0.550258,
+    "experience": 0.343499,
+    "education": 0.245529,
+    "certs": 0.161015,
+    "prestige": 0.011506,
+    "gap": 0.029778,
+    "intercept": -0.304035,
+    "gender_M": 0.0,
+    "gender_NB": 0.0,
+    "eth_G2": 0.0,
+    "eth_G3": 0.0,
+    "age_36-50": 0.0,
+    "age_50+": 0.0
+  }
+}

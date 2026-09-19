@@ -1,4 +1,5 @@
 """Capture deterministic portfolio screenshots from a running ChaosHire app."""
+
 from __future__ import annotations
 
 import argparse

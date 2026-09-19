@@ -9,6 +9,7 @@ and Render deployment stay dependency-free at runtime. Regenerate them with:
 The drawing is fully deterministic: the same Pillow version produces byte-stable
 output for a fixed size, so the manifest icons can be reviewed in git.
 """
+
 from __future__ import annotations
 
 import argparse

@@ -3,6 +3,7 @@
 Raw uploaded candidate rows are deliberately never written to this database.
 The default local path can be overridden with ``CHAOSHIRE_DB_PATH``.
 """
+
 import json
 import os
 import sqlite3
@@ -57,8 +58,7 @@ def initialise_database() -> None:
             """
         )
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_audit_runs_created_at "
-            "ON audit_runs(created_at DESC)"
+            "CREATE INDEX IF NOT EXISTS idx_audit_runs_created_at ON audit_runs(created_at DESC)"
         )
 
 

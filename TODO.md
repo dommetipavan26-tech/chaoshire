@@ -26,8 +26,34 @@
 - [x] 33 new regression tests (suite: 98 tests, 97.65% coverage)
 - [ ] Push the v0.22.0 tag and confirm the automated GitHub release
 
+## Release v0.23.0 — red-flag review remediation
+
+- [x] Escape `"` and `'` in `esc()`, route every breakout-attribute interpolation through `esc()`/`encodeURIComponent()`, and apply the nonce-based CSP from the unapplied v0.25.0 patch (`tests/test_html_escaping.py`)
+- [x] Merge `chaoshire-v0.25.0.patch` — TalentFit v3 pinned in `chaoshire/training.py` with a SHA-256 digest and a `train --check` CI gate — and delete the patch file
+- [x] Remove per-group threshold calibration from the mitigation set; reframe as a research-only contrast refused by default and citing 42 U.S.C. § 2000e-2(l) (`tests/test_threshold_contrast.py`)
+- [x] Generate `CHAOSHIRE_API_KEY` on the public demo, set non-zero read/write rate limits, trust forwarded-for behind the proxy, and bound the appeal queue (`tests/test_write_access.py`)
+- [x] Delete the unconditional +15 transparency points; score `measured / available × 100` and disclose the 85↔60 denominator switch (`tests/test_certificate_scale.py`)
+- [x] `chaoshire/build_info.py` as the single source of truth for quoted numbers, served via `/api/meta`, with `scripts/check_build_info.py` failing CI on drift (`tests/test_build_info.py`)
+- [x] `render.yaml` and `.env.example` document the enforced deployment posture
+- [x] `SECURITY.md` rewritten around what the shipped configuration actually enforces
+- [x] `browser_tests/test_landing.py` reads the proof strip from `/api/meta` and adds a mitigation-refusal plus end-to-end XSS regression
+- [x] Exception text no longer reaches a response body; upstream and CSV-parse failures return the category plus the exception class and log the detail (CodeQL `py/stack-trace-exposure`)
+- [x] Per-leg `--python-version` for mypy so numpy 2.5's PEP 695 stubs do not abort the 3.12 leg
+- [x] Living documentation scanned for stale test/coverage figures (`tests/test_build_info.py`)
+- [x] Service-worker cache name derived from the package version
+- [x] CI re-emits mypy and browser-check output as workflow annotations on failure
+- [x] `train --include-protected` writes its report to `reports/generated/protected-contrast.json` and prints only a static acknowledgement; a better channel for a machine-readable report, though it moves the false positive from `py/clear-text-logging-sensitive-data` to `py/clear-text-storage-sensitive-data` rather than clearing it
+- [x] Dismiss the `py/clear-text-storage-sensitive-data` alert on `chaoshire/cli.py` as a false positive in the code-scanning UI (reasoning recorded in SECURITY.md → Static analysis); both clear-text queries stay enabled for the rest of the package
+- [ ] Revisit the false-positive dismissal in SECURITY.md if CodeQL starts honouring inline `# codeql[...]` suppression comments
+- [ ] Re-review that dismissal before any deployment that handles real candidate data
+- [x] 90 new tests (suite: 188 tests, 97.5% coverage)
+- [ ] Push the v0.23.0 tag and confirm the automated GitHub release
+- [ ] Verify the Render deployment picks up the generated `CHAOSHIRE_API_KEY` and that `/api/ready` passes the health check
+
 ## Future engineering
 
+- [ ] Per-audit access control so published uploads are not world-readable
+- [ ] Move `style-src 'unsafe-inline'` out of the CSP by externalising the inline stylesheet
 - [ ] User accounts and auditor/reviewer roles
 - [ ] Managed PostgreSQL repository
 - [ ] Authenticated remote model connector

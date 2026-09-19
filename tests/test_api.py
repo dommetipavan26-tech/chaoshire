@@ -1,9 +1,8 @@
 """Public API contract tests."""
-from fastapi.testclient import TestClient
 
-import backend
+from conftest import operator_client
 
-client = TestClient(backend.app)
+client = operator_client()
 
 
 def test_health_check():
@@ -12,11 +11,11 @@ def test_health_check():
     assert response.json() == {"status": "ok", "service": "ChaosHire"}
 
 
-def test_meta_describes_both_reference_models():
+def test_meta_describes_all_reference_models():
     response = client.get("/api/meta")
     assert response.status_code == 200
     body = response.json()
-    assert [model["id"] for model in body["models"]] == ["legacy", "fair"]
+    assert [model["id"] for model in body["models"]] == ["legacy", "fair", "trained"]
     assert body["thresholds"]["disparate_impact"] == 0.8
     assert "C-1046" in body["sample_ids"]
 
@@ -26,7 +25,7 @@ def test_legacy_audit_contract():
     assert response.status_code == 200
     body = response.json()
     assert body["stats"]["candidates"] == 1000
-    assert body["certificate"]["total"] == 42
+    assert body["certificate"]["total"] == 32
     assert len(body["attributes"]) == 3
 
 
@@ -37,7 +36,11 @@ def test_chaos_suite_has_five_tests_and_expected_resilience():
     assert len(body["tests"]) == 5
     assert body["resilience"] == 30
     assert {test["id"] for test in body["tests"]} == {
-        "gender_swap", "ethnicity_swap", "adversarial", "gap_stress", "age_stress"
+        "gender_swap",
+        "ethnicity_swap",
+        "adversarial",
+        "gap_stress",
+        "age_stress",
     }
 
 
@@ -51,7 +54,7 @@ def test_fair_model_is_counterfactually_resilient():
 
 def test_unknown_candidate_returns_explanatory_error():
     response = client.get("/api/candidate/DOES-NOT-EXIST")
-    assert response.status_code == 200
+    assert response.status_code == 404
     assert "error" in response.json()
 
 

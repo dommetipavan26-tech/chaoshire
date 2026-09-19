@@ -14,7 +14,19 @@ The agent is decision support, not legal advice. `python -m chaoshire review --m
 
 ## Model adapters
 
-`DecisionAdapter` is the integration boundary for model versions. An adapter describes itself and returns a normalized pandas decision frame. The built-in reference adapter, configurable CSV adapter, and callable provider are documented by `GET /api/adapters`. Uploaded code is never executed.
+`DecisionAdapter` is the integration boundary for model versions. An adapter describes itself and returns a normalized pandas decision frame. The built-in reference adapter, configurable CSV adapter, callable provider, and authenticated remote HTTP connector are documented by `GET /api/adapters`. Uploaded code is never executed.
+
+## Remote model connector
+
+Set `CHAOSHIRE_REMOTE_MODELS` to a JSON list of connector objects
+(`model_id`, `url`, optional `api_key_env` and `timeout_seconds`) to register
+authenticated HTTP decision sources. `POST /api/connectors/audit`
+(`{"model_id": "..."}`, write-access guarded) fetches the decisions,
+normalises `accepted` (bool/int/string), and runs the standard fairness audit;
+upstream or credential problems answer 502, unknown connectors 404.
+`GET /api/adapters` lists configured connector ids without ever exposing
+credentials. URLs come only from operator configuration, never from request
+input, so the public API gains no SSRF surface.
 
 ## Optional write protection
 
@@ -22,7 +34,7 @@ Set `CHAOSHIRE_API_KEY` to protect CSV uploads and appeal submissions. Clients t
 
 ## Platform protections
 
-All responses receive a request ID, content-sniffing protection, frame denial, a restrictive permissions policy, referrer protection, and a same-origin Content Security Policy. `CHAOSHIRE_MAX_BODY_BYTES` defaults to 5,500,000. Optional fixed-window protection is enabled with `CHAOSHIRE_RATE_LIMIT_PER_MINUTE`; zero disables it.
+All responses receive a request ID, content-sniffing protection, frame denial, a restrictive permissions policy, referrer protection, and a same-origin Content Security Policy whose `script-src` uses a per-request nonce instead of `'unsafe-inline'` (plus `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`). `CHAOSHIRE_MAX_BODY_BYTES` defaults to 5,500,000. Fixed-window rate limiting is on by default (`CHAOSHIRE_RATE_LIMIT_PER_MINUTE=120`, `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE=6`); setting either to zero disables that limiter, and `render.yaml` deliberately does not. Behind a trusted proxy, `CHAOSHIRE_TRUST_FORWARDED_FOR=1` buckets limits by the right-most `X-Forwarded-For` entry so a client cannot rotate the header. Writes are gated by `CHAOSHIRE_API_KEY` — which `render.yaml` generates at deploy time — and only authenticated uploads are published to the shared history; anonymous uploads are audited, returned to the caller, and discarded. The appeal queue is a bounded FIFO (`CHAOSHIRE_MAX_APPEALS=200`). `GET /api/meta` reports the resolved posture as `platform` so a reviewer can verify what a deployment actually enforces.
 
 ## Operations
 
@@ -65,6 +77,7 @@ The dashboard has a skip link, visible keyboard focus, reduced-motion handling, 
 CHAOSHIRE_DB_PATH=data/chaoshire.db
 CHAOSHIRE_API_KEY=optional-secret
 CHAOSHIRE_MAX_BODY_BYTES=5500000
+CHAOSHIRE_REMOTE_MODELS=[{"model_id":"acme-v4","url":"https://models.example/decisions","api_key_env":"ACME_KEY"}]
 CHAOSHIRE_RATE_LIMIT_PER_MINUTE=0
 ```
 

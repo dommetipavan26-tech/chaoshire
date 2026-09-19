@@ -6,6 +6,7 @@ Render and existing users can continue running:
 Application code now lives in the ``chaoshire`` package. Selected names are
 re-exported to avoid breaking the v0.1 public API and regression tests.
 """
+
 from chaoshire.app import api_mitigate, app
 from chaoshire.config import DECISION_THRESHOLD as THRESHOLD
 from chaoshire.config import MIN_CELL_SIZE as MIN_CELL

@@ -1,12 +1,12 @@
 """Persistent aggregate audit-history tests."""
+
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+from conftest import operator_client
 
-import backend
 from chaoshire.state import UPLOADED
 
-client = TestClient(backend.app)
+client = operator_client()
 
 
 def upload_named_audit(name: str = "Quarterly screening review") -> dict:

@@ -1,13 +1,21 @@
 # Release checklist
 
-Template used for every tagged ChaosHire release (v0.20.0, v0.20.1, v0.21.0, and
-v0.22.0 all followed it). Substitute the target version for `vX.Y.Z`.
+Template used for every tagged ChaosHire release (v0.20.0, v0.20.1, v0.21.0,
+v0.22.0 and v0.23.0 all followed it). Substitute the target version for `vX.Y.Z`.
+
+Counts and percentages are deliberately *not* written into this checklist. They
+live in `chaoshire/build_info.py`, which `scripts/check_build_info.py` verifies
+against a real pytest run in CI, so a stale number here cannot outlive the release
+it described.
 
 ## Automated
 
-- [x] Ruff passes
-- [x] 98 tests pass
-- [x] Coverage exceeds 90% (verified baseline: 97.65%)
+- [x] Ruff format and Ruff check pass
+- [x] Mypy passes (`python -m mypy`)
+- [x] Every collected test passes
+- [x] Coverage exceeds the 90% gate
+- [x] `python scripts/check_build_info.py --coverage-json coverage.json` reports no drift
+- [x] `python -m chaoshire train --check` confirms the pinned TalentFit v3 digest
 - [x] Frontend JavaScript parses
 - [x] Fairness gate returns PASS for LegacyCorp to MeritFirst
 - [x] Render reports the tagged API version
@@ -19,7 +27,8 @@ v0.22.0 all followed it). Substitute the target version for `vX.Y.Z`.
 
 - [x] Confirm the Security checks workflow passes after pushing the release-preparation commit
 - [ ] Add the UptimeRobot `/api/ready` monitor and alert contact
-- [ ] Decide whether to configure `CHAOSHIRE_API_KEY` in Render
+- [x] `render.yaml` generates `CHAOSHIRE_API_KEY` at deploy time and sets non-zero read/write rate limits
+- [ ] Confirm the generated key is stored somewhere the owner can retrieve it, and that `CHAOSHIRE_TRUST_FORWARDED_FOR=1` is active behind the Render proxy
 - [ ] Test overview, Chaos, agent, guided demo, PDF, and evidence download on one Android or iPhone
 - [ ] Create and push tag `vX.Y.Z`; the Release workflow publishes source, reports, evidence, checksums, and release notes
 - [ ] Add the live URL and repository to résumé and LinkedIn

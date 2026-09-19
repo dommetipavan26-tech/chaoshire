@@ -1,12 +1,12 @@
 """Chaos evidence, model comparison, release-gate, and report tests."""
 
-from fastapi.testclient import TestClient
+from conftest import operator_client
 
 import backend
 from chaoshire.cli import main
 from chaoshire.reporting import render_html_report
 
-client = TestClient(backend.app)
+client = operator_client()
 
 
 def test_default_chaos_run_has_deterministic_id_and_evidence():
@@ -51,7 +51,7 @@ def test_model_comparison_reports_reviewed_deltas():
     response = client.get("/api/compare", params={"baseline": "legacy", "candidate": "fair"})
     assert response.status_code == 200
     result = response.json()
-    assert result["delta"]["certificate"] == 44
+    assert result["delta"]["certificate"] == 52
     assert result["delta"]["chaos_resilience"] == 70
     assert result["candidate"]["certificate"]["grade"] == "B"
 
@@ -80,11 +80,9 @@ def test_release_gate_passes_improvement_and_blocks_regression():
 def test_reference_html_report_is_self_contained():
     response = client.get("/api/report.html", params={"model": "legacy"})
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == (
-        "attachment; filename=chaoshire-report.html"
-    )
+    assert response.headers["content-disposition"] == ("attachment; filename=chaoshire-report.html")
     assert "ChaosHire Audit Report" in response.text
-    assert "42 / F" in response.text
+    assert "32 / F" in response.text
     assert "EXP-" in response.text
     assert "<script" not in response.text
     assert "https://" not in response.text
