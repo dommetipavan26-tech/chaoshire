@@ -71,8 +71,16 @@ def run_train_command(
         contrast_coefficients = train_coefficients(include_protected=True)
         result = audit(build_decisions(contrast_coefficients))
         gender = next(a for a in result["attributes"] if a["attribute"] == "gender")
+        # Accepted CodeQL alert (py/clear-text-logging). Printing this fit to
+        # stdout is the entire purpose of --include-protected: it is the contrast
+        # a reviewer compares against the blind model. Nothing here is a secret
+        # and nothing is real personal data - every value is derived from the
+        # bundled 1,000-row synthetic fixture - so the "sensitive data" verdict is
+        # driven purely by the protected-attribute provenance of the coefficients.
+        # It is never pinned to the artifact, which the --write guard above and
+        # tests/test_trained_model.py both enforce.
         print(
-            json.dumps(
+            json.dumps(  # codeql[py/clear-text-logging]
                 {
                     "mode": "with-protected-attributes",
                     "pinned": False,

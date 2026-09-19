@@ -164,8 +164,14 @@ def test_mitigation_tab_refuses_per_group_thresholds() -> None:
         # Acknowledged: runs, and is labelled research-only rather than applied.
         page.locator("#m_contrast_ack").check()
         page.locator("#runcontrast").click()
-        page.get_by_text("prohibited in US employment testing", exact=False).wait_for()
-        assert "research only" in page.locator("#contrastout").inner_text()
+        # Two chips render here ("research only" and "prohibited in US employment
+        # testing"), and the acknowledgement label above repeats the phrase, so
+        # wait on the container and assert on its text instead of a bare locator.
+        page.locator("#contrastout .chip").first.wait_for()
+        contrast_out = page.locator("#contrastout").inner_text()
+        assert "research only" in contrast_out
+        assert "prohibited in US employment testing" in contrast_out
+        assert "42 U.S.C. § 2000e-2(l)" in contrast_out
         browser.close()
 
 
@@ -205,7 +211,13 @@ def test_uploaded_group_values_cannot_escape_the_attribute_context() -> None:
         page.locator("#csvfile").set_input_files(str(csv_path))
         page.locator("#attrs").fill("gender,ethnicity")
         page.locator("#upbtn").click()
-        page.get_by_text("not published", exact=False).wait_for()
+        # Scoped to the result container: the upload tab's static privacy notice
+        # and the platform note both say "not published" too, so an unscoped
+        # get_by_text() resolves to several elements and trips strict mode.
+        page.locator("#upout .chip").wait_for()
+        upload_out = page.locator("#upout").inner_text()
+        assert "not published" in upload_out
+        assert "XSS probe" in upload_out
         page.locator("#viewup").click()
         page.locator("#tab-overview .grade-ring").wait_for()
 

@@ -25,8 +25,12 @@ below; `SECURITY.md` now documents the enforced posture rather than an aspiratio
   (`tests/test_security_connectors.py`)
 - **`train --include-protected` no longer prints through a variable named
   `leaked`.** The contrast fit it reports is a synthetic coefficient set, not a
-  secret; the name was tripping CodeQL's clear-text-logging rule and mislabelled
-  the output in the process. Renamed to `contrast_coefficients`.
+  secret; the name mislabelled the output and tripped CodeQL's clear-text-logging
+  rule. Renamed to `contrast_coefficients`. The rule still fires on the
+  protected-attribute provenance of the coefficients, so the remaining alert is
+  suppressed inline with a written justification: printing that fit is the entire
+  purpose of the flag, every value derives from the bundled 1,000-row synthetic
+  fixture, and `--write` refuses to pin it (`tests/test_trained_model.py`).
 - **The dashboard no longer builds HTML by unescaped string concatenation.**
   `esc()` in `index.html` escapes `"` and `'` as well as `& < >`, plus the
   backtick. Every interpolation into an attribute that can break out (`href`,
