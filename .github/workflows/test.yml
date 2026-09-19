@@ -27,13 +27,17 @@ jobs:
         run: python -m ruff check .
       - name: Format check
         run: python -m ruff format --check .
+      # numpy 2.5+ ships PEP 695 `type` statements in its stubs and requires
+      # Python >= 3.12, so mypy's checked version has to follow the matrix leg:
+      # the 3.11 leg resolves numpy 2.4.6 and checks 3.11 semantics, the 3.12 leg
+      # resolves numpy 2.5.x and would otherwise fail to parse its stub.
       - name: Type check
         # mypy's own output is re-emitted as workflow annotations on failure so
         # the reason is visible on the PR page and through the checks API, not
         # only inside the raw job log.
         run: |
           set +e
-          output="$(python -m mypy 2>&1)"
+          output="$(python -m mypy --python-version "${{ matrix.python-version }}" 2>&1)"
           code=$?
           printf '%s\n' "$output"
           if [ "$code" -ne 0 ]; then

@@ -23,6 +23,11 @@ skip_covered = true
 fail_under = 90
 
 [tool.mypy]
+# The lowest runtime this package supports. CI overrides it per matrix leg with
+# --python-version, because numpy 2.5+ ships PEP 695 `type` statements in its
+# stubs and only installs on Python >= 3.12: checking that stub against 3.11
+# semantics fails with "Type statement is only supported in Python 3.12 and
+# greater", which aborts the whole run rather than reporting our own errors.
 python_version = "3.11"
 files = ["chaoshire", "backend.py"]
 warn_unused_ignores = true
