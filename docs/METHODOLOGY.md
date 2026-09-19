@@ -103,13 +103,70 @@ It then applies the same group metrics, confidence intervals, small-cell rules, 
 
 Intersectional results are reported separately and **do not alter the Fairness Risk Score**. This prevents the risk score from changing merely because more attributes were supplied and avoids double-counting overlapping evidence.
 
-## Risk-score stability
+## Fairness Risk Score
 
-The current risk score uses primary, non-intersectional attributes only:
+The score uses primary, non-intersectional attributes only, so it does not change
+merely because more attributes were supplied.
 
-- Disparate impact: 40 points
-- Demographic parity: 20 points
-- Equal opportunity: 25 points when ground truth exists
-- Transparency features: 15 points
+```
+total = measured_points / available_points × 100
+```
 
-The score is a transparent ChaosHire product indicator—not an official certification from a regulator, standards body, or government agency.
+| Component | Points | Requires |
+|---|---:|---|
+| Disparate impact (four-fifths rule) | 40 | group selection rates |
+| Demographic parity gap | 20 | group selection rates |
+| Equal opportunity gap | 25 | ground-truth qualification labels |
+| **`available_points` with ground truth (`basis: "full"`)** | **85** | |
+| **`available_points` without it (`basis: "selection-rate-only"`)** | **60** | |
+
+Component points scale linearly from the measured gap: disparate impact awards
+`40 × min(DI / 0.8, 1)`, parity awards `20 × max(0, 1 − gap / 0.15)`, and equal
+opportunity awards `25 × max(0, 1 − gap / 0.2)`. The total is rounded and clamped
+to `[0, 100]`, then graded A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 45, otherwise F. An
+unassessable audit returns grade `N/A` with `basis: "none"` and
+`available_points: 0` rather than a number.
+
+### Nothing is awarded for free
+
+Earlier versions added an unconditional **15 "transparency" points** for
+disclosure, release gates, CI and appeal routes. Those are properties of the
+ChaosHire platform, not of the model under audit, and none of them were ever
+measured: every audited model received the same credit for a feature it does not
+own, a transparent but badly biased model scored higher on a *fairness* scale, a
+genuinely failing fixture reported 47/D instead of 32/F, and a perfect
+group-fairness result was capped at 85. The points are removed. A perfect result
+now scores 100/A on merit, and the platform capabilities are still disclosed —
+as `platform_disclosure` text carrying `scored: false` and
+`included_in_total: false`, with a `why_unscored` explanation.
+
+### The denominator is part of the result
+
+Equal opportunity needs true-positive rates, which need ground-truth
+qualification labels. Without them the component is not measured at zero — it is
+excluded, and `available_points` drops from 85 to 60. Two scores printed side by
+side on different bases are therefore **not** measuring the same thing, and a
+higher selection-rate-only score does not mean a fairer model. Every `certificate`
+payload states this explicitly:
+
+| Key | Meaning |
+|---|---|
+| `measured_points`, `available_points`, `scale` | the arithmetic, in full |
+| `basis` | `"full"`, `"selection-rate-only"`, or `"none"` |
+| `basis_note` | why that basis applies, in prose |
+| `unmeasured_components` | label, points forgone, and the reason for each |
+| `comparable_with_full_basis` | `false` whenever the score rests on less evidence |
+| `platform_disclosure` | disclosed, never scored |
+
+The HTML and PDF reports print the basis next to the number and carry the
+comparability warning in the same place, so the disclosure cannot be separated
+from the figure it qualifies.
+
+### What the score is not
+
+The score is a transparent ChaosHire product indicator—not an official
+certification from a regulator, standards body, or government agency. It does not
+establish legal compliance and does not by itself prove or disprove
+discrimination. Per-group threshold calibration is deliberately **not** part of
+it and not available as a mitigation; see `SECURITY.md` and
+[42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2).

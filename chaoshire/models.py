@@ -1,4 +1,5 @@
 """Reference scoring models and feature transformations."""
+
 from typing import TypeAlias
 
 import numpy as np
@@ -38,8 +39,14 @@ FEATURE_DESCRIPTIONS = {
     "gap": "Model penalizes career gaps (e.g. parental leave)",
 }
 BIAS_FEATURES = [
-    "gender_M", "gender_NB", "eth_G2", "eth_G3", "age_36-50",
-    "age_50+", "gap", "prestige",
+    "gender_M",
+    "gender_NB",
+    "eth_G2",
+    "eth_G3",
+    "age_36-50",
+    "age_50+",
+    "gap",
+    "prestige",
 ]
 
 LEGACY: Coefficients = {
@@ -75,6 +82,14 @@ MODEL_META = {
         "title": "MeritFirst v2",
         "blurb": "Skills-only reference model. Your clean baseline.",
     },
+    "trained": {
+        "id": "trained",
+        "title": "TalentFit v3 (trained)",
+        "blurb": (
+            "Logistic regression fitted to this fixture with protected attributes "
+            "withheld but proxy signals kept. Blind training — but blind decisions?"
+        ),
+    },
 }
 
 
@@ -94,6 +109,12 @@ def get_model(model: str) -> Coefficients:
         return LEGACY
     if model == "fair":
         return FAIR
+    if model == "trained":
+        # Lazy import: keeps artifact loading (and its sklearn-free runtime
+        # contract) out of module import time and avoids a circular import.
+        from .training import trained_coefficients
+
+        return trained_coefficients()
     raise ValueError(
         f"Unknown reference model '{model}'. Available models: {', '.join(known_models())}."
     )

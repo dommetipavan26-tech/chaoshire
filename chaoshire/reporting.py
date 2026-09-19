@@ -1,4 +1,5 @@
 """Self-contained HTML audit report generation."""
+
 from html import escape
 from typing import Any
 
@@ -39,6 +40,62 @@ def _score_label(certificate: dict[str, Any]) -> str:
     return f"{certificate['total']} / {certificate['grade']}"
 
 
+def _basis_notice(certificate: dict[str, Any]) -> str:
+    """State what was measured, out of what, and what is missing.
+
+    The score is ``measured / available * 100``. Under the previous scale a
+    perfect group-fairness result scored 85 and the remaining 15 points were
+    awarded unconditionally for "transparency", which is a property of the
+    platform rather than of the model under audit and was never measured. Those
+    points are gone; this notice says so out loud instead.
+    """
+    if not certificate.get("assessable", True):
+        return ""
+    measured = certificate.get("measured_points")
+    available = certificate.get("available_points")
+    basis = escape(str(certificate.get("basis_note", "")))
+    note = f"<b>Scoring basis:</b> {measured} of {available} available points measured. {basis}"
+    missing = certificate.get("unmeasured_components") or []
+    if missing:
+        items = "".join(
+            f"<li>{escape(component['label'])} ({component['max']} points) — "
+            f"{escape(component['reason'])}</li>"
+            for component in missing
+        )
+        note += f"<ul>{items}</ul>"
+    if certificate.get("comparable_with_full_basis"):
+        note += (
+            " Full basis: this score is directly comparable with other full-basis "
+            "scores. Disclosure points are no longer added to the model's score — "
+            "they are reported separately below."
+        )
+    else:
+        note += (
+            " This score is <b>not comparable</b> with a full-basis score: it rests "
+            "on less evidence, so a higher number here does not mean a fairer model."
+        )
+    note += _platform_disclosure_html(certificate.get("platform_disclosure"))
+    return f'<p class="notice">{note}</p>'
+
+
+def _platform_disclosure_html(disclosure: Any) -> str:
+    """Render the platform-disclosure block as text, explicitly unscored."""
+    if not disclosure:
+        return ""
+    if not isinstance(disclosure, dict):
+        return f"<br><b>Platform disclosure (not a score):</b> {escape(str(disclosure))}"
+    why = escape(str(disclosure.get("why_unscored", "")))
+    items = "".join(
+        f"<li>{escape(str(capability.get('label', '')))} — "
+        f"{escape(str(capability.get('available_for', '')))}</li>"
+        for capability in disclosure.get("capabilities", [])
+    )
+    scored = "scored" if disclosure.get("scored") else "not scored"
+    return (
+        f"<br><b>Platform disclosure ({scored}, excluded from the total):</b> {why}<ul>{items}</ul>"
+    )
+
+
 def _assessability_notice(certificate: dict[str, Any]) -> str:
     if certificate.get("assessable", True):
         return ""
@@ -55,7 +112,9 @@ def render_html_report(audit: dict[str, Any], chaos: dict[str, Any] | None = Non
     identity = escape(str(audit.get("audit_id", "reference-demo")))
     created = escape(str(audit.get("created_at", "deterministic reference run")))
     primary = "".join(_attribute_table(attribute) for attribute in audit["attributes"])
-    intersections = "".join(_attribute_table(attribute) for attribute in audit.get("intersections", []))
+    intersections = "".join(
+        _attribute_table(attribute) for attribute in audit.get("intersections", [])
+    )
     chaos_html = ""
     if chaos:
         tests = "".join(
@@ -82,11 +141,11 @@ table{{border-collapse:collapse;width:100%;margin-top:10px}}th,td{{text-align:le
 .notice{{background:#fff7ed;border:1px solid #fdba74;padding:12px;border-radius:10px}}code{{background:#eef2f7;padding:2px 5px}}
 @media print{{body{{padding:0}}section{{break-inside:avoid}}}}
 </style></head><body><header><h1>ChaosHire Audit Report</h1><p><b>{name}</b><br>ID: {identity} · Created: {created}</p></header>
-<div class="summary"><div class="card"><div class="big">{audit['stats']['candidates']}</div>Candidates</div>
-<div class="card"><div class="big">{audit['stats']['accepted']}</div>Accepted</div>
+<div class="summary"><div class="card"><div class="big">{audit["stats"]["candidates"]}</div>Candidates</div>
+<div class="card"><div class="big">{audit["stats"]["accepted"]}</div>Accepted</div>
 <div class="card"><div class="big">{_score_label(certificate)}</div>Fairness risk score</div>
-<div class="card"><div class="big">{len(audit.get('intersections', []))}</div>Intersection audits</div></div>
-{_assessability_notice(certificate)}<p class="notice"><b>Interpretation notice:</b> This is an exploratory technical assessment, not legal advice or an official certification. Statistical significance does not establish causation. Synthetic reference results are not findings about a real employer.</p>
-<h1>Primary attributes</h1>{primary}<h1>Intersectional analysis</h1>{intersections or '<p>Not available.</p>'}{chaos_html}
+<div class="card"><div class="big">{len(audit.get("intersections", []))}</div>Intersection audits</div></div>
+{_assessability_notice(certificate)}{_basis_notice(certificate)}<p class="notice"><b>Interpretation notice:</b> This is an exploratory technical assessment, not legal advice or an official certification. Statistical significance does not establish causation. Synthetic reference results are not findings about a real employer.</p>
+<h1>Primary attributes</h1>{primary}<h1>Intersectional analysis</h1>{intersections or "<p>Not available.</p>"}{chaos_html}
 <footer><hr><p>Generated by ChaosHire · Wilson 95% intervals · four-fifths screening threshold · aggregate evidence only.</p></footer>
 </body></html>"""

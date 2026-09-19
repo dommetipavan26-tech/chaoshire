@@ -21,3 +21,12 @@ omit = ["chaoshire/data.py"]
 show_missing = true
 skip_covered = true
 fail_under = 90
+
+[tool.mypy]
+python_version = "3.11"
+files = ["chaoshire", "backend.py"]
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["pandas.*", "sklearn.*"]
+ignore_missing_imports = true

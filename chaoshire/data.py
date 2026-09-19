@@ -1,21 +1,56 @@
 """Deterministic synthetic data used by the public demonstration."""
+
 import numpy as np
 import pandas as pd
 
 from .config import DEMO_SEED, DEMO_SIZE
 
 MALE_NAMES = [
-    "Arjun", "Ravi", "John", "David", "Wei", "Omar", "Carlos", "Daniel",
-    "Sanjay", "Peter", "Ahmed", "Vikram",
+    "Arjun",
+    "Ravi",
+    "John",
+    "David",
+    "Wei",
+    "Omar",
+    "Carlos",
+    "Daniel",
+    "Sanjay",
+    "Peter",
+    "Ahmed",
+    "Vikram",
 ]
 FEMALE_NAMES = [
-    "Priya", "Aisha", "Maria", "Chen", "Fatima", "Lakshmi", "Sarah", "Divya",
-    "Emma", "Anita", "Zara", "Meera",
+    "Priya",
+    "Aisha",
+    "Maria",
+    "Chen",
+    "Fatima",
+    "Lakshmi",
+    "Sarah",
+    "Divya",
+    "Emma",
+    "Anita",
+    "Zara",
+    "Meera",
 ]
 NON_BINARY_NAMES = ["Alex", "Sam", "Riya", "Noor", "Kai", "Dev"]
 SURNAMES = [
-    "Sharma", "Patel", "Khan", "Smith", "Chen", "Garcia", "Reddy", "Iyer",
-    "Ali", "Kumar", "Brown", "Das", "Nair", "Singh", "Lopez", "Kim",
+    "Sharma",
+    "Patel",
+    "Khan",
+    "Smith",
+    "Chen",
+    "Garcia",
+    "Reddy",
+    "Iyer",
+    "Ali",
+    "Kumar",
+    "Brown",
+    "Das",
+    "Nair",
+    "Singh",
+    "Lopez",
+    "Kim",
 ]
 
 

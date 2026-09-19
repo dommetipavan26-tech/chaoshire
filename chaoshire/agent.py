@@ -3,6 +3,7 @@
 The agent intentionally uses transparent rules rather than an external language model.
 Every conclusion links to a metric in the supplied aggregate audit or Chaos run.
 """
+
 import hashlib
 import json
 from typing import Any
@@ -51,7 +52,15 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
         di = attribute.get("disparate_impact")
         if di is not None and di < 0.8:
             intersection = attribute in intersections
-            severity = "HIGH" if intersection and di < 0.5 else "MEDIUM" if intersection else "CRITICAL" if di < 0.5 else "HIGH"
+            severity = (
+                "HIGH"
+                if intersection and di < 0.5
+                else "MEDIUM"
+                if intersection
+                else "CRITICAL"
+                if di < 0.5
+                else "HIGH"
+            )
             findings.append(
                 {
                     "id": f"di-{attribute['attribute']}",
@@ -60,9 +69,8 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
                     "metric": "disparate_impact",
                     "actual": di,
                     "threshold": 0.8,
-                    "evidence_path": (
-                        "/intersections" if intersection else "/attributes"
-                    ) + f"/{attribute['attribute']}/disparate_impact",
+                    "evidence_path": ("/intersections" if intersection else "/attributes")
+                    + f"/{attribute['attribute']}/disparate_impact",
                     "explanation": "The lowest reliable selection rate is below four-fifths of the highest rate.",
                 }
             )
@@ -96,11 +104,17 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
             "least two groups above the minimum reliable size for every protected attribute."
         )
     if any(item["id"].startswith("chaos-") for item in findings):
-        actions.append("Inspect candidate-level before/after evidence for every failed Chaos experiment.")
+        actions.append(
+            "Inspect candidate-level before/after evidence for every failed Chaos experiment."
+        )
     if any(item["metric"] == "disparate_impact" for item in findings):
-        actions.append("Review features, proxies, data coverage, and selection thresholds for affected groups.")
+        actions.append(
+            "Review features, proxies, data coverage, and selection thresholds for affected groups."
+        )
     if certificate["total"] < 75:
-        actions.append("Run mitigation simulations and require the release gate to pass before promotion.")
+        actions.append(
+            "Run mitigation simulations and require the release gate to pass before promotion."
+        )
     actions.append("Have a qualified human reviewer validate context, labels, and legal relevance.")
 
     basis = {

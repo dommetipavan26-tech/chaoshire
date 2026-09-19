@@ -1,9 +1,8 @@
 """Tests for configurable bring-your-own-model audits."""
-from fastapi.testclient import TestClient
 
-import backend
+from conftest import operator_client
 
-client = TestClient(backend.app)
+client = operator_client()
 
 
 def test_custom_columns_values_and_protected_attributes():
@@ -34,12 +33,8 @@ def test_custom_columns_values_and_protected_attributes():
     audit = client.get("/api/audit", params={"dataset": "uploaded"}).json()
     assert audit["stats"]["candidates"] == 50
     assert audit["stats"]["accepted"] == 25
-    assert audit["configuration"]["protected_attributes"] == [
-        "region", "disability_status"
-    ]
-    assert {item["attribute"] for item in audit["attributes"]} == {
-        "region", "disability_status"
-    }
+    assert audit["configuration"]["protected_attributes"] == ["region", "disability_status"]
+    assert {item["attribute"] for item in audit["attributes"]} == {"region", "disability_status"}
 
 
 def test_missing_configured_column_returns_available_columns():
@@ -97,9 +92,7 @@ def test_downloadable_json_report_has_attachment_header():
     )
     response = client.get("/api/audit/export")
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == (
-        "attachment; filename=chaoshire-audit.json"
-    )
+    assert response.headers["content-disposition"] == ("attachment; filename=chaoshire-audit.json")
     assert response.json()["configuration"]["protected_attributes"] == ["group"]
 
 

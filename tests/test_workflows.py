@@ -1,9 +1,8 @@
 """End-to-end tests for the main product workflows."""
-from fastapi.testclient import TestClient
 
-import backend
+from conftest import operator_client
 
-client = TestClient(backend.app)
+client = operator_client()
 
 
 def test_home_serves_the_dashboard():
@@ -55,20 +54,23 @@ def test_request_validation_rejects_empty_appeal_message():
 def test_mitigation_endpoint_preserves_reviewed_improvement():
     response = client.post(
         "/api/mitigate",
-        json={"strategies": ["blind", "proxy", "calibrate"]},
+        json={"strategies": ["blind", "proxy"]},
     )
     assert response.status_code == 200
     body = response.json()
-    assert (body["before"]["certificate"]["total"], body["before"]["certificate"]["grade"]) == (42, "F")
+    assert (body["before"]["certificate"]["total"], body["before"]["certificate"]["grade"]) == (
+        32,
+        "F",
+    )
     assert (
         body["after"]["certificate"]["total"],
         body["after"]["certificate"]["grade"],
-    ) == (83, "B")
+    ) == (80, "B")
 
 
 def test_upload_validation_and_uploaded_audit():
     missing_decision = client.post("/api/upload", json={"csv": "gender,qualified\nF,1\n"})
-    assert missing_decision.status_code == 200
+    assert missing_decision.status_code == 422
     assert "error" in missing_decision.json()
 
     csv_text = "gender,decision,qualified\n" + "\n".join(
@@ -82,6 +84,9 @@ def test_upload_validation_and_uploaded_audit():
     assert upload_body["attributes_found"] == ["gender"]
     assert upload_body["has_ground_truth"] is True
     assert upload_body["configuration"]["minimum_group_size"] == 30
+    # This client authenticates with CHAOSHIRE_API_KEY, so the audit is published.
+    assert upload_body["published"] is True
+    assert upload_body["audit"]["stats"]["candidates"] == 60
 
     result = client.get("/api/audit", params={"dataset": "uploaded"})
     assert result.status_code == 200

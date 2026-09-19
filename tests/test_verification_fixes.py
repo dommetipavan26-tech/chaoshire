@@ -6,12 +6,13 @@ exceptions, non-assessable audits, mitigation contract hardening, injection
 test discriminating power, evidence-verification robustness, upload-slot
 locking, and PWA installability assets.
 """
+
 import concurrent.futures
 from typing import get_args
 
 import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
+from conftest import operator_client
 
 import backend
 from chaoshire import models
@@ -27,7 +28,7 @@ from chaoshire.schemas import MitigationStrategy
 from chaoshire.services import MITIGATION_STRATEGIES, mitigate, uploaded_audit
 from chaoshire.state import UPLOADED, UPLOADED_LOCK
 
-client = TestClient(backend.app)
+client = operator_client()
 
 UNKNOWN_MODEL_ROUTES = [
     ("/api/audit", {"model": "nope"}),
@@ -74,7 +75,7 @@ def test_unhandled_exception_is_counted_in_operational_metrics():
 
     backend.app.router.add_api_route("/api/__verification-boom", boom, methods=["GET"])
     try:
-        failing = TestClient(backend.app, raise_server_exceptions=False)
+        failing = operator_client(raise_server_exceptions=False)
         before = OPERATIONS.snapshot()
         response = failing.get("/api/__verification-boom")
         assert response.status_code == 500
@@ -159,13 +160,11 @@ def test_mitigate_rejects_unknown_strategies():
 
 
 def test_mitigate_payload_is_symmetric_and_self_describing():
-    response = client.post(
-        "/api/mitigate", json={"strategies": ["blind", "proxy", "calibrate"]}
-    ).json()
+    response = client.post("/api/mitigate", json={"strategies": ["blind", "proxy"]}).json()
     assert response["model"]["id"] == "legacy"
     assert set(response["before"]) == set(response["after"])
-    assert response["before"]["certificate"]["total"] == 42
-    assert response["after"]["certificate"]["total"] == 83
+    assert response["before"]["certificate"]["total"] == 32
+    assert response["after"]["certificate"]["total"] == 80
     assert response["before"]["stats"]["candidates"] == 1000
 
 
@@ -232,9 +231,12 @@ def test_missing_icon_returns_404():
 
 def test_uploaded_dataset_feeds_reports_and_evidence():
     csv_text = "gender,decision\n" + "\n".join(["F,1"] * 30 + ["M,0"] * 30)
-    assert client.post(
-        "/api/upload", json={"csv": csv_text, "protected_attributes": ["gender"]}
-    ).status_code == 200
+    assert (
+        client.post(
+            "/api/upload", json={"csv": csv_text, "protected_attributes": ["gender"]}
+        ).status_code
+        == 200
+    )
     html = client.get("/api/report.html", params={"dataset": "uploaded"})
     assert html.status_code == 200
     assert "ChaosHire Audit Report" in html.text
@@ -259,7 +261,9 @@ def test_empty_dataset_is_not_assessable():
 def test_unknown_chaos_threshold_id_is_rejected():
     with pytest.raises(ValueError, match="Unknown chaos test threshold"):
         run_chaos_suite("legacy", {"nope": {"warn": 0.1, "fail": 0.2}})
-    response = client.post("/api/chaos/run", json={"thresholds": {"nope": {"warn": 0.1, "fail": 0.2}}})
+    response = client.post(
+        "/api/chaos/run", json={"thresholds": {"nope": {"warn": 0.1, "fail": 0.2}}}
+    )
     assert response.status_code == 400
 
 

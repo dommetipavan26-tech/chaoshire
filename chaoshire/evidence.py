@@ -1,4 +1,5 @@
 """Tamper-evident aggregate evidence bundles."""
+
 import hashlib
 import json
 from secrets import compare_digest
@@ -26,7 +27,10 @@ def build_evidence_bundle(
         "chaos": chaos,
         "agent_review": review,
     }
-    return {"payload": payload, "integrity": {"algorithm": "SHA-256", "digest": evidence_digest(payload)}}
+    return {
+        "payload": payload,
+        "integrity": {"algorithm": "SHA-256", "digest": evidence_digest(payload)},
+    }
 
 
 def verify_evidence_bundle(bundle: dict[str, Any]) -> dict[str, Any]:

@@ -1,4 +1,5 @@
 """Dependency-free native PDF summary renderer."""
+
 import textwrap
 from typing import Any
 
@@ -10,9 +11,7 @@ def _pdf_escape(text: object) -> str:
 def _report_lines(audit: dict[str, Any], chaos: dict[str, Any] | None) -> list[str]:
     certificate = audit["certificate"]
     assessable = certificate.get("assessable", True)
-    score = (
-        f"{certificate['total']} / {certificate['grade']}" if assessable else "not assessable"
-    )
+    score = f"{certificate['total']} / {certificate['grade']}" if assessable else "not assessable"
     lines = [
         "ChaosHire Audit Report",
         f"Audit: {audit.get('audit_name', 'Reference model audit')}",
@@ -21,11 +20,22 @@ def _report_lines(audit: dict[str, Any], chaos: dict[str, Any] | None) -> list[s
         f"Candidates: {audit['stats']['candidates']}",
         f"Accepted: {audit['stats']['accepted']}",
         f"Fairness risk score: {score}",
+        (
+            f"Scoring basis: {certificate.get('measured_points')} of "
+            f"{certificate.get('available_points')} available points measured "
+            f"({certificate.get('basis', 'unknown')})."
+            if assessable
+            else "Scoring basis: not assessable."
+        ),
+        (
+            f"Comparable with other {certificate.get('basis', 'unknown')}-basis scores."
+            if certificate.get("comparable_with_full_basis")
+            else "Not comparable with a full-basis score: less evidence was measurable."
+        ),
+        "Transparency points are no longer added to the model score.",
     ]
     if not assessable:
-        lines.append(
-            "Not assessable: " + " ".join(certificate.get("reasons") or [])
-        )
+        lines.append("Not assessable: " + " ".join(certificate.get("reasons") or []))
     lines.extend(["", "Primary attributes"])
     for attribute in audit["attributes"]:
         lines.append(
@@ -78,7 +88,9 @@ def render_pdf_report(audit: dict[str, Any], chaos: dict[str, Any] | None = None
             commands.append("T*")
         commands.append("ET")
         stream = "\n".join(commands).encode("latin-1", "replace")
-        objects.append(b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream")
+        objects.append(
+            b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream"
+        )
 
     output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
     offsets = [0]
@@ -88,11 +100,11 @@ def render_pdf_report(audit: dict[str, Any], chaos: dict[str, Any] | None = None
         output.extend(obj)
         output.extend(b"\nendobj\n")
     xref = len(output)
-    output.extend(f"xref\n0 {len(objects)+1}\n".encode())
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode())
     output.extend(b"0000000000 65535 f \n")
     for offset in offsets[1:]:
         output.extend(f"{offset:010d} 00000 n \n".encode())
     output.extend(
-        f"trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
     )
     return bytes(output)

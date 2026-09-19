@@ -96,9 +96,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   <section id="tab-welcome">
     <div class="hero">
       <div><span class="chip info">OPEN-SOURCE RESPONSIBLE AI</span><h2 style="margin-top:14px">Stress-test hiring AI <span>before unfair decisions reach candidates.</span></h2><p>ChaosHire combines statistical fairness audits with controlled counterfactual experiments, candidate-level evidence, and automated release gates.</p><div class="hero-actions"><button class="btn" id="startdemo">Start the 3-minute demo</button><button class="btn ghost" id="exploredashboard">Explore dashboard</button></div><div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="/docs" target="_blank">API documentation ↗</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release ↗</a></div></div>
-      <aside class="hero-panel" aria-live="polite"><div class="dim">DETERMINISTIC DEMONSTRATION</div><div id="home-score" style="font-size:52px;font-weight:800;color:var(--rose);margin-top:6px">42 / F</div><div id="home-model">LegacyCorp fairness risk score</div><hr style="border:0;border-top:1px solid var(--line);margin:17px 0"><div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i style="width:84.5%"></i></div><b id="home-gender">169</b></div><div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i style="width:55.5%"></i></div><b id="home-community">111</b></div><div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i style="width:30%"></i></div><b id="home-resilience">30</b></div><p class="dim" style="margin-top:14px">All people, employers, and findings are synthetic.</p></aside>
+      <aside class="hero-panel" aria-live="polite"><div class="dim">DETERMINISTIC DEMONSTRATION</div><div id="home-score" style="font-size:52px;font-weight:800;color:var(--rose);margin-top:6px">32 / F</div><div id="home-model">LegacyCorp fairness risk score</div><hr style="border:0;border-top:1px solid var(--line);margin:17px 0"><div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i style="width:84.5%"></i></div><b id="home-gender">169</b></div><div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i style="width:55.5%"></i></div><b id="home-community">111</b></div><div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i style="width:30%"></i></div><b id="home-resilience">30</b></div><p class="dim" style="margin-top:14px">All people, employers, and findings are synthetic.</p></aside>
     </div>
-    <div class="proof"><div class="card"><b>98</b><span class="dim">automated tests</span></div><div class="card"><b>97.65%</b><span class="dim">package coverage</span></div><div class="card"><b>5</b><span class="dim">Chaos experiments</span></div><div class="card"><b>v0.21.0</b><span class="dim">verified public release</span></div></div>
+    <div class="proof" id="proof"><div class="card"><b id="proof-tests">—</b><span class="dim">automated tests (CI-verified)</span></div><div class="card"><b id="proof-coverage">—</b><span class="dim">package coverage (CI-verified)</span></div><div class="card"><b id="proof-experiments">—</b><span class="dim">Chaos experiments</span></div><div class="card"><b id="proof-version">—</b><span class="dim">verified public release</span></div></div>
     <div class="kicker">From measurement to accountable release</div><div class="grid g4"><article class="card feature-card"><h3>Measure disparities</h3><p class="dim">Selection rates, confidence intervals, significance indicators, and intersectional analysis.</p></article><article class="card feature-card"><h3>Break decisions safely</h3><p class="dim">Identity swaps and demographic stress tests reveal decision sensitivity.</p></article><article class="card feature-card"><h3>Inspect human impact</h3><p class="dim">Before/after evidence, explanations, appeals, and qualified candidates missed.</p></article><article class="card feature-card"><h3>Block regressions</h3><p class="dim">Model comparisons and CI/CD policy prevent a weaker release from shipping.</p></article></div>
     <div class="card" style="margin-top:18px"><b>Responsible boundary:</b> ChaosHire supports investigation and human review. It does not make hiring decisions, prove unlawful discrimination, or provide legal certification.</div>
   </section>
@@ -115,23 +115,35 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 </main>
 <footer>Portfolio prototype · 1,000 synthetic candidates with hidden ground-truth “qualified” labels · do not upload real applicant data.</footer>
 <script>
-let META=null, MODEL='legacy';
+let META=null, MODEL='legacy', LAST_UPLOAD=null;
 const $=s=>document.querySelector(s);
-const jget=async(u)=>{let err;for(let i=0;i<4;i++){try{const r=await fetch(u);if(r.ok)return r.json();err=new Error('HTTP '+r.status);}catch(e){err=e;}await new Promise(s=>setTimeout(s,1400*(i+1)));}throw err;};
-const jpost=async(u,b)=>{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});return r.json();};
+const jget=async(u)=>{let err;for(let i=0;i<4;i++){try{const r=await fetch(u);if(r.ok)return r.json();
+  // A 4xx is the server explaining itself, not a transient failure: return the
+  // body immediately instead of retrying for ~14s before showing the message.
+  if(r.status<500){try{return await r.json();}catch(_){return {error:'HTTP '+r.status};}}
+  err=new Error('HTTP '+r.status);}catch(e){if(e instanceof SyntaxError)return {error:'Unexpected response from the server.'};err=e;}
+  if(i===3)break;await new Promise(s=>setTimeout(s,1400*(i+1)));}throw err;};
+const jpost=async(u,b)=>{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});try{return await r.json();}catch(_){return {error:'HTTP '+r.status};}};
+// One place that turns any FastAPI/pydantic/service error shape into a string.
+const problemOf=r=>r&&(r.error||(r.detail?(typeof r.detail==='string'?r.detail:Array.isArray(r.detail)?r.detail.map(d=>d.msg||JSON.stringify(d)).join('; '):JSON.stringify(r.detail)):null));
 const pc=x=>(x*100).toFixed(1)+'%';
 const pval=x=>x<.0001?'p < 0.0001':`p = ${Number(x).toFixed(4)}`;
-const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// Escapes the five characters that matter in BOTH text and attribute contexts.
+// Attribute values in this page are double-quoted, so an unescaped '"' used to
+// break straight out of e.g. title="${esc(g.group)}" on the intersections card,
+// where g.group is built from uploaded CSV cell values. The nonce-based CSP no
+// longer allows 'unsafe-inline', so this is defence in depth, not the only wall.
+const esc=s=>String(s??'').replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'}[c]));
 const gchar={M:'Male',F:'Female',NB:'Non-binary'},geth={G1:'Community A',G2:'Community B',G3:'Community C'};
 const attrTitle={gender:'Gender',ethnicity:'Ethnicity / Community',age_band:'Age band'};
 const glabel=(a,v)=>a==='gender'?(gchar[v]||v):a==='ethnicity'?(geth[v]||v):v;
 const chipFor=(ok,label)=>ok===null?`<span class="chip warn">${label}: n/a</span>`:`<span class="chip ${ok?'ok':'bad'}">${label}</span>`;
 const gradeColor=g=>({A:'var(--green)',B:'var(--green)',C:'var(--amber)',D:'var(--amber)',F:'var(--rose)'}[g]||'var(--txt)');
-const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${v}</span>`;
+const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${esc(v)}</span>`;
 
 const TABS=[['welcome','Home'],['overview','Fairness Dashboard'],['chaos','⚡ Chaos Lab'],['filtered','Who Got Filtered Out'],
   ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model'],['history','Audit History'],['compare','Release Gate'],['agent','Review Agent'],['demo','Guided Demo']];
-$('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${id}" class="${i===0?'on':''}" aria-current="${i===0?'page':'false'}">${l}</button>`).join('');
+$('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${esc(id)}" class="${i===0?'on':''}" aria-current="${i===0?'page':'false'}">${esc(l)}</button>`).join('');
 function showTab(id){
   document.querySelectorAll('nav button').forEach(x=>{const on=x.dataset.t===id;x.classList.toggle('on',on);x.setAttribute('aria-current',on?'page':'false');});
   TABS.forEach(([tab])=>$('#tab-'+tab).classList.toggle('hidden',tab!==id));
@@ -145,9 +157,12 @@ function showTab(id){
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.t);});
 $('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')showTab('demo');if(e.target.id==='exploredashboard')showTab('overview');});
 
+// Deterministic fixture results, mirrored by tests/test_metrics.py and
+// tests/test_trained_model.py. If these drift, the tests fail first.
 const HOME_MODELS={
-  legacy:{name:'LegacyCorp',score:'42 / F',grade:'F',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30},
-  fair:{name:'MeritFirst',score:'86 / B',grade:'B',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100}
+  legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30},
+  fair:{name:'MeritFirst',score:'84 / B',grade:'B',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100},
+  trained:{name:'TalentFit',score:'66 / C',grade:'C',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100}
 };
 function renderHomeModel(){
   const d=HOME_MODELS[MODEL], risky=MODEL==='legacy';
@@ -158,28 +173,41 @@ function renderHomeModel(){
 }
 function renderModelSel(){
   $('#modelsel').innerHTML=META.models.map(m=>
-    `<button class="mbtn ${m.id===MODEL?'on':''}" data-m="${m.id}" aria-pressed="${m.id===MODEL}"><b>${m.title}</b><br><span style="font-size:11px">${m.blurb}</span></button>`).join('');
+    `<button class="mbtn ${m.id===MODEL?'on':''}" data-m="${esc(m.id)}" aria-pressed="${m.id===MODEL}"><b>${esc(m.title)}</b><br><span style="font-size:11px">${esc(m.blurb)}</span></button>`).join('');
 }
 $('#modelsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MODEL=b.dataset.m;renderModelSel();renderHomeModel();
   loadOverview();$('#tab-chaos').innerHTML=chaosIntro();$('#tab-filtered').innerHTML='<p class="dim">Open this tab to load…</p>';$('#tab-mitigations').innerHTML=mitHTML();});
 
 /* ---------------- OVERVIEW ---------------- */
 async function loadOverview(dataset='demo'){
-  const a=await jget(`/api/audit?model=${MODEL}&dataset=${dataset}`);
+  // An unauthenticated upload is returned to the uploader and never published to
+  // the shared slot, so render it from the response the page already holds.
+  const a=(dataset==='uploaded'&&LAST_UPLOAD)?LAST_UPLOAD:await jget(`/api/audit?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}`);
   const s=$('#tab-overview');
   if(a.error){s.innerHTML=`<div class="err">${esc(a.error)}</div>`;return;}
   const c=a.certificate, col=gradeColor(c.grade), assessable=c.assessable!==false;
+  const fullBasis=c.comparable_with_full_basis!==false;
   const ring=`<div class="grade-ring" style="background:conic-gradient(${col} ${assessable?c.total*3.6:0}deg, var(--card2) 0)">
     <div style="width:96px;height:96px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center">
-    <b style="color:${col}">${assessable?c.total:'N/A'}</b><small>${assessable?`Grade ${c.grade}`:'Not assessable'}</small></div></div>`;
+    <b style="color:${col}">${assessable?c.total:'N/A'}</b><small>${assessable?`Grade ${esc(c.grade)}`:'Not assessable'}</small></div></div>`;
+  // Scores measured without ground-truth labels rest on strictly less evidence.
+  // Say so next to the grade instead of letting two bases look interchangeable.
+  const basisChip=assessable?`<span class="chip ${fullBasis?'ok':'warn'}" title="${esc(c.basis_note||'')}">${fullBasis?'full basis':'selection-rate basis only'}</span>`:'';
+  const componentRows=(c.components||[]).map(x=>`<div class="grow"><span class="lbl" style="width:auto;flex:1">${esc(x.label)}</span><span class="val">${x.pts}/${x.max}</span></div>`).join('')
+    +(c.unmeasured_components||[]).map(x=>`<div class="grow"><span class="lbl" style="width:auto;flex:1" title="${esc(x.reason||'')}">${esc(x.label)} ⚠</span><span class="val">n/a</span></div>`).join('');
   let html=assessable?'':`<div class="err" style="margin-bottom:14px">Fairness risk score not assessable: ${(c.reasons||[]).map(esc).join(' ')} The group metrics below are shown for inspection only.</div>`;
+  if(assessable&&!fullBasis)html+=`<div class="err" style="margin-bottom:14px;color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)">⚠ ${esc(c.basis_note||'')}</div>`;
   html+=`<div class="grid g4">
     <div class="card"><h3>Candidates</h3><div class="stat-num">${a.stats.candidates}</div><div class="dim">in audit pool</div></div>
     <div class="card"><h3>Accepted</h3><div class="stat-num">${a.stats.accepted} <span class="dim" style="font-size:14px">(${pc(a.stats.accept_rate)})</span></div><div class="dim">overall selection rate</div></div>
     <div class="card"><h3>Ground truth</h3><div class="stat-num">${a.stats.qualified_share!==null?pc(a.stats.qualified_share):'n/a'}</div><div class="dim">truly qualified (hidden from model)</div></div>
     <div class="card" style="display:flex;align-items:center;gap:14px">${ring}
-      <div style="flex:1">${c.components.map(x=>`<div class="grow"><span class="lbl" style="width:auto;flex:1">${x.label}</span><span class="val">${x.pts}/${x.max}</span></div>`).join('')}
-      <div class="dim">Fairness Risk Score</div></div></div></div>`;
+      <div style="flex:1">${componentRows}
+      <div class="dim">Fairness Risk Score · ${assessable?`${c.measured_points} of ${c.available_points} measurable points, normalised to ${c.scale||100}`:'not assessable'} ${basisChip}</div></div></div></div>`;
+  if(c.platform_disclosure){const d=c.platform_disclosure;
+    html+=`<div class="card" style="margin-top:14px"><h3>Platform capabilities — disclosed, not scored</h3>
+      <div class="dim" style="margin-bottom:8px">${esc(d.why_unscored)}</div>
+      ${d.capabilities.map(x=>`<div class="grow"><span class="chip info">unscored</span><span style="flex:1;font-size:13px"><b>${esc(x.label)}</b><br><span class="dim">${esc(x.available_for)}</span></span></div>`).join('')}</div>`;}
   html+=`<div class="kicker">Group fairness metrics</div><div class="grid g2">`;
   for(const at of a.attributes){
     html+=`<div class="card"><h3>${esc(attrTitle[at.attribute]||at.attribute)}</h3>`;
@@ -210,7 +238,7 @@ async function loadOverview(dataset='demo'){
     html+='</div>';
   }
   html+=`<div class="dim" style="margin-top:14px">95% intervals use the Wilson method. Significance indicators are exploratory, not proof of causation. Thresholds — disparate impact ≥ 0.80 · parity gap ≤ 0.10 · equal-opportunity gap ≤ 0.10${MODEL==='legacy'?' · switch to <b>MeritFirst v2</b> (top right) to see a cleaner audit.':''}</div>
-  <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn ghost" style="text-decoration:none;display:inline-block" href="/api/report.html?model=${MODEL}&dataset=${dataset}" download="chaoshire-report.html">Download HTML report</a><a class="btn ghost" style="text-decoration:none;display:inline-block" href="/api/report.pdf?model=${MODEL}&dataset=${dataset}" download="chaoshire-report.pdf">Download PDF</a><a class="btn ghost" style="text-decoration:none;display:inline-block" href="/api/evidence?model=${MODEL}&dataset=${dataset}" download="chaoshire-evidence.json">Download verified evidence</a></div>`;
+  <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn ghost" style="text-decoration:none;display:inline-block" href="/api/report.html?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-report.html">Download HTML report</a><a class="btn ghost" style="text-decoration:none;display:inline-block" href="/api/report.pdf?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-report.pdf">Download PDF</a><a class="btn ghost" style="text-decoration:none;display:inline-block" href="/api/evidence?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-evidence.json">Download verified evidence</a></div>`;
   s.innerHTML=html;
 }
 
@@ -223,7 +251,7 @@ $('#tab-chaos').innerHTML=chaosIntro();
 $('#tab-chaos').addEventListener('click',async e=>{
   if(e.target.id!=='runchaos')return;
   e.target.disabled=true;e.target.textContent='Injecting chaos…';
-  const r=await jget(`/api/chaos?model=${MODEL}`);
+  const r=await jget(`/api/chaos?model=${encodeURIComponent(MODEL)}`);
   e.target.disabled=false;e.target.textContent='Re-run chaos suite';
   const rcol=r.resilience>=80?'var(--green)':r.resilience>=50?'var(--amber)':'var(--rose)';
   let html=`<div class="card" style="background:var(--card2)"><div class="grow"><span class="lbl" style="width:auto">Chaos Resilience Score</span>
@@ -231,10 +259,10 @@ $('#tab-chaos').addEventListener('click',async e=>{
     <div class="dim">Model under test: ${esc(r.model.title)}</div></div><div class="grid g2" style="margin-top:14px">`;
   for(const t of r.tests){
     html+=`<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start">
-      <h3>${t.name}</h3>${vChip(t.verdict)}</div>
-      <p class="dim" style="font-size:13px;margin:6px 0">${t.story}</p>
-      <div><span class="dim">${t.metric}:</span> <b>${t.value}</b></div>
-      <div class="dim" style="font-size:12.5px;margin-top:4px">${t.detail}</div>
+      <h3>${esc(t.name)}</h3>${vChip(t.verdict)}</div>
+      <p class="dim" style="font-size:13px;margin:6px 0">${esc(t.story)}</p>
+      <div><span class="dim">${esc(t.metric)}:</span> <b>${esc(t.value)}</b></div>
+      <div class="dim" style="font-size:12.5px;margin-top:4px">${esc(t.detail)}</div>
       ${t.evidence_count?`<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--blue)">View ${Math.min(t.evidence.length,t.evidence_count)} of ${t.evidence_count} affected candidates</summary><div style="overflow:auto;margin-top:7px"><table><tr><th>ID</th><th>Before</th><th>After</th><th>Δ score</th></tr>${t.evidence.map(x=>`<tr><td>${esc(x.candidate_id)}</td><td>${x.before_score??'—'} ${x.before_decision||''}</td><td>${x.after_score??x.score??'—'} ${x.after_decision||x.decision||''}</td><td>${x.score_delta??'—'}</td></tr>`).join('')}</table></div></details>`:''}</div>`;
   }
   $('#chaosout').innerHTML=html+'</div>';
@@ -242,51 +270,85 @@ $('#tab-chaos').addEventListener('click',async e=>{
 
 /* ---------------- FILTERED ---------------- */
 async function loadFiltered(){
-  const r=await jget(`/api/filtered?model=${MODEL}`);
+  const r=await jget(`/api/filtered?model=${encodeURIComponent(MODEL)}`);
   const s=$('#tab-filtered');
   if(r.error){s.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
   const mx=Math.max(...r.top_reasons.map(t=>t.count),1);
   let html=`<div class="grid g4">
     <div class="card"><h3>Rejected</h3><div class="stat-num" style="color:var(--rose)">${r.total_rejected}</div><div class="dim">candidates filtered out</div></div>
     <div class="card"><h3>Qualified but rejected</h3><div class="stat-num" style="color:var(--amber)">${r.qualified_missed}</div><div class="dim">false rejections — talent lost</div></div>
-    <div class="card"><h3>Rejection share by gender</h3>${r.by_gender.map(g=>`<div class="grow"><span class="lbl">${glabel('gender',g.group)}</span><div class="bar badbar"><i style="width:${g.share*100}%"></i></div><span class="val">${pc(g.share)}</span></div>`).join('')}</div>
+    <div class="card"><h3>Rejection share by gender</h3>${r.by_gender.map(g=>`<div class="grow"><span class="lbl">${esc(glabel('gender',g.group))}</span><div class="bar badbar"><i style="width:${g.share*100}%"></i></div><span class="val">${pc(g.share)}</span></div>`).join('')}</div>
     <div class="card"><h3>Why they were filtered (XAI)</h3>${r.top_reasons.map(t=>{const bias=META.bias_features.some(b=>META.feature_labels[b]===t.label);
-      return `<div class="grow"><span class="lbl" style="width:170px">${t.label}</span><div class="bar ${bias?'badbar':''}"><i style="width:${t.count/mx*100}%"></i></div><span class="val">${t.count}</span></div>`;}).join('')}
+      return `<div class="grow"><span class="lbl" style="width:170px">${esc(t.label)}</span><div class="bar ${bias?'badbar':''}"><i style="width:${t.count/mx*100}%"></i></div><span class="val">${t.count}</span></div>`;}).join('')}
       <div class="dim" style="margin-top:6px">Red bars = bias-related features, not merit.</div></div></div>`;
   html+=`<div class="kicker">Sample of rejected candidates (auditor view — ground truth visible)</div>
   <div class="card" style="overflow:auto"><table><tr><th>Candidate</th><th>Gender</th><th>Community</th><th>Age</th><th>Score</th><th>Truly qualified</th><th>Primary rejection reason</th></tr>
-  ${r.sample.map(x=>`<tr><td><b>${esc(x.name)}</b><br><span class="dim">${x.id}</span></td><td>${glabel('gender',x.gender)}</td><td>${glabel('ethnicity',x.ethnicity)}</td><td>${x.age_band}</td>
+  ${r.sample.map(x=>`<tr><td><b>${esc(x.name)}</b><br><span class="dim">${esc(x.id)}</span></td><td>${esc(glabel('gender',x.gender))}</td><td>${esc(glabel('ethnicity',x.ethnicity))}</td><td>${esc(x.age_band)}</td>
   <td>${x.score}</td><td>${x.qualified?'<span class="chip warn">YES — lost</span>':'<span class="chip info">no</span>'}</td>
   <td><span class="reason-badge ${x.bias_related?'bad':'info'} chip">${esc(x.reason_label)}</span></td></tr>`).join('')}</table></div>`;
   s.innerHTML=html;
 }
 
 /* ---------------- MITIGATIONS ---------------- */
+// Only controls an employer may actually apply are offered as mitigations.
+// Per-group decision cutoffs are NOT in this list — see the research-contrast
+// panel below and 42 U.S.C. § 2000e-2(l).
 const MIT=[
  ['blind','Blind screening','Strip every protected-attribute signal (gender, community, age) at inference time. The model physically cannot use them.'],
- ['proxy','Proxy removal','Drop college-prestige (a socioeconomic proxy) and heavily reduce the career-gap penalty that punishes caregivers.'],
- ['calibrate','Threshold calibration','Adjust per-group decision cutoffs so selection rates equalize — a post-processing fix needing no retraining.']];
+ ['proxy','Proxy removal','Drop college-prestige (a socioeconomic proxy) and heavily reduce the career-gap penalty that punishes caregivers.']];
 const mitHTML=()=>`<div class="card"><h3>Mitigation playbook — apply fixes and re-audit live</h3>
- <div class="dim" style="margin-bottom:12px">Each strategy is simulated against <b>LegacyCorp Screen v1</b> so you can show before→after on stage.</div>
- ${MIT.map(([v,t,d])=>`<div class="mit"><input type="checkbox" class="mit-check" value="${v}" id="m_${v}">
-   <label for="m_${v}" style="margin:0"><b style="color:var(--txt)">${t}</b><br>${d}</label></div>`).join('')}
+ <div class="dim" style="margin-bottom:12px">Each strategy is simulated against <b>LegacyCorp Screen v1</b> so you can show before→after on stage. Only controls a United States employer may lawfully apply are offered here.</div>
+ ${MIT.map(([v,t,d])=>`<div class="mit"><input type="checkbox" class="mit-check" value="${esc(v)}" id="m_${esc(v)}">
+   <label for="m_${esc(v)}" style="margin:0"><b style="color:var(--txt)">${esc(t)}</b><br>${esc(d)}</label></div>`).join('')}
  <button class="btn" id="applymit" style="margin-top:14px">Apply selected &amp; re-audit</button>
- <div id="mitout" style="margin-top:16px"></div></div>`;
+ <div id="mitout" style="margin-top:16px"></div></div>
+ <div class="card" id="contrastcard" style="margin-top:14px;border-color:rgba(251,113,133,.45);background:rgba(251,113,133,.05)">
+  <h3 style="color:var(--rose)">⚠ Not offered as a mitigation: per-group threshold “calibration”</h3>
+  <p style="font-size:13.5px;margin-top:6px">Setting a different decision cutoff for each protected group would push this fixture's
+  score much higher without changing the model at all. ChaosHire refuses to offer that as a fix.</p>
+  <p style="font-size:13.5px;margin-top:8px"><b>42 U.S.C. § 2000e-2(l)</b> (Civil Rights Act of 1991) makes it an unlawful employment
+  practice to <i>“adjust the scores of, use different cutoff scores for, or otherwise alter the results of,
+  employment related tests on the basis of race, color, religion, sex, or national origin.”</i>
+  <a href="https://www.law.cornell.edu/uscode/text/42/2000e-2" target="_blank" rel="noreferrer">Read the statute ↗</a></p>
+  <p class="dim" style="margin-top:8px">It stays available below as an explicitly acknowledged <b>research contrast</b>, so a reviewer can
+  see how much of an apparent fairness gain is manufactured by moving the bar per group. Its result is reported
+  separately and is never merged into the mitigation outcome. ChaosHire is not legal advice; jurisdiction matters
+  and qualified counsel must review any remediation.</p>
+  <div class="mit" style="margin-top:10px;border-color:rgba(251,113,133,.45)"><input type="checkbox" id="m_contrast_ack">
+   <label for="m_contrast_ack" style="margin:0"><b style="color:var(--txt)">I understand this is prohibited in US employment testing and want to see it as a research contrast only.</b></label></div>
+  <button class="btn ghost" id="runcontrast" style="margin-top:12px">Run the research contrast</button>
+  <div id="contrastout" style="margin-top:14px"></div></div>`;
 $('#tab-mitigations').innerHTML=mitHTML();
+const scoreLine=(label,b,a)=>`<div class="grow" style="margin-top:12px"><span class="lbl" style="width:auto">${esc(label)}</span>
+    <b style="color:${gradeColor(b.grade)}">${b.total} (${esc(b.grade)})</b><span class="dim">→</span>
+    <b style="color:${gradeColor(a.grade)};font-size:22px">${a.total} (${esc(a.grade)})</b></div>`;
 $('#tab-mitigations').addEventListener('click',async e=>{
+  if(e.target.id==='runcontrast'){
+    const o=$('#contrastout');
+    const ack=$('#m_contrast_ack').checked;
+    const r=await jpost('/api/mitigate',{strategies:['proxy'],threshold_contrast_acknowledged:ack?true:false});
+    const problem=problemOf(r);
+    if(problem){o.innerHTML=`<div class="err">${esc(problem)}</div>${r.threshold_contrast?`<div class="dim" style="margin-top:8px">Statute: ${esc(r.threshold_contrast.statute)} · <a href="${esc(r.threshold_contrast.statute_url)}" target="_blank" rel="noreferrer">text ↗</a></div>`:''}`;return;}
+    const rc=r.research_contrast;
+    o.innerHTML=`<div class="card" style="background:var(--card2);border-color:rgba(251,113,133,.45)">
+      <div class="grow"><span class="chip bad">research only</span><span class="chip bad">prohibited in US employment testing</span><span class="dim">${esc(rc.statute)}</span></div>
+      ${scoreLine('With proxy removal only',r.before,rc.after)}
+      ${scoreLine('Lawful mitigation actually achieved',r.before,r.after)}
+      <div class="dim" style="margin-top:10px">${esc(rc.notice)}</div></div>`;
+    return;
+  }
   if(e.target.id!=='applymit')return;
   const sel=[...document.querySelectorAll('.mit-check:checked')].map(x=>x.value);
   const o=$('#mitout');
   if(!sel.length){o.innerHTML='<div class="err">Select at least one mitigation strategy.</div>';return;}
   const r=await jpost('/api/mitigate',{strategies:sel});
-  const problem=r.error||(r.detail?'Validation error: '+JSON.stringify(r.detail):null);
+  const problem=problemOf(r);
   if(problem){o.innerHTML=`<div class="err">${esc(problem)}</div>`;return;}
   const b=r.before.certificate,a=r.after.certificate;
   o.innerHTML=`<div class="card" style="background:var(--card2)"><h3>Result</h3>
-    ${r.applied.map(x=>`<div class="grow" style="margin:4px 0"><span class="chip ok">applied</span><span style="font-size:13.5px">${x}</span></div>`).join('')}
-    <div class="grow" style="margin-top:12px"><span class="lbl" style="width:auto">Fairness Risk Score</span>
-    <b style="color:${gradeColor(b.grade)}">${b.total} (${b.grade})</b><span class="dim">→</span>
-    <b style="color:${gradeColor(a.grade)};font-size:22px">${a.total} (${a.grade})</b></div></div>
+    ${r.applied.map(x=>`<div class="grow" style="margin:4px 0"><span class="chip ok">applied</span><span style="font-size:13.5px">${esc(x)}</span></div>`).join('')}
+    ${scoreLine('Fairness Risk Score',b,a)}
+    <div class="dim" style="margin-top:8px">Excluded on legal grounds: ${esc(r.excluded_controls?.threshold_calibration?.statute||'42 U.S.C. § 2000e-2(l)')} — per-group cutoff scores. See the panel below.</div></div>
     <div class="grid g2" style="margin-top:14px">${r.after.attributes.map(at=>`<div class="card"><h3>${esc(attrTitle[at.attribute]||at.attribute)}</h3>
       ${at.groups.map(g=>`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}</span><div class="bar"><i style="width:${g.selection_rate*100}%"></i></div><span class="val">${pc(g.selection_rate)}</span></div>`).join('')}
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${chipFor(at.di_pass,'DI '+at.disparate_impact)}${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div></div>`).join('')}</div>`;
@@ -312,19 +374,20 @@ $('#tab-appeals').addEventListener('click',async e=>{
     const o=$('#cout');
     if(r.error){o.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
     o.innerHTML=`<div class="card" style="background:var(--card2)"><div style="display:flex;justify-content:space-between;align-items:center">
-      <b>${esc(r.name)} <span class="dim">(${r.candidate_id})</span></b>
-      <span class="chip ${r.status==='Accepted'?'ok':'bad'}">${r.status}</span></div>
+      <b>${esc(r.name)} <span class="dim">(${esc(r.candidate_id)})</span></b>
+      <span class="chip ${r.status==='Accepted'?'ok':'bad'}">${esc(r.status)}</span></div>
       <div class="grow" style="margin:10px 0"><span class="lbl" style="width:auto">Model score</span><div class="bar"><i style="width:${r.score*100}%"></i></div><span class="val">${r.score}</span></div>
       <div class="dim">Screened by ${esc(r.model)}</div>
       <div style="margin-top:8px"><b style="font-size:13px">${r.status==='Accepted'?'What worked in your favour':'Main factors behind this decision'}</b>
-      ${r.reasons.map(x=>`<div class="grow" style="margin:4px 0"><span style="flex:1;font-size:13px">${esc(x.desc)}</span><span class="val" style="color:${x.impact<0?'var(--rose)':'var(--green)'}">${x.impact>0?'+':''}${x.impact}</span></div>`).join('')}</div>
+      ${r.reasons.map(x=>`<div class="grow" style="margin:4px 0"><span style="flex:1;font-size:13px">${esc(x.desc)}</span><span class="val" style="color:${x.impact<0?'var(--rose)':'var(--green)'}">${x.impact>0?'+':''}${esc(x.impact)}</span></div>`).join('')}</div>
       ${r.can_appeal?'<button class="btn ghost" id="toappeal" style="margin-top:10px">Appeal this decision →</button>':''}</div>`;
   }
   if(e.target.id==='toappeal'){$('#acid').value=$('#cid').value.trim();$('#amsg').focus();}
   if(e.target.id==='sendappeal'){
     const r=await jpost('/api/appeals',{candidate_id:$('#acid').value.trim(),message:$('#amsg').value.trim()||'(no message)'});
-    $('#aout').innerHTML=r.error?`<div class="err">${esc(r.error)}</div>`:
-      `<div class="chip ok">Appeal #${r.appeal_id} filed</div> <span class="chip ${r.priority.startsWith('HIGH')?'warn':'info'}">${r.priority}</span>`;
+    const appealProblem=problemOf(r);
+    $('#aout').innerHTML=appealProblem?`<div class="err">${esc(appealProblem)}</div>`:
+      `<div class="chip ok">Appeal #${esc(r.appeal_id)} filed</div> <span class="chip ${String(r.priority).startsWith('HIGH')?'warn':'info'}">${esc(r.priority)}</span>`;
     loadQueue();
   }
   if(e.target.id==='refreshq')loadQueue();
@@ -332,9 +395,10 @@ $('#tab-appeals').addEventListener('click',async e=>{
 async function loadQueue(){
   const r=await jget('/api/appeals');
   $('#queue').innerHTML=r.appeals.length?`<table><tr><th>#</th><th>Candidate</th><th>Appeal</th><th>Auto-triage</th><th>Status</th></tr>
-   ${r.appeals.map(a=>`<tr><td>${a.id}</td><td><b>${esc(a.name)}</b><br><span class="dim">${a.candidate_id}</span></td><td>${esc(a.message)}</td>
-   <td><span class="chip ${a.priority.startsWith('HIGH')?'warn':'info'}">${a.priority}</span></td><td><span class="chip info">${a.status}</span></td></tr>`).join('')}</table>`
-   :'<span class="dim">No appeals yet.</span>';
+   ${r.appeals.map(a=>`<tr><td>${esc(a.id)}</td><td><b>${esc(a.name)}</b><br><span class="dim">${esc(a.candidate_id)}</span></td><td>${esc(a.message)}</td>
+   <td><span class="chip ${String(a.priority).startsWith('HIGH')?'warn':'info'}">${esc(a.priority)}</span></td><td><span class="chip info">${esc(a.status)}</span></td></tr>`).join('')}</table>
+   <div class="dim" style="margin-top:8px">${esc(r.note||'')}</div>`
+   :`<span class="dim">No appeals yet.</span><div class="dim" style="margin-top:8px">${esc(r.note||'')}</div>`;
 }
 
 /* ---------------- UPLOAD ---------------- */
@@ -342,7 +406,7 @@ $('#tab-upload').innerHTML=`<div class="grid g2">
  <div class="card"><h3>Bring your own model's output</h3>
   <div class="dim" style="margin-bottom:8px">Upload a CSV of decisions, then tell ChaosHire how to interpret its columns. The model itself never leaves your system.</div>
   <pre id="schema"></pre>
-  <div class="err" style="color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)">Privacy: raw CSV rows stay in temporary memory. Only aggregate metrics and configuration are saved. On this unauthenticated public demo, audit names and aggregate history are visible to every visitor—use synthetic data and non-sensitive names only.</div>
+  <div class="err" style="color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)">Privacy: raw CSV rows stay in temporary memory and only aggregate metrics are ever stored. <b>Unauthenticated uploads are not published</b> — your audit is returned to you and then discarded, so nothing you type here becomes visible to other visitors. An operator holding this deployment's <code>X-API-Key</code> publishes to the shared history. Use synthetic data only.</div>
   <label>Audit name</label><input id="auditname" maxlength="100" value="Screening model review" placeholder="e.g. Q3 graduate hiring audit">
   <label>CSV file</label><input type="file" id="csvfile" accept=".csv,text/csv">
   <div id="detected" class="dim" style="margin-top:6px">No file selected.</div>
@@ -380,13 +444,15 @@ $('#tab-upload').addEventListener('click',async e=>{
       qualification_column:$('#qualcol').value.trim()||null,qualified_values:split('#qualvalues'),
       protected_attributes:split('#attrs'),minimum_group_size:Number($('#mingroup').value)||30};
     const r=await jpost('/api/upload',payload);
-    const problem=r.error||(r.detail?'Validation error: '+JSON.stringify(r.detail):null);
+    const problem=problemOf(r);
     const warns=(r.warnings||[]).map(w=>`<div class="dim" style="color:var(--amber);margin-top:5px">⚠ ${esc(w)}</div>`).join('');
+    if(!problem&&r.audit)LAST_UPLOAD=r.audit;
     $('#upout').innerHTML=problem?`<div class="err">${esc(problem)}</div>${r.available_columns?`<div class="dim" style="margin-top:6px">Available columns: ${r.available_columns.map(esc).join(', ')}</div>`:''}`:
-      `<div class="chip ok">Saved ${r.rows} rows as aggregate audit</div>
-       <div style="margin-top:7px"><b>${esc(r.audit_name)}</b><br><span class="dim">Audit ID: ${esc(r.audit_id)} · attributes: ${r.attributes_found.map(esc).join(', ')} · ground truth: ${r.has_ground_truth?'yes':'no (equal-opportunity will be n/a)'}</span></div>${warns}
+      `<div class="chip ${r.published?'ok':'warn'}">${r.published?'Published to the shared audit history':'Audited — not published'}</div>
+       <div style="margin-top:7px"><b>${esc(r.audit_name)}</b><br><span class="dim">${r.audit_id?`Audit ID: ${esc(r.audit_id)} · `:''}attributes: ${r.attributes_found.map(esc).join(', ')} · ground truth: ${r.has_ground_truth?'yes':'no (equal-opportunity will be n/a)'} · ${esc(r.rows)} rows</span></div>
+       <div class="dim" style="margin-top:5px">${esc(r.publishing_note||'')}</div>${warns}
        <div style="margin-top:12px"><button class="btn" id="viewup">View audit →</button>
-       <a class="btn ghost" style="margin-left:8px;text-decoration:none;display:inline-block;padding:10px 18px;border-radius:10px" href="/api/audit/export" download="chaoshire-audit.json">Download JSON report</a></div>`;
+       ${r.published?'<a class="btn ghost" style="margin-left:8px;text-decoration:none;display:inline-block;padding:10px 18px;border-radius:10px" href="/api/audit/export" download="chaoshire-audit.json">Download JSON report</a>':''}</div>`;
   }
   if(e.target.id==='viewup'){
     document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t==='overview'));
@@ -404,32 +470,50 @@ async function loadHistory(){
   if(!r.audits.length){s.innerHTML=`<div class="card"><h3>Audit history</h3><p class="dim">No saved audits yet. Upload a synthetic decision CSV to create the first record.</p></div>`;return;}
   s.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h3>Saved aggregate audits</h3><p class="dim">Raw applicant rows are never written to this history database.</p></div><button class="btn ghost" id="refreshhistory">Refresh</button></div>
    <div style="overflow:auto;margin-top:12px"><table><tr><th>Audit</th><th>Created</th><th>Rows</th><th>Attributes</th><th>Fairness risk score</th><th></th></tr>
-   ${r.audits.map(a=>`<tr><td><b>${esc(a.name)}</b><br><span class="dim">${esc(a.audit_id)}</span></td><td>${new Date(a.created_at).toLocaleString()}</td><td>${a.candidates}</td><td>${a.protected_attributes.map(esc).join(', ')}</td><td><span class="chip ${a.certificate.grade==='A'||a.certificate.grade==='B'?'ok':a.certificate.grade==='F'?'bad':'warn'}">${a.certificate.total} / ${a.certificate.grade}</span></td><td><button class="btn ghost history-view" data-audit="${esc(a.audit_id)}">View</button></td></tr>`).join('')}</table></div></div><div id="historydetail" style="margin-top:14px"></div>`;
+   ${r.audits.map(a=>`<tr><td><b>${esc(a.name)}</b><br><span class="dim">${esc(a.audit_id)}</span></td><td>${new Date(a.created_at).toLocaleString()}</td><td>${a.candidates}</td><td>${a.protected_attributes.map(esc).join(', ')}</td><td><span class="chip ${a.certificate.grade==='A'||a.certificate.grade==='B'?'ok':a.certificate.grade==='F'?'bad':'warn'}">${esc(a.certificate.total)} / ${esc(a.certificate.grade)}</span>${a.certificate.basis&&a.certificate.basis!=='full'?` <span class="chip warn" title="Scored without ground-truth qualification labels; not comparable with a full-basis score.">selection-rate basis</span>`:''}</td><td><button class="btn ghost history-view" data-audit="${esc(a.audit_id)}">View</button></td></tr>`).join('')}</table></div></div><div id="historydetail" style="margin-top:14px"></div>`;
 }
 $('#tab-history').addEventListener('click',async e=>{
   if(e.target.id==='refreshhistory'){loadHistory();return;}
   const b=e.target.closest('.history-view');if(!b)return;
   const a=await jget('/api/audits/'+encodeURIComponent(b.dataset.audit));
   const c=a.certificate;
-  $('#historydetail').innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h3>${esc(a.audit_name)}</h3><div class="dim">${esc(a.audit_id)} · ${new Date(a.created_at).toLocaleString()} · ${esc(a.source)}</div></div><span class="chip ${c.grade==='A'||c.grade==='B'?'ok':c.grade==='F'?'bad':'warn'}" style="font-size:16px">${c.total} / Grade ${c.grade}</span></div>
+  $('#historydetail').innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h3>${esc(a.audit_name)}</h3><div class="dim">${esc(a.audit_id)} · ${new Date(a.created_at).toLocaleString()} · ${esc(a.source)}</div></div><span class="chip ${c.grade==='A'||c.grade==='B'?'ok':c.grade==='F'?'bad':'warn'}" style="font-size:16px">${esc(c.total)} / Grade ${esc(c.grade)}</span></div>
+   ${c.basis_note?`<div class="dim" style="margin-top:8px">${esc(c.basis_note)}</div>`:''}
    <div class="grid g4" style="margin-top:14px"><div><div class="dim">Candidates</div><b>${a.stats.candidates}</b></div><div><div class="dim">Accepted</div><b>${a.stats.accepted} (${pc(a.stats.accept_rate)})</b></div><div><div class="dim">Attributes</div><b>${a.configuration.protected_attributes.map(esc).join(', ')}</b></div><div><div class="dim">Minimum group size</div><b>${a.configuration.minimum_group_size}</b></div></div>
    <div class="dim" style="margin-top:12px">This record contains aggregate metrics and configuration only—not the uploaded candidate rows.</div></div>`;
 });
 
 /* ---------------- CONTINUOUS FAIRNESS RELEASE GATE ---------------- */
 $('#tab-compare').innerHTML='<div class="card"><h3>Model release gate</h3><p class="dim">Open this tab to compare reference model versions.</p></div>';
+let CMP={base:'legacy',cand:'trained'};
+const sgn=v=>`${v>0?'+':''}${v}`, dcol=v=>v>=0?'var(--green)':'var(--rose)';
+const modelCard=(x,label)=>`<div class="card"><div class="dim">${esc(label)}</div><h3>${esc(x.model.title)}</h3><div class="stat-num">${esc(x.certificate.total)} / ${esc(x.certificate.grade)}</div><div class="grow"><span class="lbl">Chaos resilience</span><div class="bar"><i style="width:${x.chaos_resilience}%"></i></div><span class="val">${esc(x.chaos_resilience)}</span></div><div class="grow"><span class="lbl">Worst DI</span><div class="bar"><i style="width:${x.worst_disparate_impact*100}%"></i></div><span class="val">${esc(x.worst_disparate_impact)}</span></div><div class="dim">Experiment ${esc(x.experiment_id)}</div></div>`;
 async function loadComparison(){
-  const s=$('#tab-compare');s.innerHTML='<div class="card"><p class="dim">Comparing model versions…</p></div>';
-  const r=await jget('/api/compare?baseline=legacy&candidate=fair');
-  const modelCard=(x,label)=>`<div class="card"><div class="dim">${label}</div><h3>${esc(x.model.title)}</h3><div class="stat-num">${x.certificate.total} / ${x.certificate.grade}</div><div class="grow"><span class="lbl">Chaos resilience</span><div class="bar"><i style="width:${x.chaos_resilience}%"></i></div><span class="val">${x.chaos_resilience}</span></div><div class="grow"><span class="lbl">Worst DI</span><div class="bar"><i style="width:${x.worst_disparate_impact*100}%"></i></div><span class="val">${x.worst_disparate_impact}</span></div><div class="dim">Experiment ${esc(x.experiment_id)}</div></div>`;
-  s.innerHTML=`<div class="grid g2">${modelCard(r.baseline,'BASELINE')}${modelCard(r.candidate,'CANDIDATE')}</div>
-   <div class="card" style="margin-top:14px"><h3>Change summary</h3><div class="grid g4"><div><div class="dim">Risk score Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.certificate}</div></div><div><div class="dim">Resilience Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.chaos_resilience}</div></div><div><div class="dim">Worst DI Δ</div><div class="stat-num" style="color:var(--green)">+${r.delta.worst_disparate_impact}</div></div></div></div>
-   <div class="card" style="margin-top:14px"><h3>CI/CD fairness policy</h3><p class="dim">Block a model release automatically when it fails an absolute floor or regresses from the baseline.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px"><div><label>Minimum risk score</label><input id="gatecert" type="number" value="75" min="0" max="100"></div><div><label>Minimum resilience</label><input id="gateres" type="number" value="80" min="0" max="100"></div><div><label>Minimum disparate impact</label><input id="gatedi" type="number" value="0.8" min="0" max="1" step="0.01"></div></div><button class="btn" id="rungate" style="margin-top:12px">Evaluate release gate</button><div id="gateout" style="margin-top:12px"></div></div>`;
+  const s=$('#tab-compare');
+  const opts=sel=>META.models.map(m=>`<option value="${esc(m.id)}" ${m.id===sel?'selected':''}>${esc(m.title)}</option>`).join('');
+  s.innerHTML=`<div class="card"><h3>Model release gate</h3><p class="dim">Compare any two reference models and evaluate the release policy between them.</p>
+   <div class="grid g2" style="margin-top:10px"><div><label for="cmpbase">Baseline model</label><select id="cmpbase">${opts(CMP.base)}</select></div><div><label for="cmpcand">Candidate model</label><select id="cmpcand">${opts(CMP.cand)}</select></div></div>
+   <button class="btn" id="runcmp" style="margin-top:12px">Compare models</button></div><div id="cmpout" style="margin-top:14px"></div>`;
+  runComparison();
+}
+async function runComparison(){
+  CMP={base:$('#cmpbase').value,cand:$('#cmpcand').value};
+  const o=$('#cmpout');
+  if(CMP.base===CMP.cand){o.innerHTML='<div class="err">Baseline and candidate must be different models.</div>';return;}
+  o.innerHTML='<div class="card"><p class="dim">Comparing model versions…</p></div>';
+  const r=await jget(`/api/compare?baseline=${encodeURIComponent(CMP.base)}&candidate=${encodeURIComponent(CMP.cand)}`);
+  const cproblem=problemOf(r);
+  if(cproblem){o.innerHTML=`<div class="err">${esc(cproblem)}</div>`;return;}
+  o.innerHTML=`<div class="grid g2">${modelCard(r.baseline,'BASELINE')}${modelCard(r.candidate,'CANDIDATE')}</div>
+   <div class="card" style="margin-top:14px"><h3>Change summary</h3><div class="grid g4"><div><div class="dim">Risk score Δ</div><div class="stat-num" style="color:${dcol(r.delta.certificate)}">${sgn(r.delta.certificate)}</div></div><div><div class="dim">Resilience Δ</div><div class="stat-num" style="color:${dcol(r.delta.chaos_resilience)}">${sgn(r.delta.chaos_resilience)}</div></div><div><div class="dim">Worst DI Δ</div><div class="stat-num" style="color:${dcol(r.delta.worst_disparate_impact)}">${sgn(r.delta.worst_disparate_impact)}</div></div></div></div>
+   <div class="card" style="margin-top:14px"><h3>CI/CD fairness policy</h3><p class="dim">Block a model release automatically when it fails an absolute floor or regresses from the baseline.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px"><div><label for="gatecert">Minimum risk score</label><input id="gatecert" type="number" value="75" min="0" max="100"></div><div><label for="gateres">Minimum resilience</label><input id="gateres" type="number" value="80" min="0" max="100"></div><div><label for="gatedi">Minimum disparate impact</label><input id="gatedi" type="number" value="0.8" min="0" max="1" step="0.01"></div></div><button class="btn" id="rungate" style="margin-top:12px">Evaluate release gate</button><div id="gateout" style="margin-top:12px"></div></div>`;
 }
 $('#tab-compare').addEventListener('click',async e=>{
+  if(e.target.id==='runcmp'){runComparison();return;}
   if(e.target.id!=='rungate')return;
-  const r=await jpost('/api/gate',{baseline_model:'legacy',candidate_model:'fair',minimum_certificate:Number($('#gatecert').value),minimum_resilience:Number($('#gateres').value),minimum_disparate_impact:Number($('#gatedi').value),maximum_certificate_regression:0,maximum_resilience_regression:0});
-  $('#gateout').innerHTML=`<div class="chip ${r.passed?'ok':'bad'}" style="font-size:16px">${r.status}: ${r.passed?'release approved':'release blocked'}</div><div style="margin-top:8px">${r.checks.map(c=>`<div class="grow"><span class="chip ${c.passed?'ok':'bad'}">${c.passed?'PASS':'FAIL'}</span><span>${esc(c.label)}</span><span class="dim">actual: ${c.actual}</span></div>`).join('')}</div>`;
+  const r=await jpost('/api/gate',{baseline_model:CMP.base,candidate_model:CMP.cand,minimum_certificate:Number($('#gatecert').value),minimum_resilience:Number($('#gateres').value),minimum_disparate_impact:Number($('#gatedi').value),maximum_certificate_regression:0,maximum_resilience_regression:0});
+  const gproblem=problemOf(r);
+  $('#gateout').innerHTML=gproblem?`<div class="err">${esc(gproblem)}</div>`:`<div class="chip ${r.passed?'ok':'bad'}" style="font-size:16px">${esc(r.status)}: ${r.passed?'release approved':'release blocked'}</div><div style="margin-top:8px">${r.checks.map(c=>`<div class="grow"><span class="chip ${c.passed?'ok':'bad'}">${c.passed?'PASS':'FAIL'}</span><span>${esc(c.label)}</span><span class="dim">actual: ${esc(c.actual)}</span></div>`).join('')}</div>`;
 });
 
 /* ---------------- FAIRNESS REVIEW AGENT ---------------- */
@@ -449,22 +533,43 @@ $('#tab-demo').innerHTML='<div class="card"><h3>Three-minute guided demo</h3><p 
 async function loadDemo(){
   const s=$('#tab-demo');s.setAttribute('aria-busy','true');s.innerHTML='<div class="card"><p class="dim">Preparing the deterministic story…</p></div>';
   const r=await jget('/api/demo');
-  s.innerHTML=`<div class="card"><div class="dim">${r.duration_minutes}-minute portfolio walkthrough · synthetic data</div><h2 style="margin-top:5px">${esc(r.title)}</h2><p class="dim">Follow these six steps during an interview or product demonstration.</p></div><div style="margin-top:14px">${r.steps.map(step=>`<article class="card" style="margin-bottom:12px"><div class="chip info">STEP ${step.id}</div><h3 style="margin-top:9px">${esc(step.title)}</h3><p>${esc(step.message)}</p></article>`).join('')}</div>`;
+  s.innerHTML=`<div class="card"><div class="dim">${r.duration_minutes}-minute portfolio walkthrough · synthetic data</div><h2 style="margin-top:5px">${esc(r.title)}</h2><p class="dim">Follow these ${esc(r.steps.length)} steps during an interview or product demonstration.</p></div><div style="margin-top:14px">${r.steps.map(step=>`<article class="card" style="margin-bottom:12px"><div class="chip info">STEP ${step.id}</div><h3 style="margin-top:9px">${esc(step.title)}</h3><p>${esc(step.message)}</p></article>`).join('')}</div>`;
   s.removeAttribute('aria-busy');
 }
 
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/service-worker.js').catch(()=>{}));}
 
+/* The proof strip is served, never hardcoded: every figure comes from the
+   running package, so the landing page cannot drift from __init__.__version__. */
+function renderProofStrip(){
+  const b=META.build||{};
+  const set=(id,value)=>{const el=$(id);if(el&&value!==undefined&&value!==null)el.textContent=value;};
+  set('#proof-tests',b.automated_tests);
+  set('#proof-coverage',b.package_coverage);
+  set('#proof-experiments',b.chaos_experiments);
+  set('#proof-version',b.version?'v'+b.version:null);
+  const p=META.platform;
+  if(p&&!p.api_key_configured&&p.anonymous_writes_allowed){
+    const note=document.createElement('div');
+    note.className='dim';
+    note.style.cssText='margin-top:6px';
+    note.textContent='This deployment accepts anonymous, rate-limited writes. Uploads are not published.';
+    $('#proof')?.appendChild(note);
+  }
+}
+
 /* ---------------- boot ---------------- */
 (async()=>{ 
   try{
     META=await jget('/api/meta');
-    renderModelSel();renderHomeModel();
+    renderModelSel();renderHomeModel();renderProofStrip();
     $('#sid').textContent=META.sample_ids.join(', ');
     $('#schema').textContent=META.schema;
     await loadOverview();
   }catch(e){
-    $('#tab-overview').innerHTML='<div class="err">The free server was asleep and is still waking up (takes ~60 seconds after being idle).<br><br><button class="btn" onclick="location.reload()">Retry now</button></div>';
+    // No inline event handler: the nonce CSP forbids 'unsafe-inline' scripts.
+    $('#tab-overview').innerHTML='<div class="err">The free server was asleep and is still waking up (takes ~60 seconds after being idle).<br><br><button class="btn" id="retrywake">Retry now</button></div>';
+    $('#retrywake').addEventListener('click',()=>location.reload());
   }
 })();
 </script>

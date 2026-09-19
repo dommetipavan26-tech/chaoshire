@@ -25,5 +25,13 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Lint
         run: python -m ruff check .
+      - name: Format check
+        run: python -m ruff format --check .
+      - name: Type check
+        run: python -m mypy
+      - name: Trained-model drift check
+        run: python -m chaoshire train --check
       - name: Test with coverage
-        run: python -m pytest --cov=chaoshire --cov-report=term-missing -q
+        run: python -m pytest --cov=chaoshire --cov-report=term-missing --cov-report=json -q
+      - name: Verify committed build facts
+        run: python scripts/check_build_info.py --coverage-json coverage.json

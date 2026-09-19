@@ -49,3 +49,13 @@ This synthetic example demonstrates integration mechanics only. A fairness risk 
 ## Compatibility note
 
 The public JSON and Python interfaces retain the historical `certificate` field and `--min-certificate` CLI option for backward compatibility. User-facing documentation calls the same heuristic aggregate a **fairness risk score** to avoid implying independent certification.
+
+## The bundled trained model
+
+Since v0.24.0 ChaosHire also ships a first-party trained model: the `trained`
+reference model (TalentFit v3) is a `LogisticRegression` fitted to the demo
+fixture by `chaoshire/training.py` and pinned to
+`chaoshire/artifacts/trained_model.json`. Regenerate it with
+`python -m chaoshire train --write` (development dependency: scikit-learn) and
+verify reproducibility with `python -m chaoshire train --check`. See
+`METHODOLOGY.md` for the calibration and the audit findings.

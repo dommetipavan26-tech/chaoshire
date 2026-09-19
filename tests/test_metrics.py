@@ -4,6 +4,7 @@ These tests intentionally lock in the curated demo seed. If model weights or
 the synthetic population change, update expected values only after reviewing
 and documenting the effect on the product story.
 """
+
 import backend
 
 
@@ -16,7 +17,7 @@ def test_legacy_reference_audit_is_reproducible():
 
     assert result["stats"]["candidates"] == 1000
     assert result["stats"]["accepted"] == 559
-    assert result["certificate"]["total"] == 42
+    assert result["certificate"]["total"] == 32
     assert result["certificate"]["grade"] == "F"
     assert attribute(result, "gender")["disparate_impact"] == 0.5491
     assert attribute(result, "ethnicity")["disparate_impact"] == 0.6557
@@ -27,7 +28,7 @@ def test_fair_reference_model_passes_disparate_impact_checks():
     result = backend.audit(backend.build_decisions(backend.FAIR))
 
     assert result["stats"]["candidates"] == 1000
-    assert result["certificate"]["total"] == 86
+    assert result["certificate"]["total"] == 84
     assert result["certificate"]["grade"] == "B"
     assert all(item["di_pass"] for item in result["attributes"])
 
@@ -45,11 +46,13 @@ def test_disparate_impact_uses_four_fifths_threshold():
 def test_small_groups_are_flagged_and_excluded_from_worst_case():
     import pandas as pd
 
-    data = pd.DataFrame({
-        "gender": ["large"] * 40 + ["tiny"] * 5,
-        "accepted": [1] * 32 + [0] * 8 + [0] * 5,
-        "qualified": [True] * 45,
-    })
+    data = pd.DataFrame(
+        {
+            "gender": ["large"] * 40 + ["tiny"] * 5,
+            "accepted": [1] * 32 + [0] * 8 + [0] * 5,
+            "qualified": [True] * 45,
+        }
+    )
     result = backend.attr_metrics(data, "gender")
     tiny = next(group for group in result["groups"] if group["group"] == "tiny")
 
@@ -58,13 +61,11 @@ def test_small_groups_are_flagged_and_excluded_from_worst_case():
     assert result["di_pass"] is True
 
 
-def test_all_mitigations_improve_but_do_not_overstate_grade():
-    # Mirrors the endpoint's three-strategy algorithm while checking that the
-    # public result remains the reviewed 42/F -> 83/B demonstration.
-    response = backend.api_mitigate(
-        backend.MitigateReq(strategies=["blind", "proxy", "calibrate"])
-    )
-    assert response["before"]["certificate"]["total"] == 42
+def test_lawful_mitigations_improve_but_do_not_overstate_grade():
+    # Mirrors the endpoint's two-strategy algorithm while checking that the
+    # public result remains the reviewed 32/F -> 80/B demonstration.
+    response = backend.api_mitigate(backend.MitigateReq(strategies=["blind", "proxy"]))
+    assert response["before"]["certificate"]["total"] == 32
     assert response["before"]["certificate"]["grade"] == "F"
-    assert response["after"]["certificate"]["total"] == 83
+    assert response["after"]["certificate"]["total"] == 80
     assert response["after"]["certificate"]["grade"] == "B"
