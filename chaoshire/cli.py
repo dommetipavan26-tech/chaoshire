@@ -71,30 +71,29 @@ def run_train_command(
         contrast_coefficients = train_coefficients(include_protected=True)
         result = audit(build_decisions(contrast_coefficients))
         gender = next(a for a in result["attributes"] if a["attribute"] == "gender")
-        # Accepted CodeQL alert (py/clear-text-logging). Printing this fit to
-        # stdout is the entire purpose of --include-protected: it is the contrast
-        # a reviewer compares against the blind model. Nothing here is a secret
-        # and nothing is real personal data - every value is derived from the
-        # bundled 1,000-row synthetic fixture - so the "sensitive data" verdict is
-        # driven purely by the protected-attribute provenance of the coefficients.
-        # It is never pinned to the artifact, which the --write guard above and
-        # tests/test_trained_model.py both enforce.
-        print(  # codeql[py/clear-text-logging]
-            json.dumps(  # codeql[py/clear-text-logging]
-                {
-                    "mode": "with-protected-attributes",
-                    "pinned": False,
-                    "coefficients": contrast_coefficients,
-                    "certificate": result["certificate"],
-                    "gender_disparate_impact": gender["disparate_impact"],
-                    "note": (
-                        "Experimental contrast fit. Never pinned to the artifact; "
-                        "compare against `python -m chaoshire train` for the blind model."
-                    ),
-                },
-                indent=2,
-            )
+        contrast_report = json.dumps(
+            {
+                "mode": "with-protected-attributes",
+                "pinned": False,
+                "coefficients": contrast_coefficients,
+                "certificate": result["certificate"],
+                "gender_disparate_impact": gender["disparate_impact"],
+                "note": (
+                    "Experimental contrast fit. Never pinned to the artifact; "
+                    "compare against `python -m chaoshire train` for the blind model."
+                ),
+            },
+            indent=2,
         )
+        # Accepted CodeQL alert (py/clear-text-logging). Printing this fit is the
+        # entire purpose of --include-protected: it is the contrast a reviewer
+        # compares against the blind model. Nothing here is a secret and nothing is
+        # real personal data - every value derives from the bundled 1,000-row
+        # synthetic fixture - so the "sensitive data" verdict comes purely from the
+        # protected-attribute provenance of the coefficients. It is never pinned to
+        # the artifact, which the --write guard above and
+        # tests/test_trained_model.py both enforce.
+        print(contrast_report)  # codeql[py/clear-text-logging]
         return 0
 
     pinned = load_artifact() if ARTIFACT_PATH.exists() else None

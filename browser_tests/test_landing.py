@@ -130,8 +130,10 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         page.keyboard.press("Enter")
         page.get_by_role("heading", name="From hidden hiring bias to a release decision").wait_for()
         expect(page.locator("#tab-demo")).to_be_visible()
-        # Step 6 is the statutory refusal; it must name the statute.
-        expect(page.get_by_text("42 U.S.C. § 2000e-2(l)", exact=False).first).to_be_visible()
+        # Step 6 is the statutory refusal; it must name the statute. Scoped to the
+        # demo tab: the phrase also appears in the hidden Mitigations tab, and an
+        # unscoped .first resolves to that one and never becomes visible.
+        expect(page.locator("#tab-demo")).to_contain_text("42 U.S.C. § 2000e-2(l)")
 
         home = page.get_by_role("button", name="Home")
         home.focus()
