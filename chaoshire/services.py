@@ -1,6 +1,7 @@
 """Application services shared by the HTTP route layer."""
 
 import io
+import logging
 import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -26,6 +27,9 @@ from .models import (
 )
 from .repository import save_audit
 from .state import UPLOADED, UPLOADED_LOCK, appeals_snapshot, append_appeal
+
+#: Failure detail that must never reach a response body stays here instead.
+logger = logging.getLogger(__name__)
 
 
 def filtered_candidates(model: str = "legacy") -> dict[str, Any]:
@@ -384,7 +388,17 @@ def upload_decisions(
     try:
         uploaded = pd.read_csv(io.StringIO(csv_text))
     except Exception as error:
-        return {"error": f"Could not parse CSV: {error}"}
+        # A pandas/CSV parser message can quote buffer contents, dialect guesses
+        # and file positions, so the raw text stays server-side. The caller gets
+        # the failure category and the exception class, which is enough to tell a
+        # malformed upload from an unsupported encoding.
+        logger.warning("CSV parse failed for upload: %r", error)
+        return {
+            "error": (
+                f"Could not parse the uploaded CSV ({type(error).__name__}). "
+                "Expected UTF-8 text with a header row and at least one decision column."
+            )
+        }
 
     if uploaded.empty:
         return {"error": "The CSV has headers but no data rows."}

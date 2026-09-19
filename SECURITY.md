@@ -58,6 +58,15 @@ see what a given deployment actually enforces instead of trusting this file.
   `" onerror="…` and confirms it renders as inert text.
 - Server-rendered HTML and PDF reports escape through `html.escape(quote=True)`
   and a PDF string escaper that neutralises `\`, `(` and `)`.
+- **Exception text never reaches a response body.** Remote-connector failures
+  return `502` with the failure category and the exception *class* as `reason`;
+  CSV parse failures return `422` with `(ParserError)`-style class names. Upstream
+  exceptions routinely embed the request URL, proxy configuration or a credential
+  fragment, and pandas parser messages can quote buffer contents, so the full text
+  is written to the server log instead, where an operator can still read it.
+  `tests/test_security_connectors.py` asserts that a connector exception carrying
+  `https://operator:sk-live-SUPERSECRET@…?token=abc123` produces a body containing
+  none of those fragments while the log contains all of them.
 - `style-src 'unsafe-inline'` is still permitted. Inline `style` attributes are
   used for layout; CSS injection is not script execution, and removing it would
   require moving the whole stylesheet out of line for no security gain. This is a

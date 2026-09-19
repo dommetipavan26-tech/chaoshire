@@ -14,6 +14,19 @@ below; `SECURITY.md` now documents the enforced posture rather than an aspiratio
 
 ### Security
 
+- **Exception text no longer reaches a response body.** CodeQL flagged three new
+  information-exposure paths in this branch. `POST /api/connectors/audit` returned
+  the raw upstream exception in its 502 body — exactly the kind of message that
+  carries the request URL, proxy configuration or a credential fragment — and the
+  CSV upload path returned the pandas parser message, which can quote buffer
+  contents and dialect guesses. Both now return the failure category plus the
+  exception *class* (`reason`/`(ParserError)`), and the full text goes to the
+  server log where an operator can still read it.
+  (`tests/test_security_connectors.py`)
+- **`train --include-protected` no longer prints through a variable named
+  `leaked`.** The contrast fit it reports is a synthetic coefficient set, not a
+  secret; the name was tripping CodeQL's clear-text-logging rule and mislabelled
+  the output in the process. Renamed to `contrast_coefficients`.
 - **The dashboard no longer builds HTML by unescaped string concatenation.**
   `esc()` in `index.html` escapes `"` and `'` as well as `& < >`, plus the
   backtick. Every interpolation into an attribute that can break out (`href`,
@@ -50,6 +63,26 @@ below; `SECURITY.md` now documents the enforced posture rather than an aspiratio
   (`CHAOSHIRE_MAX_APPEALS`, default 200) that evicts and counts the oldest entry.
 - **Upload and appeal payloads have schema-level length caps**, so an
   over-long name is rejected with `422` before it reaches any storage path.
+
+### Fixed
+
+- **The type-check job no longer aborts on the Python 3.12 matrix leg.** numpy
+  2.5+ requires Python >= 3.12 and ships PEP 695 `type` statements in
+  `numpy/__init__.pyi`; with `python_version = "3.11"` mypy refused to parse the
+  stub and exited 2 ("errors prevented further checking") before analysing any of
+  our own code, and `fail-fast` then cancelled the 3.11 leg so only one leg looked
+  broken. Each leg now passes `--python-version` from the matrix, and 3.11 stays
+  the local default as the lowest supported runtime.
+- Living documentation (`README.md`, `SECURITY.md`, `docs/`) can no longer quote a
+  stale test count or coverage figure: `tests/test_build_info.py` scans every
+  current-facing markdown file and compares the numbers against
+  `chaoshire/build_info.py`. `CHANGELOG.md` and `TODO.md` are excluded on purpose —
+  a v0.22.0 entry saying "98 tests" is correct forever. The portfolio case study
+  and evidence documents had been advertising "98 tests, 97.65%" for two releases
+  after that stopped being true.
+- The service-worker cache name is derived from the package version
+  (`chaoshire-v0230`) instead of being hardcoded, so a release cannot ship a
+  worker that keeps serving the previous version's precached shell.
 
 ### Changed
 
@@ -108,6 +141,9 @@ below; `SECURITY.md` now documents the enforced posture rather than an aspiratio
   `index.html` renders that payload instead of hardcoding a version string — the
   failure mode that left the landing page advertising v0.21.0 while the package
   said v0.22.0. (`tests/test_build_info.py`)
+- CI diagnostics: the `Type check` and browser jobs re-emit tool output through
+  `::error::` on failure, so the reason is visible on the PR page and through the
+  checks API instead of only inside the raw job log.
 - `render.yaml` and `.env.example` document the full deployment posture:
   generated key, non-zero rate limits, forwarded-for trust, bounded appeals, and
   the "the key buys publishing" rule.
@@ -116,7 +152,7 @@ below; `SECURITY.md` now documents the enforced posture rather than an aspiratio
   `/api/meta` rather than asserting hardcoded strings, and extended with a
   mitigation-refusal check and an end-to-end XSS regression that uploads a
   hostile group value and asserts it renders as inert text.
-- 87 new tests; the suite now contains 185 tests with 97.3% package coverage.
+- 90 new tests; the suite now contains 188 tests with 97.5% package coverage.
 
 ## [0.22.0] - 2026-09-13
 

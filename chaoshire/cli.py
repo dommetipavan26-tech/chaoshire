@@ -68,15 +68,15 @@ def run_train_command(
         if write:
             print("Refusing to pin a protected-attribute fit; --write is blind-only.")
             return 2
-        leaked = train_coefficients(include_protected=True)
-        result = audit(build_decisions(leaked))
+        contrast_coefficients = train_coefficients(include_protected=True)
+        result = audit(build_decisions(contrast_coefficients))
         gender = next(a for a in result["attributes"] if a["attribute"] == "gender")
         print(
             json.dumps(
                 {
                     "mode": "with-protected-attributes",
                     "pinned": False,
-                    "coefficients": leaked,
+                    "coefficients": contrast_coefficients,
                     "certificate": result["certificate"],
                     "gender_disparate_impact": gender["disparate_impact"],
                     "note": (

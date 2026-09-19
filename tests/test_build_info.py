@@ -175,6 +175,30 @@ def test_the_check_script_refuses_to_guess_when_coverage_json_is_missing(tmp_pat
         checker.main(["--coverage-json", str(tmp_path / "absent.json")])
 
 
+#: Living documentation. CHANGELOG.md and TODO.md are excluded on purpose: they
+#: are historical records, and a v0.22.0 entry that says "98 tests" is correct
+#: forever even though the suite has moved on.
+DOCUMENTED_FILES = (
+    "README.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "PROJECT-ROADMAP.md",
+)
+
+TEST_COUNT_PATTERN = re.compile(r"(\d{2,4}) (?:automated )?tests")
+COVERAGE_PATTERN = re.compile(r"(\d{2}\.\d)% (?:package )?coverage")
+
+
+def _living_documentation() -> list[Path]:
+    return [
+        REPO_ROOT / name
+        for name in (
+            *DOCUMENTED_FILES,
+            *(f"docs/{p.name}" for p in (REPO_ROOT / "docs").glob("*.md")),
+        )
+    ]
+
+
 def test_the_readme_quotes_the_same_numbers():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(
@@ -185,6 +209,27 @@ def test_the_readme_quotes_the_same_numbers():
     assert match.group(1) == VERSION
     assert int(match.group(2)) == AUTOMATED_TESTS
     assert match.group(3) == PACKAGE_COVERAGE
+
+
+def test_no_living_document_quotes_a_stale_test_or_coverage_figure():
+    """Every current-facing document agrees with a real test run.
+
+    The portfolio case study and evidence documents are the ones reviewers read
+    first, and they are the ones that quietly kept saying "98 tests, 97.65%" for
+    two releases after that stopped being true.
+    """
+    stale: list[str] = []
+    for document in _living_documentation():
+        if not document.exists():
+            continue
+        text = document.read_text(encoding="utf-8")
+        for found in TEST_COUNT_PATTERN.findall(text):
+            if int(found) != AUTOMATED_TESTS:
+                stale.append(f"{document.name}: {found} tests")
+        for found in COVERAGE_PATTERN.findall(text):
+            if f"{found}%" != PACKAGE_COVERAGE:
+                stale.append(f"{document.name}: {found}% coverage")
+    assert not stale, "stale figures: " + "; ".join(sorted(set(stale)))
 
 
 def test_the_landing_page_reads_the_numbers_instead_of_hardcoding_them():

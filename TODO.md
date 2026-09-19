@@ -37,7 +37,12 @@
 - [x] `render.yaml` and `.env.example` document the enforced deployment posture
 - [x] `SECURITY.md` rewritten around what the shipped configuration actually enforces
 - [x] `browser_tests/test_landing.py` reads the proof strip from `/api/meta` and adds a mitigation-refusal plus end-to-end XSS regression
-- [x] 87 new tests (suite: 185 tests, 97.3% coverage)
+- [x] Exception text no longer reaches a response body; upstream and CSV-parse failures return the category plus the exception class and log the detail (CodeQL `py/stack-trace-exposure`)
+- [x] Per-leg `--python-version` for mypy so numpy 2.5's PEP 695 stubs do not abort the 3.12 leg
+- [x] Living documentation scanned for stale test/coverage figures (`tests/test_build_info.py`)
+- [x] Service-worker cache name derived from the package version
+- [x] CI re-emits mypy and browser-check output as workflow annotations on failure
+- [x] 90 new tests (suite: 188 tests, 97.5% coverage)
 - [ ] Push the v0.23.0 tag and confirm the automated GitHub release
 - [ ] Verify the Render deployment picks up the generated `CHAOSHIRE_API_KEY` and that `/api/ready` passes the health check
 

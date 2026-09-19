@@ -1,10 +1,12 @@
 """Nonce-based CSP and the operator-configured remote decision connector."""
 
 import json
+import logging
 import re
 
 import httpx
 import pytest
+from conftest import operator_client
 from fastapi.testclient import TestClient
 
 import chaoshire.app as app_module
@@ -14,6 +16,14 @@ from chaoshire.adapters import (
     remote_adapters_from_env,
 )
 from chaoshire.app import app
+from chaoshire.services import upload_decisions
+
+client = operator_client()
+
+# A URL of the shape httpx and urllib actually put in their error text: scheme,
+# embedded credentials, host, path and query. If any fragment of it reaches a
+# response body, the assertions below fail.
+SECRET_URL = "https://operator:sk-live-SUPERSECRET@models.example/decisions?token=abc123"
 
 NONCE_RE = re.compile(r"script-src 'self' 'nonce-([^']+)'")
 
@@ -208,6 +218,59 @@ def test_connector_audit_endpoint(monkeypatch):
         failure = client.post("/api/connectors/audit", json={"model_id": "acme-v4"})
         assert failure.status_code == 502
         assert "could not be audited" in failure.json()["error"]
+
+
+def test_upstream_failure_never_echoes_the_exception(monkeypatch, caplog):
+    """CodeQL `py/stack-trace-exposure`: the 502 body must not carry the detail.
+
+    Remote-connector exceptions are exactly the kind that embed the request URL,
+    proxy configuration or a credential fragment, so the client receives the
+    failure category and the exception class, and the operator gets the full text
+    in the server log.
+    """
+
+    class ExplodingAdapter:
+        def describe(self) -> dict:
+            return {"id": "remote-http", "model_id": "acme-v4"}
+
+        def decisions(self):
+            raise RuntimeError(f"connect timeout while requesting {SECRET_URL}")
+
+    monkeypatch.setattr(app_module, "find_remote_adapter", lambda model_id: ExplodingAdapter())
+    with caplog.at_level(logging.WARNING, logger="chaoshire.app"):
+        response = client.post("/api/connectors/audit", json={"model_id": "acme-v4"})
+
+    assert response.status_code == 502
+    body = response.text
+    assert "SUPERSECRET" not in body
+    assert "abc123" not in body
+    assert "models.example" not in body
+    payload = response.json()
+    assert payload["error"] == "Remote model 'acme-v4' could not be audited."
+    assert payload["reason"] == "RuntimeError"
+    # The detail is not lost, it is just not sent to the caller.
+    assert "SUPERSECRET" in caplog.text
+
+
+def test_csv_parse_failure_never_echoes_parser_internals(caplog):
+    """Same rule for the upload path, which is reachable anonymously."""
+    malformed = "gender,ethnicity,decision\nM,G1,1\nF,G2,0,EXTRA\n"
+    with caplog.at_level(logging.WARNING, logger="chaoshire.services"):
+        response = client.post("/api/upload", json={"csv": malformed, "audit_name": "Bad CSV"})
+
+    assert response.status_code == 422
+    body = response.text
+    assert "EXTRA" not in body
+    assert "Error tokenizing data" not in body
+    assert "C error" not in body
+    error = response.json()["error"]
+    assert error.startswith("Could not parse the uploaded CSV (ParserError).")
+    assert "UTF-8" in error
+    # And the parser's own text is still available to whoever operates the box.
+    assert "Error tokenizing data" in caplog.text
+
+    direct = upload_decisions(csv_text=malformed, audit_name="Bad CSV", publish=False)
+    assert direct["error"] == error
 
 
 def test_callable_adapter_still_validates_its_contract():

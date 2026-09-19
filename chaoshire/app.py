@@ -1,5 +1,6 @@
 """FastAPI route layer for ChaosHire."""
 
+import logging
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -55,6 +56,9 @@ from .services import (
     upload_decisions,
     uploaded_audit,
 )
+
+#: Upstream failure detail is logged, never echoed into a response body.
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -265,10 +269,16 @@ def audit_remote_connector(request: ConnectorAuditRequest) -> Any:
         frame = adapter.decisions()
     except Exception as error:
         # Upstream, network, credential, and normalisation failures are a bad
-        # gateway, not a ChaosHire server error.
+        # gateway, not a ChaosHire server error. The raw exception text can carry
+        # the upstream URL, proxy details or a credential-adjacent fragment, so it
+        # is logged here and only the failure category is returned to the caller.
+        logger.warning("remote model %r audit failed: %r", request.model_id, error)
         return JSONResponse(
             status_code=502,
-            content={"error": f"Remote model '{request.model_id}' could not be audited: {error}"},
+            content={
+                "error": f"Remote model '{request.model_id}' could not be audited.",
+                "reason": type(error).__name__,
+            },
         )
     return {"model_id": request.model_id, "adapter": adapter.describe(), "audit": audit(frame)}
 
