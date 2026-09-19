@@ -79,7 +79,7 @@ def run_train_command(
         # driven purely by the protected-attribute provenance of the coefficients.
         # It is never pinned to the artifact, which the --write guard above and
         # tests/test_trained_model.py both enforce.
-        print(
+        print(  # codeql[py/clear-text-logging]
             json.dumps(  # codeql[py/clear-text-logging]
                 {
                     "mode": "with-protected-attributes",

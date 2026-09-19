@@ -35,10 +35,14 @@ jobs:
           code=$?
           printf '%s\n' "$output"
           if [ "$code" -ne 0 ]; then
-            printf '%s\n' "$output" | tail -n 60 | while IFS= read -r line; do
-              if [ -n "$line" ]; then
-                printf '::error title=browser checks exit %s::%s\n' "$code" "$line"
-              fi
-            done
+            # GitHub caps a check run at ten annotations per level, so emit only
+            # pytest's own detail lines - the failing statement, the assertion and
+            # the summary - rather than the whole traceback.
+            printf '%s\n' "$output" \
+              | grep -E '^(_{5,}|> |E |FAILED|ERROR)' \
+              | head -n 9 \
+              | while IFS= read -r line; do
+                  printf '::error title=browser checks exit %s::%s\n' "$code" "$line"
+                done
           fi
           exit "$code"

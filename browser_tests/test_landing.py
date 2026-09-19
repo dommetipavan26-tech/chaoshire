@@ -28,7 +28,7 @@ import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 XSS_PAYLOAD = '"><img src=x onerror="window.__xss=1"><b>pwned</b>'
 
@@ -82,59 +82,63 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
 
         page.get_by_role("heading", name="Stress-test hiring AI").wait_for()
 
-        # Proof strip comes from the API, so compare against the API too.
-        assert page.locator("#proof-version").inner_text() == f"v{build['version']}"
-        assert page.locator("#proof-tests").inner_text() == str(build["automated_tests"])
-        assert page.locator("#proof-coverage").inner_text() == build["package_coverage"]
-        assert page.locator("#proof-experiments").inner_text() == str(build["chaos_experiments"])
+        # Proof strip comes from the API, so compare against the API too. Every
+        # one of these uses expect() rather than inner_text(): the strip is filled
+        # by an async /api/meta fetch, and a bare inner_text() read does not retry,
+        # so it races the fetch and reads the em-dash placeholder.
+        expect(page.locator("#proof-version")).to_have_text(f"v{build['version']}")
+        expect(page.locator("#proof-tests")).to_have_text(str(build["automated_tests"]))
+        expect(page.locator("#proof-coverage")).to_have_text(build["package_coverage"])
+        expect(page.locator("#proof-experiments")).to_have_text(str(build["chaos_experiments"]))
 
-        assert page.get_by_text("does not make hiring decisions", exact=False).is_visible()
+        expect(page.get_by_text("does not make hiring decisions", exact=False)).to_be_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        assert page.locator("#modelsel").is_visible()
+        expect(page.locator("#modelsel")).to_be_visible()
         # Three reference models, including the one we actually trained.
-        assert page.locator("#modelsel .mbtn").count() == len(models) == 3
+        assert len(models) == 3
+        expect(page.locator("#modelsel .mbtn")).to_have_count(len(models))
 
         page.get_by_role("button", name=models["fair"]["title"]).click()
-        assert page.locator("#tab-welcome").is_visible()
-        page.locator("#home-score", has_text="84 / B").wait_for()
-        assert page.locator("#home-gender").inner_text() == "0"
-        assert page.locator("#home-community").inner_text() == "0"
-        assert page.locator("#home-resilience").inner_text() == "100"
+        expect(page.locator("#tab-welcome")).to_be_visible()
+        expect(page.locator("#home-score")).to_have_text("84 / B")
+        expect(page.locator("#home-gender")).to_have_text("0")
+        expect(page.locator("#home-community")).to_have_text("0")
+        expect(page.locator("#home-resilience")).to_have_text("100")
 
         page.get_by_role("button", name=models["trained"]["title"]).click()
-        page.locator("#home-score", has_text="66 / C").wait_for()
+        expect(page.locator("#home-score")).to_have_text("66 / C")
         # The most interesting result in the project: perfect counterfactual
         # resilience alongside a failing disparate impact.
-        assert page.locator("#home-resilience").inner_text() == "100"
+        expect(page.locator("#home-resilience")).to_have_text("100")
 
         page.get_by_role("button", name=models["legacy"]["title"]).click()
-        page.locator("#home-score", has_text="32 / F").wait_for()
-        assert page.locator("#home-gender").inner_text() == "169"
-        assert page.locator("#home-community").inner_text() == "111"
-        assert page.locator("#home-resilience").inner_text() == "30"
+        expect(page.locator("#home-score")).to_have_text("32 / F")
+        expect(page.locator("#home-gender")).to_have_text("169")
+        expect(page.locator("#home-community")).to_have_text("111")
+        expect(page.locator("#home-resilience")).to_have_text("30")
 
         page.get_by_role("button", name="Explore dashboard").click()
         page.get_by_role("button", name=models["fair"]["title"]).click()
-        page.locator("#tab-overview .grade-ring b", has_text="84").wait_for()
-        assert page.locator("#tab-overview").is_visible()
+        expect(page.locator("#tab-overview .grade-ring b", has_text="84")).to_be_visible()
+        expect(page.locator("#tab-overview")).to_be_visible()
         page.get_by_role("button", name="Home").click()
-        assert page.locator("#modelsel").is_visible()
-        assert page.locator("#home-score").inner_text() == "84 / B"
+        expect(page.locator("#modelsel")).to_be_visible()
+        expect(page.locator("#home-score")).to_have_text("84 / B")
 
         demo = page.get_by_role("button", name="Start the 3-minute demo")
         demo.focus()
         page.keyboard.press("Enter")
         page.get_by_role("heading", name="From hidden hiring bias to a release decision").wait_for()
-        assert page.locator("#tab-demo").is_visible()
+        expect(page.locator("#tab-demo")).to_be_visible()
         # Step 6 is the statutory refusal; it must name the statute.
-        assert page.get_by_text("42 U.S.C. § 2000e-2(l)", exact=False).first.is_visible()
+        expect(page.get_by_text("42 U.S.C. § 2000e-2(l)", exact=False).first).to_be_visible()
 
         home = page.get_by_role("button", name="Home")
         home.focus()
         page.keyboard.press("Enter")
         page.get_by_role("button", name="Explore dashboard").click()
-        page.get_by_text("Fairness Risk Score", exact=True).wait_for()
-        assert page.locator("#tab-overview").is_visible()
+        expect(page.get_by_text("Fairness Risk Score", exact=True).first).to_be_visible()
+        expect(page.locator("#tab-overview")).to_be_visible()
         browser.close()
 
 
@@ -146,19 +150,19 @@ def test_mitigation_tab_refuses_per_group_thresholds() -> None:
 
         page.get_by_role("button", name="Mitigations").click()
         # The one-click set is exactly the two lawful controls.
-        assert page.locator(".mit-check").count() == 2
-        assert page.locator("#m_blind").is_visible()
-        assert page.locator("#m_proxy").is_visible()
-        assert page.locator("#m_calibrate").count() == 0
+        expect(page.locator(".mit-check")).to_have_count(2)
+        expect(page.locator("#m_blind")).to_be_visible()
+        expect(page.locator("#m_proxy")).to_be_visible()
+        expect(page.locator("#m_calibrate")).to_have_count(0)
 
         card = page.locator("#contrastcard")
-        assert card.is_visible()
+        expect(card).to_be_visible()
         assert "42 U.S.C. § 2000e-2(l)" in card.inner_text()
         assert "unlawful employment practice" in card.inner_text()
 
         # Unacknowledged: the server refuses and quotes the statute back.
         page.locator("#runcontrast").click()
-        page.locator("#contrastout .err").wait_for()
+        expect(page.locator("#contrastout .err")).to_be_visible()
         assert "2000e-2(l)" in page.locator("#contrastout").inner_text()
 
         # Acknowledged: runs, and is labelled research-only rather than applied.
@@ -219,7 +223,7 @@ def test_uploaded_group_values_cannot_escape_the_attribute_context() -> None:
         assert "not published" in upload_out
         assert "XSS probe" in upload_out
         page.locator("#viewup").click()
-        page.locator("#tab-overview .grade-ring").wait_for()
+        expect(page.locator("#tab-overview .grade-ring").first).to_be_visible()
 
         # Nothing executed, and no element was smuggled into the DOM.
         assert page.evaluate("window.__xss === undefined")
