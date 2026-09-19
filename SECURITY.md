@@ -99,21 +99,50 @@ CodeQL runs on every push and pull request (`.github/workflows/security.yml`,
 plus the repository's code-scanning results check). One accepted deviation is
 recorded here because it is a deliberate design decision rather than an oversight:
 
-- `py/clear-text-logging` fires on `chaoshire train --include-protected`, which
-  reports a contrast fit trained *with* protected attributes. The verdict is a
-  false positive — the fixture is the bundled synthetic 1,000-row population and
-  its protected-attribute weights are already published in `chaoshire/models.py` —
-  but inline `# codeql[...]` suppression comments are not honoured by this
-  repository's code-scanning configuration, and the taint the rule tracks runs
-  through arithmetic, so the certificate and gender disparate impact derived from
-  the fit are flagged along with the raw coefficients. Instead of excluding the
-  query repo-wide, which would stop it catching a genuine "password written to a
-  log" bug elsewhere, the CLI writes the whole report to
-  `reports/generated/protected-contrast.json` (gitignored; `--out` overrides) and
-  prints only a static acknowledgement. The contrast the flag exists to show is
-  intact in the file; nothing derived from the fit reaches stdout.
-  `tests/test_trained_model.py` enforces both halves. Revisit if the suppression
-  behaviour changes, or before any deployment that handles real candidate data.
+- `py/clear-text-storage-sensitive-data` (CWE-312) and its sibling
+  `py/clear-text-logging-sensitive-data` fire on `chaoshire train
+  --include-protected`, which reports a contrast fit trained *with* protected
+  attributes. **The alert is dismissed as a false positive in the code-scanning
+  UI**; the reasoning is recorded here so the dismissal can be re-audited.
+
+  CodeQL classifies these values as "sensitive data (private)" by *name
+  heuristics* — `semmle/python/dataflow/new/SensitiveDataSources.qll` matches
+  identifiers, string literals, attribute names and parameter names that look
+  like credentials or personal data. This project's vocabulary is protected
+  attributes (`PROTECTED_FEATURES`, `gender_M`, `eth_G2`, `age_50+`,
+  `include_protected`), so every value downstream of the contrast fit inherits
+  the taint — including the certificate total and the gender disparate impact,
+  which are computed from it by arithmetic. Two consequences follow. First, the
+  verdict cannot be avoided by reducing what is emitted: trimming the raw
+  coefficients left the certificate and the impact ratio flagged. Second, it
+  cannot be avoided by changing the sink: moving the report from `print` to a
+  file simply swapped the logging query for the storage query, because both
+  share the same source model.
+
+  It is a false positive on the merits. The fixture is the bundled synthetic
+  1,000-row population, no real candidate data exists in this repository or in
+  any deployment of it, and the same protected-attribute weights are already
+  published as constants in `chaoshire/models.py`. The CWE-312 threat model —
+  clear-text exposure of credentials or personal data on storage a third party
+  can read — does not describe a report the operator asked for, in their own
+  working directory, under `reports/generated/`, which `.gitignore` excludes.
+
+  Inline `# codeql[...]` suppression comments are not honoured by this
+  repository's code-scanning configuration (verified across four revisions of
+  the sink: the `json.dumps` argument, the enclosing `print`, a single-line
+  `sys.stdout.write`, and the `write_text` call). Excluding the two queries via
+  `.github/codeql-config.yml` was considered and rejected: it would stop them
+  catching a genuine "password written to a log" or "secret persisted to disk"
+  bug anywhere else in the package. Dismissing this one alert is the narrower
+  action, and it is the disposition GitHub's own guidance recommends for a
+  genuine false positive.
+
+  The CLI still writes the whole report to
+  `reports/generated/protected-contrast.json` (`--out` overrides the path) and
+  prints only a static acknowledgement, which is the better channel for a
+  machine-readable report regardless of the scanner; `tests/test_trained_model.py`
+  enforces both halves. **Re-review this dismissal — and never rely on it — before
+  any deployment that handles real candidate data.**
 
 ## Current limitations
 

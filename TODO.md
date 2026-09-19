@@ -42,9 +42,10 @@
 - [x] Living documentation scanned for stale test/coverage figures (`tests/test_build_info.py`)
 - [x] Service-worker cache name derived from the package version
 - [x] CI re-emits mypy and browser-check output as workflow annotations on failure
-- [x] `train --include-protected` writes its report to `reports/generated/protected-contrast.json` and prints only a static acknowledgement; resolves the CodeQL `py/clear-text-logging` false positive without disabling the query repo-wide
-- [ ] Revisit the `py/clear-text-logging` deviation in SECURITY.md if CodeQL starts honouring inline suppression comments
-- [ ] Dismiss or re-review the CodeQL alert if the repository ever handles real candidate data
+- [x] `train --include-protected` writes its report to `reports/generated/protected-contrast.json` and prints only a static acknowledgement; a better channel for a machine-readable report, though it moves the false positive from `py/clear-text-logging-sensitive-data` to `py/clear-text-storage-sensitive-data` rather than clearing it
+- [x] Dismiss the `py/clear-text-storage-sensitive-data` alert on `chaoshire/cli.py` as a false positive in the code-scanning UI (reasoning recorded in SECURITY.md → Static analysis); both clear-text queries stay enabled for the rest of the package
+- [ ] Revisit the false-positive dismissal in SECURITY.md if CodeQL starts honouring inline `# codeql[...]` suppression comments
+- [ ] Re-review that dismissal before any deployment that handles real candidate data
 - [x] 90 new tests (suite: 188 tests, 97.5% coverage)
 - [ ] Push the v0.23.0 tag and confirm the automated GitHub release
 - [ ] Verify the Render deployment picks up the generated `CHAOSHIRE_API_KEY` and that `/api/ready` passes the health check

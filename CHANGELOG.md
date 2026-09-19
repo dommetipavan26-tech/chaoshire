@@ -45,6 +45,19 @@ below; `SECURITY.md` now documents the enforced posture rather than an aspiratio
   channel for a machine-readable report. `tests/test_trained_model.py` asserts
   both halves. The `--write` guard that refuses to pin a protected-attribute fit
   is unchanged.
+
+  Changing the sink does not clear the alert: the two clear-text queries share
+  one source model, so `py/clear-text-logging-sensitive-data` on the `print`
+  became `py/clear-text-storage-sensitive-data` on the `write_text`. CodeQL
+  classifies these values as "sensitive data (private)" by *name heuristic*
+  (`SensitiveDataSources.qll` matches identifiers and string literals that look
+  like credentials or personal data — here `PROTECTED_FEATURES`, `gender_M`,
+  `eth_G2`, `age_50+`, `include_protected`), and the taint survives the
+  arithmetic into the certificate total and the gender disparate impact, so no
+  reduction of the output clears it either. The alert is therefore dismissed as a
+  false positive in the code-scanning UI rather than by disabling the queries
+  repo-wide; SECURITY.md → "Static analysis" records the full reasoning and the
+  condition that voids it (any deployment handling real candidate data).
 - **The dashboard no longer builds HTML by unescaped string concatenation.**
   `esc()` in `index.html` escapes `"` and `'` as well as `& < >`, plus the
   backtick. Every interpolation into an attribute that can break out (`href`,
