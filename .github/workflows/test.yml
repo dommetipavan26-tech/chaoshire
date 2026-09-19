@@ -28,7 +28,27 @@ jobs:
       - name: Format check
         run: python -m ruff format --check .
       - name: Type check
-        run: python -m mypy
+        # mypy's own output is re-emitted as workflow annotations on failure so
+        # the reason is visible on the PR page and through the checks API, not
+        # only inside the raw job log.
+        run: |
+          set +e
+          output="$(python -m mypy 2>&1)"
+          code=$?
+          printf '%s\n' "$output"
+          if [ "$code" -ne 0 ]; then
+            printf '%s\n' "$output" | while IFS= read -r line; do
+              if [ -n "$line" ]; then
+                printf '::error title=mypy exit %s::%s\n' "$code" "$line"
+              fi
+            done
+            echo "--- environment ---"
+            python -VV
+            python -m mypy --version
+            python -m pip list 2>/dev/null | grep -Ei 'mypy|numpy|pandas|pydantic|fastapi|scikit|typing' || true
+            ls -la
+          fi
+          exit "$code"
       - name: Trained-model drift check
         run: python -m chaoshire train --check
       - name: Test with coverage
