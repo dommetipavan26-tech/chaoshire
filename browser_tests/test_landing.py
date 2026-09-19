@@ -139,8 +139,16 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         home.focus()
         page.keyboard.press("Enter")
         page.get_by_role("button", name="Explore dashboard").click()
-        expect(page.get_by_text("Fairness Risk Score", exact=True).first).to_be_visible()
+        # Scoped to the overview tab and matched as a substring: the score line now
+        # reads "Fairness Risk Score · 71.3 of 85 measurable points, normalised to
+        # 100", so there is no element whose entire text is the bare label. Asserting
+        # the basis text here also proves the denominator disclosure reached the UI
+        # rather than only the JSON payload.
         expect(page.locator("#tab-overview")).to_be_visible()
+        expect(page.locator("#tab-overview")).to_contain_text("Fairness Risk Score")
+        expect(page.locator("#tab-overview")).to_contain_text(
+            "measurable points, normalised to 100"
+        )
         browser.close()
 
 
