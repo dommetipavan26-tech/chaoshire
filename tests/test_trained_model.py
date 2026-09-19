@@ -1,5 +1,7 @@
 """The bundled trained model: pinned artifact integrity and end-to-end auditability."""
 
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -183,30 +185,50 @@ def test_cli_include_protected_reports_but_refuses_to_pin(capsys, tmp_path, monk
     pytest.importorskip("sklearn")
     import json
 
+    import chaoshire.cli as cli
     import chaoshire.training as training
     from chaoshire.cli import main
+    from chaoshire.training import PROTECTED_FEATURES
 
-    assert main(["train", "--include-protected"]) == 0
-    report = json.loads(capsys.readouterr().out)
+    # The default destination lives under reports/generated/, which .gitignore
+    # already excludes: the contrast fit is a disposable diagnostic, never an
+    # artifact to pin or commit.
+    assert cli.CONTRAST_REPORT_PATH == Path("reports/generated/protected-contrast.json")
+
+    target = tmp_path / "nested" / "contrast.json"
+    assert main(["train", "--include-protected", "--out", str(target)]) == 0
+    stdout = capsys.readouterr().out
+
+    # stdout carries only a static acknowledgement. Every value derived from a
+    # protected-attribute fit goes to the file, because CodeQL's
+    # py/clear-text-logging rule treats those values as private data reaching an
+    # output sink, and inline suppression comments are not honoured by this
+    # repository's code-scanning configuration.
+    assert str(target) in stdout
+    assert "Never pinned" in stdout
+    assert not stdout.strip().startswith("{")
+    for feature in PROTECTED_FEATURES:
+        assert feature not in stdout
+
+    report = json.loads(target.read_text(encoding="utf-8"))
     assert report["mode"] == "with-protected-attributes"
     assert report["pinned"] is False
-    assert report["certificate"]["total"] >= 0
-    # The contrast is the point: a fit that is allowed to see gender, ethnicity and
-    # age scores *worse* on disparate impact than the blind fit, which is the
-    # argument for blinding rather than an excuse to skip it.
-    assert 0 < report["gender_disparate_impact"] < 0.8
     assert "Never pinned" in report["note"]
+    # The file keeps everything the flag exists to show, coefficients included.
+    assert set(report["coefficients"]) >= set(PROTECTED_FEATURES)
+    assert any(report["coefficients"][feature] != 0.0 for feature in PROTECTED_FEATURES)
+    assert report["certificate"]["total"] >= 0
+    # The contrast is the point: a fit allowed to see gender, ethnicity and age
+    # scores *worse* on disparate impact than the blind fit's 0.78, which is the
+    # argument for blinding rather than an excuse to skip it.
+    assert 0 < report["gender_disparate_impact"] < 0.78
 
-    # The raw fitted weights are deliberately not dumped to stdout. CodeQL's
-    # py/clear-text-logging rule treats values derived from a protected-attribute
-    # fit as private data reaching an output sink, and inline suppression comments
-    # are not honoured by this repository's code-scanning configuration; the report
-    # points at the Python entry point instead of disabling the query repo-wide.
-    assert isinstance(report["coefficients"], str)
-    assert "train_coefficients(include_protected=True)" in report["coefficients"]
-    assert not any(
-        feature in report["coefficients"] for feature in ("gender_M", "eth_G2", "age_50+")
-    )
+    # Without --out the report lands at the documented default, created if needed.
+    default_target = tmp_path / "generated" / "protected-contrast.json"
+    monkeypatch.setattr(cli, "CONTRAST_REPORT_PATH", default_target)
+    assert main(["train", "--include-protected"]) == 0
+    assert default_target.exists()
+    assert "protected-contrast.json" in capsys.readouterr().out
 
     monkeypatch.setattr(training, "ARTIFACT_PATH", tmp_path / "never.json")
     assert main(["train", "--include-protected", "--write"]) == 2

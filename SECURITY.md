@@ -104,11 +104,14 @@ recorded here because it is a deliberate design decision rather than an oversigh
   false positive — the fixture is the bundled synthetic 1,000-row population and
   its protected-attribute weights are already published in `chaoshire/models.py` —
   but inline `# codeql[...]` suppression comments are not honoured by this
-  repository's code-scanning configuration. Instead of excluding the query
-  repo-wide, which would stop it catching a genuine "password written to a log"
-  bug elsewhere, the CLI no longer dumps the raw fitted weights: it prints the
-  certificate and the gender disparate impact, which is what the contrast is for,
-  and points at `train_coefficients(include_protected=True)` for the values.
+  repository's code-scanning configuration, and the taint the rule tracks runs
+  through arithmetic, so the certificate and gender disparate impact derived from
+  the fit are flagged along with the raw coefficients. Instead of excluding the
+  query repo-wide, which would stop it catching a genuine "password written to a
+  log" bug elsewhere, the CLI writes the whole report to
+  `reports/generated/protected-contrast.json` (gitignored; `--out` overrides) and
+  prints only a static acknowledgement. The contrast the flag exists to show is
+  intact in the file; nothing derived from the fit reaches stdout.
   `tests/test_trained_model.py` enforces both halves. Revisit if the suppression
   behaviour changes, or before any deployment that handles real candidate data.
 
