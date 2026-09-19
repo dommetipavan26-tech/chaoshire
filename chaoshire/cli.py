@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 from .agent import review_audit
@@ -72,33 +71,32 @@ def run_train_command(
         contrast_coefficients = train_coefficients(include_protected=True)
         result = audit(build_decisions(contrast_coefficients))
         gender = next(a for a in result["attributes"] if a["attribute"] == "gender")
-        contrast_report = json.dumps(
-            {
-                "mode": "with-protected-attributes",
-                "pinned": False,
-                "coefficients": contrast_coefficients,
-                "certificate": result["certificate"],
-                "gender_disparate_impact": gender["disparate_impact"],
-                "note": (
-                    "Experimental contrast fit. Never pinned to the artifact; "
-                    "compare against `python -m chaoshire train` for the blind model."
-                ),
-            },
-            indent=2,
+        # The raw fitted weights are deliberately NOT printed. CodeQL's
+        # py/clear-text-logging rule treats values derived from a
+        # protected-attribute fit as private data reaching an output sink, and
+        # inline suppression comments are not honoured by this repository's
+        # code-scanning configuration. Rather than disable the query repo-wide for
+        # a false positive, the report keeps what actually carries the argument -
+        # the score and the gender disparate impact this fit produces - and leaves
+        # the coefficient dump to callers who ask for it in Python via
+        # train_coefficients(include_protected=True).
+        print(
+            json.dumps(
+                {
+                    "mode": "with-protected-attributes",
+                    "pinned": False,
+                    "coefficients": "omitted from CLI output; call "
+                    "chaoshire.training.train_coefficients(include_protected=True)",
+                    "certificate": result["certificate"],
+                    "gender_disparate_impact": gender["disparate_impact"],
+                    "note": (
+                        "Experimental contrast fit. Never pinned to the artifact; "
+                        "compare against `python -m chaoshire train` for the blind model."
+                    ),
+                },
+                indent=2,
+            )
         )
-        # Written to stdout directly rather than through print(). CodeQL's
-        # py/clear-text-logging rule classifies everything downstream of
-        # train_coefficients(include_protected=True) as private data reaching a
-        # logging sink, which is a false positive here on two counts: this is the
-        # CLI's requested primary output, not a log record, and the values are
-        # derived from the bundled 1,000-row synthetic fixture whose
-        # protected-attribute weights are already published in chaoshire/models.py.
-        # An inline `# codeql[...]` suppression comment is the usual answer, but
-        # this repository's code-scanning configuration does not honour them, so
-        # the accepted-risk reasoning is recorded here instead. The contrast fit is
-        # never pinned to the artifact - the --write guard above and
-        # tests/test_trained_model.py both enforce that.
-        sys.stdout.write(contrast_report + "\n")
         return 0
 
     pinned = load_artifact() if ARTIFACT_PATH.exists() else None

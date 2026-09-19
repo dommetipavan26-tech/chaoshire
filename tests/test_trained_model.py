@@ -189,7 +189,24 @@ def test_cli_include_protected_reports_but_refuses_to_pin(capsys, tmp_path, monk
     assert main(["train", "--include-protected"]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report["mode"] == "with-protected-attributes"
+    assert report["pinned"] is False
     assert report["certificate"]["total"] >= 0
+    # The contrast is the point: a fit that is allowed to see gender, ethnicity and
+    # age scores *worse* on disparate impact than the blind fit, which is the
+    # argument for blinding rather than an excuse to skip it.
+    assert 0 < report["gender_disparate_impact"] < 0.8
+    assert "Never pinned" in report["note"]
+
+    # The raw fitted weights are deliberately not dumped to stdout. CodeQL's
+    # py/clear-text-logging rule treats values derived from a protected-attribute
+    # fit as private data reaching an output sink, and inline suppression comments
+    # are not honoured by this repository's code-scanning configuration; the report
+    # points at the Python entry point instead of disabling the query repo-wide.
+    assert isinstance(report["coefficients"], str)
+    assert "train_coefficients(include_protected=True)" in report["coefficients"]
+    assert not any(
+        feature in report["coefficients"] for feature in ("gender_M", "eth_G2", "age_50+")
+    )
 
     monkeypatch.setattr(training, "ARTIFACT_PATH", tmp_path / "never.json")
     assert main(["train", "--include-protected", "--write"]) == 2

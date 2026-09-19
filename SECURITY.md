@@ -93,6 +93,25 @@ see what a given deployment actually enforces instead of trusting this file.
   rather than hidden behind two identical-looking numbers.
   `tests/test_certificate_scale.py`.
 
+## Static analysis
+
+CodeQL runs on every push and pull request (`.github/workflows/security.yml`,
+plus the repository's code-scanning results check). One accepted deviation is
+recorded here because it is a deliberate design decision rather than an oversight:
+
+- `py/clear-text-logging` fires on `chaoshire train --include-protected`, which
+  reports a contrast fit trained *with* protected attributes. The verdict is a
+  false positive — the fixture is the bundled synthetic 1,000-row population and
+  its protected-attribute weights are already published in `chaoshire/models.py` —
+  but inline `# codeql[...]` suppression comments are not honoured by this
+  repository's code-scanning configuration. Instead of excluding the query
+  repo-wide, which would stop it catching a genuine "password written to a log"
+  bug elsewhere, the CLI no longer dumps the raw fitted weights: it prints the
+  certificate and the gender disparate impact, which is what the contrast is for,
+  and points at `train_coefficients(include_protected=True)` for the values.
+  `tests/test_trained_model.py` enforces both halves. Revisit if the suppression
+  behaviour changes, or before any deployment that handles real candidate data.
+
 ## Current limitations
 
 - Raw uploaded CSV rows and appeals are stored in process memory; both are bounded (request-size cap and a 200-entry appeal queue) but neither survives a restart.

@@ -23,14 +23,24 @@ below; `SECURITY.md` now documents the enforced posture rather than an aspiratio
   exception *class* (`reason`/`(ParserError)`), and the full text goes to the
   server log where an operator can still read it.
   (`tests/test_security_connectors.py`)
-- **`train --include-protected` no longer prints through a variable named
-  `leaked`.** The contrast fit it reports is a synthetic coefficient set, not a
-  secret; the name mislabelled the output and tripped CodeQL's clear-text-logging
-  rule. Renamed to `contrast_coefficients`. The rule still fires on the
-  protected-attribute provenance of the coefficients, so the remaining alert is
-  suppressed inline with a written justification: printing that fit is the entire
-  purpose of the flag, every value derives from the bundled 1,000-row synthetic
-  fixture, and `--write` refuses to pin it (`tests/test_trained_model.py`).
+- **`train --include-protected` no longer dumps the raw fitted weights to
+  stdout.** The variable was also renamed from `leaked` to `contrast_coefficients`
+  — the fit is a synthetic contrast, not a leaked secret, and the old name
+  mislabelled it. CodeQL's `py/clear-text-logging` rule classifies values derived
+  from a protected-attribute fit as private data reaching an output sink. That
+  verdict is a false positive here (the fixture is synthetic and its
+  protected-attribute weights are already published in `chaoshire/models.py`), but
+  inline `# codeql[...]` suppression comments are not honoured by this
+  repository's code-scanning configuration — the alert was re-reported on the
+  `json.dumps` argument, then the enclosing `print` call, then a single-line
+  `sys.stdout.write` sink. Rather than disable the query repo-wide for one false
+  positive, the CLI report keeps what carries the argument — the certificate
+  (**48/D**) and the gender disparate impact (**0.678**, worse than the blind
+  fit's 0.78, which is the case for blinding) — and `coefficients` now points at
+  `chaoshire.training.train_coefficients(include_protected=True)` for anyone who
+  wants the raw values in Python. `tests/test_trained_model.py` asserts both the
+  contrast and the omission. The `--write` guard that refuses to pin a
+  protected-attribute fit is unchanged.
 - **The dashboard no longer builds HTML by unescaped string concatenation.**
   `esc()` in `index.html` escapes `"` and `'` as well as `& < >`, plus the
   backtick. Every interpolation into an attribute that can break out (`href`,
