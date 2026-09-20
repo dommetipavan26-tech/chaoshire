@@ -9,8 +9,10 @@ Two prototype limitations are made explicit here rather than hidden:
 * ``APPEALS`` is a **bounded** FIFO queue. The public demo accepts appeals from
   anyone, so an unbounded list would be a trivial memory-exhaustion vector on a
   512 MB instance: 5,000-character messages appended forever. Capacity comes
-  from ``CHAOSHIRE_MAX_APPEALS``; once it is reached the oldest appeal is
-  evicted and counted.
+  from ``CHAOSHIRE_MAX_APPEALS``. Once it is reached the oldest *anonymous*
+  appeal is evicted first; authenticated (``protected``) appeals are only
+  evicted when no anonymous entry remains. Anonymous ``POST /api/appeals`` also
+  has its own per-client budget.
 
 Both structures are process-local and are lost on restart or redeploy. Neither
 is a system of record.
@@ -46,11 +48,15 @@ class AppealQueue:
     Deliberately a mutable object rather than a module-level ``deque`` name so
     the capacity can be reconfigured without rebinding the global that
     ``backend.py`` re-exports for backward compatibility.
+
+    Eviction prefers the oldest anonymous (``protected=False``) record so a
+    public-write flood cannot wipe operator-filed appeals.
     """
 
     def __init__(self, capacity: int) -> None:
         self._lock = threading.Lock()
-        self._items: deque[dict[str, Any]] = deque(maxlen=max(1, capacity))
+        self._capacity = max(1, capacity)
+        self._items: deque[dict[str, Any]] = deque()
         self._sequence = itertools.count(1)
         self._evicted = 0
 
@@ -69,14 +75,24 @@ class AppealQueue:
     @property
     def capacity(self) -> int:
         with self._lock:
-            return int(self._items.maxlen or 0)
+            return self._capacity
+
+    def _evict_one_locked(self) -> dict[str, Any] | None:
+        for index, item in enumerate(self._items):
+            if not item.get("protected"):
+                del self._items[index]
+                return item
+        if self._items:
+            return self._items.popleft()
+        return None
 
     def set_capacity(self, capacity: int) -> None:
-        """Resize the queue, evicting oldest-first if it must shrink."""
+        """Resize the queue, evicting anonymous-first if it must shrink."""
         with self._lock:
-            resized = deque(self._items, maxlen=max(1, capacity))
-            self._evicted += len(self._items) - len(resized)
-            self._items = resized
+            self._capacity = max(1, capacity)
+            while len(self._items) > self._capacity:
+                self._evict_one_locked()
+                self._evicted += 1
 
     def clear(self) -> None:
         with self._lock:
@@ -91,7 +107,8 @@ class AppealQueue:
         """
         with self._lock:
             stored = {**record, "id": next(self._sequence)}
-            if self._items.maxlen is not None and len(self._items) == self._items.maxlen:
+            if len(self._items) >= self._capacity:
+                self._evict_one_locked()
                 self._evicted += 1
             self._items.append(stored)
             return stored
@@ -100,12 +117,13 @@ class AppealQueue:
         """Newest-first appeals plus the queue's capacity, for honest reporting."""
         with self._lock:
             items = list(reversed(self._items))
-            capacity = int(self._items.maxlen or 0)
+            capacity = self._capacity
             evicted = self._evicted
         note = (
             "Demonstration queue held in process memory, newest first. It is capped at "
-            f"{capacity} entries and the oldest appeal is evicted beyond that; it is not "
-            "a case-management system and is cleared on every restart or redeploy."
+            f"{capacity} entries. Anonymous appeals are evicted before authenticated "
+            "ones; it is not a case-management system and is cleared on every restart "
+            "or redeploy."
         )
         if evicted:
             note += f" {evicted} older appeal(s) have already been evicted."

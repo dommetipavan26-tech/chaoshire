@@ -13,8 +13,11 @@ This document describes the posture the shipped configuration actually enforces,
 | Read rate limit | `120`/minute/IP | `CHAOSHIRE_RATE_LIMIT_PER_MINUTE` |
 | Write rate limit | `6`/minute/IP | `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE` |
 | Request body cap | `5,500,000` bytes | `CHAOSHIRE_MAX_BODY_BYTES` |
-| Appeal queue capacity | `200` entries, FIFO with eviction | `CHAOSHIRE_MAX_APPEALS` |
+| Appeal queue capacity | `200` entries, FIFO; anonymous evicted first | `CHAOSHIRE_MAX_APPEALS` |
+| Anonymous appeal budget | `2`/minute/IP, on top of the write budget | `CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE` |
 | Trust `X-Forwarded-For` for rate-limit buckets | `0` (`1` on Render, behind its proxy) | `CHAOSHIRE_TRUST_FORWARDED_FOR` |
+| Disclose budgets on `/api/meta` | follows anonymous-writes; set `0` in production | `CHAOSHIRE_DISCLOSE_WRITE_POSTURE` |
+| Audit history declared durable | `0` (honest for Render free) | `CHAOSHIRE_AUDIT_HISTORY_DURABLE` |
 
 `render.yaml` sets `CHAOSHIRE_API_KEY` with `generateValue: true`, so a public
 deploy gets a real secret rather than an unset one, and sets every rate limit to
@@ -35,9 +38,13 @@ The gateway fails closed. With anonymous writes disabled and no key configured
 it answers `503` rather than silently accepting writes, which is what the old
 no-op configuration did.
 
-`GET /api/meta` returns the resolved posture as `platform`, so a reviewer can
-see what a given deployment actually enforces instead of trusting this file.
-`tests/test_write_access.py` covers all of the above.
+`GET /api/meta` returns the resolved posture as `platform` **when disclosure is
+on** (the public demo). Private deployments set
+`CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0` and the same facts move to authenticated
+`GET /api/ops/posture`. `GET /api/ops/whoami` returns the rate-limit bucket key
+for the current request so the right-most-XFF rule can be proved against the
+live proxy, not just read as a config flag. `scripts/probe_xff.py` automates
+that probe. `tests/test_write_access.py` covers all of the above.
 
 ## Content security
 
@@ -152,7 +159,12 @@ recorded here because it is a deliberate design decision rather than an oversigh
 - There are no user accounts and no role-based authorization. Write access is a single shared operator key; anyone holding it can publish.
 - Aggregate history remains readable to visitors when the portfolio demo is operated publicly.
 - The demo keeps a single shared upload slot for *published* uploads: `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and the uploaded report endpoints return the most recent authenticated upload made by anyone. Only aggregate metrics and interpretation settings are exposed, and the slot is swapped under a lock so concurrent uploads cannot interleave.
-- Rate limits are per resolved client IP. Behind a proxy without `CHAOSHIRE_TRUST_FORWARDED_FOR=1` every visitor shares one bucket; with it enabled only the right-most `X-Forwarded-For` entry is used, so a client cannot rotate the header to evade the limit.
+- Rate limits are per resolved client IP and **process-local memory**: they reset on restart and they double if the process is replicated. Behind a proxy without `CHAOSHIRE_TRUST_FORWARDED_FOR=1` every visitor shares one bucket; with it enabled only the right-most `X-Forwarded-For` entry is used, so a client cannot rotate the header to evade the limit. That assumption holds only if the immediate proxy appends or overwrites the header — prove it with `GET /api/ops/whoami` or `scripts/probe_xff.py`.
+- `/api/meta` is a recon surface when disclosure is on. Turn it off
+  (`CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0`) before hosting real data.
+- Anonymous `POST /api/appeals` is still public-write on the demo, but
+  anonymous entries are evicted before authenticated ones and have a tighter
+  per-client budget.
 - Responses include request IDs, security headers, a nonce-based content policy, request-size enforcement, and rate limiting; these controls have not undergone an independent security assessment.
 - The application has not undergone an independent security or privacy assessment.
 - The demonstration is not designed for sensitive production workloads.

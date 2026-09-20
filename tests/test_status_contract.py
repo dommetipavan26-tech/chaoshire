@@ -58,7 +58,7 @@ def test_business_failures_use_proper_status_codes():
 
 def test_health_routes_expose_get_and_head():
     with TestClient(app) as client:
-        for path in ("/api/health", "/api/live", "/api/ready"):
+        for path in ("/", "/api/health", "/api/live", "/api/ready"):
             assert client.get(path).status_code == 200
             assert client.head(path).status_code == 200
 

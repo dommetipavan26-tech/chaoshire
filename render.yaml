@@ -7,7 +7,7 @@ services:
     autoDeploy: true
     envVars:
       - key: CHAOSHIRE_DB_PATH
-        value: /app/data/chaoshire.db
+        value: "/app/data/chaoshire.db"
       - key: CHAOSHIRE_MAX_BODY_BYTES
         value: "5500000"
 
@@ -44,5 +44,16 @@ services:
 
       # --- bounded demo state ----------------------------------------------
       # The appeal queue is a capped FIFO, not an unbounded in-memory list.
+      # Anonymous entries are evicted before authenticated ones.
       - key: CHAOSHIRE_MAX_APPEALS
         value: "200"
+
+      # Extra anonymous-appeal budget on top of the write limiter.
+      - key: CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE
+        value: "2"
+
+      # Honest default: Render free storage is wiped on redeploy. Flip to "1"
+      # only after attaching a persistent disk or pointing CHAOSHIRE_DB_PATH
+      # at a managed database. Do not add a disk: entry while plan: free.
+      - key: CHAOSHIRE_AUDIT_HISTORY_DURABLE
+        value: "0"

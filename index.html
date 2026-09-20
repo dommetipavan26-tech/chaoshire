@@ -549,7 +549,7 @@ function renderProofStrip(){
   set('#proof-experiments',b.chaos_experiments);
   set('#proof-version',b.version?'v'+b.version:null);
   const p=META.platform;
-  if(p&&!p.api_key_configured&&p.anonymous_writes_allowed){
+  if(p&&p.api_key_configured===false&&p.anonymous_writes_allowed){
     const note=document.createElement('div');
     note.className='dim';
     note.style.cssText='margin-top:6px';

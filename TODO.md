@@ -64,6 +64,21 @@
 - [ ] Open decision: audit-history persistence posture on the free plan (stay ephemeral / external managed store / periodic export)
 - [ ] Push the v0.23.1 tag and confirm the automated GitHub release
 
+## Release v0.23.2 — drawback remediation
+
+- [x] Stop calling `logging.basicConfig` at import; last-resort handler is logger-local in lifespan
+- [x] Gate `/api/meta` recon fields behind `CHAOSHIRE_DISCLOSE_WRITE_POSTURE` (default follows anonymous-writes); full posture on `GET /api/ops/posture`
+- [x] Prove right-most XFF with `/api/ops/whoami`, unit tests, and `scripts/probe_xff.py`
+- [x] Boot log uses literal ternaries only; tests assert tokens, not the whole line
+- [x] `ANONYMOUS_UPLOADS_PUBLISHED` is the single source for that fact
+- [x] Disclose `audit_history_durable` (default false) and warn at boot; persistence still requires a paid disk or managed DB
+- [x] Disclose `limiter_scope=process-local-memory` and warn when `WEB_CONCURRENCY`/`UVICORN_WORKERS` > 1
+- [x] Boot reports `blueprint_drift` versus the committed `render.yaml` contract
+- [x] Anonymous appeals evicted before authenticated ones; extra anonymous appeal budget
+- [x] Roadmap no longer claims untagged releases
+- [x] `HEAD /` returns 200
+- [ ] Push the v0.23.2 tag (and the still-missing v0.23.1 / v0.22.0 tags)
+
 ## Future engineering
 
 - [ ] Per-audit access control so published uploads are not world-readable
