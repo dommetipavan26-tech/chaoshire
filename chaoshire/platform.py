@@ -87,6 +87,7 @@ def write_posture() -> dict[str, Any]:
     """Describe the deployment's write posture; surfaced through ``/api/meta``."""
     from .state import appeals_capacity
 
+    trusted = trust_forwarded_for()
     return {
         "api_key_configured": configured_api_key() is not None,
         "anonymous_writes_allowed": anonymous_writes_allowed(),
@@ -94,10 +95,15 @@ def write_posture() -> dict[str, Any]:
         "rate_limit_per_minute": rate_limit_per_minute(),
         "write_rate_limit_per_minute": write_rate_limit_per_minute(),
         "appeals_capacity": appeals_capacity(),
+        "trusted_proxy_headers": trusted,
+        "rate_limit_bucketing": "per-client-ip" if trusted else "shared-per-instance",
         "note": (
             "Only uploads authenticated with CHAOSHIRE_API_KEY are published to the "
             "shared audit history. Anonymous uploads are returned to the caller and "
-            "discarded, so the public demo cannot be defaced through the audit name."
+            "discarded, so the public demo cannot be defaced through the audit name. "
+            "Rate limits bucket per client IP only when CHAOSHIRE_TRUST_FORWARDED_FOR=1 "
+            "declares a trusted proxy; with the variable unset every visitor shares "
+            "one per-instance bucket."
         ),
     }
 

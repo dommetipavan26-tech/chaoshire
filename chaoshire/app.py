@@ -1,6 +1,8 @@
 """FastAPI route layer for ChaosHire."""
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -28,9 +30,14 @@ from .pdf_reporting import render_pdf_report
 from .platform import (
     OPERATIONS,
     WriteAccess,
+    anonymous_writes_allowed,
+    configured_api_key,
     platform_middleware,
+    rate_limit_per_minute,
     require_write_access,
+    trust_forwarded_for,
     write_posture,
+    write_rate_limit_per_minute,
 )
 from .quality import compare_models, evaluate_fairness_gate
 from .reporting import render_html_report
@@ -59,6 +66,13 @@ from .services import (
 
 #: Upstream failure detail is logged, never echoed into a response body.
 logger = logging.getLogger(__name__)
+
+# uvicorn only configures its own ``uvicorn.*`` loggers, and Python's
+# last-resort handler passes WARNING and above only — so without a root-level
+# handler the INFO boot line below would never reach the Render log stream.
+# ``basicConfig`` is a no-op when a logging system (the test suite, a
+# container entrypoint) has already installed a root handler.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -97,6 +111,39 @@ def require_known_dataset(
 ModelQuery = Annotated[str, Depends(require_known_model)]
 DatasetQuery = Annotated[str, Depends(require_known_dataset)]
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Log the resolved write posture once at boot, before serving requests.
+
+    The line an operator greps for in the Render log stream to confirm the
+    deployment started with the intended configuration: key configured, proxy
+    headers trusted, and the resulting rate-limit bucketing mode. Each fact is
+    read fresh from the platform layer rather than pulled out of a shared
+    posture container (CodeQL's clear-text-logging query treats such a
+    container as credential-adjacent), and the key itself never reaches the
+    log.
+    """
+    from .state import appeals_capacity
+
+    trusted = trust_forwarded_for()
+    logger.info(
+        "chaoshire %s resolved write posture: api_key_configured=%s "
+        "anonymous_writes_allowed=%s anonymous_uploads_published=false "
+        "rate_limit_per_minute=%s write_rate_limit_per_minute=%s "
+        "appeals_capacity=%s trusted_proxy_headers=%s rate_limit_bucketing=%s",
+        __version__,
+        configured_api_key() is not None,
+        anonymous_writes_allowed(),
+        rate_limit_per_minute(),
+        write_rate_limit_per_minute(),
+        appeals_capacity(),
+        trusted,
+        "per-client-ip" if trusted else "shared-per-instance",
+    )
+    yield
+
+
 app = FastAPI(
     title="ChaosHire API",
     version=__version__,
@@ -104,6 +151,7 @@ app = FastAPI(
         "Fairness auditing, controlled counterfactual stress tests, explanations, "
         "mitigation simulations, and candidate appeals for automated hiring decisions."
     ),
+    lifespan=lifespan,
 )
 app.middleware("http")(platform_middleware)
 

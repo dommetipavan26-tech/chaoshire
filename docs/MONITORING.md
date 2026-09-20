@@ -2,7 +2,74 @@
 
 ## Render
 
-Deploy from `render.yaml` or keep the existing Docker web service. Health check: `/api/ready`. Liveness: `/api/live`. Operational snapshot: `/api/metrics`. Configure `CHAOSHIRE_API_KEY` as a secret if public writes should be restricted.
+The production service is `https://chaoshire.onrender.com`, a Docker web service on the free plan. Health check: `/api/ready`. Liveness: `/api/live`. Operational snapshot: `/api/metrics`.
+
+### Runbook for the hand-managed service
+
+The live service was created by hand in the Render dashboard. `render.yaml` is
+a **Blueprint, not a deploy script**: it is not synced to the existing service,
+and the environment variables below are set and changed on the service's
+dashboard page, not by applying the file. Every variable in the table has a
+live verify method so the deployed posture can be confirmed without trusting
+the dashboard.
+
+| Variable | Live value | What it does | How to verify it took effect |
+|---|---|---|---|
+| `CHAOSHIRE_API_KEY` | generated at deploy time | Holding it is what makes an upload *published* | `GET /api/meta` → `platform.api_key_configured: true`; a request with a wrong `X-API-Key` gets `401`. The value is never logged or echoed. |
+| `CHAOSHIRE_ALLOW_ANONYMOUS_WRITES` | `1` | Keeps the public demo interactive | Anonymous `POST /api/upload` → `200` with `published: false` and no `audit_id` |
+| `CHAOSHIRE_RATE_LIMIT_PER_MINUTE` | `120` | Per-client read budget | `GET /api/meta` → `platform.rate_limit_per_minute: 120` |
+| `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE` | `6` | Per-client write budget | `GET /api/meta` → `platform.write_rate_limit_per_minute: 6`; a 7th mutating call within a minute gets `429` |
+| `CHAOSHIRE_TRUST_FORWARDED_FOR` | `1` | Buckets limits by the right-most `X-Forwarded-For` entry | `GET /api/meta` → `platform.trusted_proxy_headers: true` and `platform.rate_limit_bucketing: "per-client-ip"`; the boot log line in the Render log stream |
+| `CHAOSHIRE_MAX_APPEALS` | `200` | Caps the appeal FIFO queue | `GET /api/meta` → `platform.appeals_capacity: 200` |
+| `CHAOSHIRE_DB_PATH` | `/app/data/chaoshire.db` | Where the aggregate-history SQLite file lives | `GET /api/ready` → `{"status": "ready", "database": "available"}` |
+| `CHAOSHIRE_MAX_BODY_BYTES` | `5500000` | Rejects over-long request bodies | A POST with a larger `Content-Length` gets `413` |
+
+`GET /api/meta` is the single verification surface: every posture variable
+resolves into its `platform` section, and the service logs the same summary
+once at boot (`chaoshire <version> resolved write posture: {...}`) — booleans
+and safe scalars, never the key value — so the Render log stream is the second
+confirmation after a redeploy.
+
+To generate a key locally (for example when rotating the deployment's key in
+the dashboard):
+
+```bash
+python -c "import secrets;print(secrets.token_urlsafe(32))"
+```
+
+#### Why not just apply the Blueprint?
+
+Adopting `render.yaml` would have Render provision the service it describes —
+the existing hand-created service is not the Blueprint's service, so adoption
+means a **second service with a new URL**, and every existing
+`chaoshire.onrender.com` link breaks: the README, the portfolio evidence
+documents, UptimeRobot's monitors, and every previously shared URL. Keeping
+both would also mean two free instances, each with its own cold start and its
+own copy of the bounded in-memory state. Until an owner decision says
+otherwise, the hand-managed service stays and its dashboard page — not the
+file — is the source of truth for its environment.
+
+#### Audit history is ephemeral on the free plan
+
+Render's free filesystem is wiped on redeploy, instance replacement, and
+platform maintenance, so the SQLite audit history (`GET /api/audits`) is
+**ephemeral**: it survives a process restart on the same instance and nothing
+more. `docs/PERSISTENCE.md` defines what is stored; this section is about how
+long it lasts. Three postures are on the table:
+
+1. **Stay ephemeral.** Accept that the history is demo scratch space, keep the
+   "not durable cloud storage" wording, and do nothing. Cheapest, and honest.
+2. **External managed store.** Point the repository at a managed database
+   (Render Postgres or an equivalent) through the planned repository adapter so
+   history survives redeploys. Costs money and adds a second service with its
+   own cold starts.
+3. **Ship, don't store.** Export the history periodically (for example
+   `GET /api/audit/export` to object storage) instead of making the running
+   service own durability.
+
+Whatever is chosen, do **not** add a `disk:` entry to `render.yaml` while
+`plan: free` — the free plan has no persistent disks, and the Blueprint would
+fail to provision.
 
 ## UptimeRobot
 

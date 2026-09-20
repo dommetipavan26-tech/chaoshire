@@ -21,7 +21,7 @@ from .models import MODEL_META
 VERSION = __version__
 
 #: Verified by ``scripts/check_build_info.py`` against a real pytest run.
-AUTOMATED_TESTS = 188
+AUTOMATED_TESTS = 190
 
 #: Verified by ``scripts/check_build_info.py`` against a real coverage report.
 PACKAGE_COVERAGE = "97.5%"
