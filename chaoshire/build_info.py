@@ -24,7 +24,7 @@ VERSION = __version__
 AUTOMATED_TESTS = 201
 
 #: Verified by ``scripts/check_build_info.py`` against a real coverage report.
-PACKAGE_COVERAGE = "98.4%"
+PACKAGE_COVERAGE = "98.3%"
 
 #: Derived: cannot drift.
 SERVICE_WORKER_CACHE = f"chaoshire-v{VERSION.replace('.', '')}"
