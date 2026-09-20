@@ -14,7 +14,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Split the monolithic backend into data, models, metrics, chaos, and API modules
 - [x] Add linting and coverage reporting (Ruff + 90% CI coverage gate)
 - [ ] Add automated formatting and static type checking
-- [x] Tagged GitHub releases (v0.20.0 through v0.23.0)
+- [x] Tagged GitHub releases (v0.20.0 through v0.23.1)
 
 ## Phase 2 — Real audit workflow
 

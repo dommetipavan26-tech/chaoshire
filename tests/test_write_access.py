@@ -18,12 +18,14 @@ published; and the appeal queue is a capped FIFO.
 
 import csv
 import io
+import logging
 
 import pytest
 from conftest import TEST_API_KEY, operator_client
 from fastapi.testclient import TestClient
 
 import backend
+from chaoshire import __version__
 from chaoshire.platform import LIMITER
 from chaoshire.services import sanitise_audit_name
 from chaoshire.state import APPEALS
@@ -276,3 +278,52 @@ def _dependency_calls(dependant) -> list:
     for sub in dependant.dependencies:
         calls.extend(_dependency_calls(sub))
     return calls
+
+
+# --- the write posture is verifiable in production ---------------------------
+
+
+def test_meta_discloses_the_proxy_and_bucketing_posture(monkeypatch):
+    """/api/meta names the variable that decides how rate limits bucket.
+
+    Unset means every visitor shares one per-instance bucket; "1" means the
+    trusted proxy's right-most X-Forwarded-For entry identifies each client.
+    """
+    monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_FOR", raising=False)
+    with TestClient(backend.app) as client:
+        posture = client.get("/api/meta").json()["platform"]
+        assert posture["trusted_proxy_headers"] is False
+        assert posture["rate_limit_bucketing"] == "shared-per-instance"
+        assert "CHAOSHIRE_TRUST_FORWARDED_FOR" in posture["note"]
+
+    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
+    with TestClient(backend.app) as client:
+        posture = client.get("/api/meta").json()["platform"]
+        assert posture["trusted_proxy_headers"] is True
+        assert posture["rate_limit_bucketing"] == "per-client-ip"
+        assert "CHAOSHIRE_TRUST_FORWARDED_FOR" in posture["note"]
+
+
+def test_boot_log_reports_the_posture_without_the_key(monkeypatch, caplog):
+    """Entering the app logs the resolved write posture exactly once.
+
+    This is the line an operator greps for in the Render log stream to confirm
+    the deployment started with the intended configuration. It carries the
+    resolved facts as key=value pairs — the API key itself must never appear
+    in it.
+    """
+    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
+    with caplog.at_level(logging.INFO, logger="chaoshire.app"):
+        with TestClient(backend.app):
+            pass
+    lines = [
+        record.getMessage()
+        for record in caplog.records
+        if "resolved write posture" in record.getMessage()
+    ]
+    assert len(lines) == 1
+    assert f"chaoshire {__version__} resolved write posture:" in lines[0]
+    assert "api_key_configured=True" in lines[0]
+    assert "trusted_proxy_headers=True" in lines[0]
+    assert "rate_limit_bucketing=per-client-ip" in lines[0]
+    assert TEST_API_KEY not in lines[0]

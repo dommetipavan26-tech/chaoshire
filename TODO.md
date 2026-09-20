@@ -47,8 +47,22 @@
 - [ ] Revisit the false-positive dismissal in SECURITY.md if CodeQL starts honouring inline `# codeql[...]` suppression comments
 - [ ] Re-review that dismissal before any deployment that handles real candidate data
 - [x] 90 new tests (suite: 188 tests, 97.5% coverage)
-- [ ] Push the v0.23.0 tag and confirm the automated GitHub release
-- [ ] Verify the Render deployment picks up the generated `CHAOSHIRE_API_KEY` and that `/api/ready` passes the health check
+- [x] Push the v0.23.0 tag and confirm the automated GitHub release
+- [x] Verify the Render deployment picks up the generated `CHAOSHIRE_API_KEY` and that `/api/ready` passes the health check
+
+## Release v0.23.1 — verifiable write posture
+
+- [x] `/api/meta` discloses `trusted_proxy_headers` and `rate_limit_bucketing`; the note names `CHAOSHIRE_TRUST_FORWARDED_FOR` and explains that with it unset every visitor shares one bucket (`tests/test_write_access.py`)
+- [x] Boot log line `chaoshire 0.23.1 resolved write posture: {...}` — booleans and safe scalars only, the key value never reaches the log (`tests/test_write_access.py`)
+- [x] `docs/MONITORING.md` Render runbook: Blueprint vs hand-managed env, verify method per variable, local key generation, Blueprint-adoption risk, and the audit-history ephemerality options
+- [x] Owner action: set `CHAOSHIRE_API_KEY` on the hand-created Render service (render.yaml is not synced to it)
+- [x] Owner action: set `CHAOSHIRE_TRUST_FORWARDED_FOR=1` on the hand-created Render service
+- [x] Verified live: a wrong `X-API-Key` gets `401`, so the generated key is picked up
+- [x] Verified live: anonymous upload → `200` with `published: false` and no `audit_id`
+- [x] Verified live: `/api/meta` shows `trusted_proxy_headers: true` / `per-client-ip`, rate limits `120`/`6`, and appeals capacity `200`
+- [ ] Open decision: adopt the `render.yaml` Blueprint (a second service means a new URL and every `chaoshire.onrender.com` link breaks) or keep hand-managing the environment on the existing service
+- [ ] Open decision: audit-history persistence posture on the free plan (stay ephemeral / external managed store / periodic export)
+- [ ] Push the v0.23.1 tag and confirm the automated GitHub release
 
 ## Future engineering
 

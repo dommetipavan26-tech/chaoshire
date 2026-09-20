@@ -6,6 +6,51 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-09-20
+
+The deployment's write posture is now verifiable from the running service
+itself, and the Render runbook documents how to verify each environment
+variable on the live (hand-managed, free-plan) deployment.
+
+### Added
+
+- **`/api/meta` discloses the proxy and bucketing posture.**
+  `platform.trusted_proxy_headers` reports whether
+  `CHAOSHIRE_TRUST_FORWARDED_FOR` is set, and
+  `platform.rate_limit_bucketing` reports the consequence: `per-client-ip`
+  when the proxy is trusted, `shared-per-instance` otherwise. The `note`
+  names `CHAOSHIRE_TRUST_FORWARDED_FOR=1` and explains that with the variable
+  unset every visitor shares one bucket. (`tests/test_write_access.py`)
+- **The service logs its resolved write posture once at boot.**
+  `chaoshire 0.23.1 resolved write posture: {...}` is the line an operator
+  greps for in the Render log stream: booleans and safe scalars only, never
+  the key value. (`tests/test_write_access.py`)
+- **`docs/MONITORING.md` gains a Render runbook for the hand-managed
+  free-plan service:** `render.yaml` is a Blueprint, not a deploy script; an
+  environment-variable table with a live verify method per variable; the local
+  key-generation command; the Blueprint-adoption risk (a second service means
+  a new URL and every `chaoshire.onrender.com` link breaks); and an "audit
+  history is ephemeral on the free plan" section listing the three persistence
+  options and warning not to add `disk:` while `plan: free`.
+
+### Verified in production
+
+- `CHAOSHIRE_API_KEY` is set on the live service: a wrong `X-API-Key` gets
+  `401`.
+- `CHAOSHIRE_TRUST_FORWARDED_FOR=1` is set: `/api/meta` reports
+  `trusted_proxy_headers: true` / `per-client-ip`.
+- Anonymous uploads answer `200` with `published: false` and no `audit_id`.
+- `/api/meta` reports rate limits `120`/`6` and appeals capacity `200`.
+
+### Changed
+
+- Version `0.23.0` → `0.23.1`; `chaoshire/build_info.py` reports 190 automated
+  tests (package coverage unchanged at 97.5%).
+- Living documentation moved to the v0.23.1 baseline (README, portfolio case
+  study, evidence and platform documents, roadmap release range).
+- `POST /api/appeals` behaviour is unchanged: public-write, bounded by the
+  capped FIFO queue — the cap is the mitigation.
+
 ## [0.23.0] - 2026-09-19
 
 Red-flag review remediation. Five findings from an external review of the public
