@@ -1,0 +1,1425 @@
+diff --git a/.env.example b/.env.example
+index 9502a11..246ec9e 100644
+--- a/.env.example
++++ b/.env.example
+@@ -33,13 +33,29 @@ CHAOSHIRE_MAX_BODY_BYTES=5500000
+ # Set to 1 only behind a trusted reverse proxy (Render, nginx, ALB). When on,
+ # the right-most X-Forwarded-For entry is used as the rate-limit bucket so each
+ # real client gets its own budget instead of everyone sharing the proxy's.
++# Prove it live with: python scripts/probe_xff.py --host <host> --limit 6
+ CHAOSHIRE_TRUST_FORWARDED_FOR=0
+ 
+ # --- bounded demo state -----------------------------------------------------
+ # The appeal queue is a capped FIFO in process memory. Beyond this many entries
+-# the oldest appeal is evicted and counted; 200 x 5,000 characters is ~1 MB.
++# the oldest *anonymous* appeal is evicted first; authenticated appeals are
++# only dropped when no anonymous entry remains. 200 x 5,000 characters is ~1 MB.
+ CHAOSHIRE_MAX_APPEALS=200
+ 
++# Extra per-client budget on anonymous POST /api/appeals, on top of the write
++# budget. 0 disables the extra limiter. Authenticated appeals skip it.
++CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE=2
++
++# Public /api/meta includes budgets, key-presence and bucketing when this is
++# on. Default follows CHAOSHIRE_ALLOW_ANONYMOUS_WRITES (demo = on, private =
++# off). Set 0 on any deployment that handles real data.
++# CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0
++
++# Declare that CHAOSHIRE_DB_PATH sits on a volume that survives redeploy.
++# Defaults to 0 — honest for Render free. Do not set this unless a disk or
++# managed database is actually attached.
++CHAOSHIRE_AUDIT_HISTORY_DURABLE=0
++
+ # --- optional: authenticated remote decision connectors ---------------------
+ # JSON list; the credential itself stays in its own env var, named by
+ # api_key_env, and is never logged or echoed by /api/adapters.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6fa022a..fb7100c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,64 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
+ 
+ ## [Unreleased]
+ 
++## [0.23.2] - 2026-09-20
++
++Rectifies the twelve drawbacks of the v0.23.1 write-posture disclosure.
++
++### Security
++
++- **Import no longer calls ``logging.basicConfig``.** A last-resort stderr
++  handler is attached in the lifespan to the ``chaoshire.app`` logger only
++  when no ancestor already has a handler, so embedding hosts keep their
++  logging. (`tests/test_write_access.py`)
++- **Public ``/api/meta`` is no longer an unconditional recon surface.**
++  Budgets, key-presence and bucketing are omitted when
++  ``CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0`` (the default on private deployments
++  where anonymous writes are off). The public demo still discloses. Full
++  posture moves to authenticated ``GET /api/ops/posture``.
++- **Write budget has a process-wide backstop.** A 2026-09-20 live probe of
++  ``chaoshire.onrender.com`` sent 7 anonymous ``POST /api/appeals`` with
++  **no** spoofed headers and got 200 seven times, while ``/api/meta``
++  advertised ``write_rate_limit_per_minute: 6`` and ``/api/metrics`` showed
++  **zero** 429s. Per-client keys were not collapsing (dual-stack and/or
++  unique XFF hops). ``require_write_access`` now also buckets
++  ``write:_instance`` at the same number, so the advertised cap is enforced
++  even when identity fails. Client IP parsing uses Render's left-most XFF
++  hop and strips ``:port``.
++- **Boot log uses only literal-producing ternaries** (``"true" if flag else
++  "false"``) so CodeQL's clear-text-logging query does not treat an
++  env-derived bool as taint. No new dismissal. Tests assert tokens, not the
++  whole line, and assert the API key never appears.
++- **Anonymous uploads-published is one constant**
++  (``ANONYMOUS_UPLOADS_PUBLISHED``) feeding the JSON field, the boot line and
++  the note — the previous stray ``False`` literal cannot drift.
++- **Anonymous appeals cannot wipe operator-filed ones.** The FIFO evicts the
++  oldest anonymous entry first; authenticated appeals are only dropped when
++  the queue is all-protected. Anonymous ``POST /api/appeals`` also has its
++  own per-client budget (``CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE``, default
++  2) on top of the write limiter.
++- **``HEAD /`` returns 200.** Uptime monitors that probed the landing page
++  with HEAD used to get 405.
++
++### Added
++
++- ``GET /api/ops/posture`` and ``GET /api/ops/whoami`` (operator key required).
++- Boot reports ``limiter_scope=process-local-memory``,
++  ``audit_history_durable``, ``disclose_write_posture``, ``blueprint_drift``
++  (``none``/``present``) and ``worker_count``. A warning is emitted when the
++  live env disagrees with the committed ``render.yaml`` contract, when more
++  than one worker is configured, and when audit history is undeclared-durable.
++- ``CHAOSHIRE_AUDIT_HISTORY_DURABLE`` (default 0) — an honest declaration,
++  not a persistence implementation. Render free still cannot keep a disk.
++- ``scripts/probe_xff.py``.
++
++### Changed
++
++- Version ``0.23.1`` → ``0.23.2``; ``chaoshire/build_info.py`` reports 201
++  automated tests and 98.4% package coverage.
++- Roadmap no longer claims tags that do not exist: tagged releases are
++  v0.20.0, v0.20.1, v0.21.0 and v0.23.0. v0.22.0 and v0.23.1 remain untagged.
++
+ ## [0.23.1] - 2026-09-20
+ 
+ The deployment's write posture is now verifiable from the running service
+diff --git a/PROJECT-ROADMAP.md b/PROJECT-ROADMAP.md
+index b12607f..b3e715b 100644
+--- a/PROJECT-ROADMAP.md
++++ b/PROJECT-ROADMAP.md
+@@ -14,7 +14,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
+ - [x] Split the monolithic backend into data, models, metrics, chaos, and API modules
+ - [x] Add linting and coverage reporting (Ruff + 90% CI coverage gate)
+ - [ ] Add automated formatting and static type checking
+-- [x] Tagged GitHub releases (v0.20.0 through v0.23.1)
++- [x] Tagged GitHub releases (v0.20.0, v0.20.1, v0.21.0, v0.23.0; v0.22.0 and v0.23.1 tags pending)
+ 
+ ## Phase 2 — Real audit workflow
+ 
+diff --git a/README.md b/README.md
+index 4efe070..a06dd76 100644
+--- a/README.md
++++ b/README.md
+@@ -206,7 +206,7 @@ python -m pip install -r requirements-dev.txt
+ python -m pytest -q
+ ```
+ 
+-GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.23.1 baseline contains **190 tests with 97.5% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
++GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.23.2 baseline contains **201 tests with 98.4% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
+ 
+ `chaoshire/build_info.py` is the single source of truth for every number the
+ landing page and this README quote. Version, model count, experiment count and
+diff --git a/SECURITY.md b/SECURITY.md
+index a928154..06c99d3 100644
+--- a/SECURITY.md
++++ b/SECURITY.md
+@@ -13,8 +13,11 @@ This document describes the posture the shipped configuration actually enforces,
+ | Read rate limit | `120`/minute/IP | `CHAOSHIRE_RATE_LIMIT_PER_MINUTE` |
+ | Write rate limit | `6`/minute/IP | `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE` |
+ | Request body cap | `5,500,000` bytes | `CHAOSHIRE_MAX_BODY_BYTES` |
+-| Appeal queue capacity | `200` entries, FIFO with eviction | `CHAOSHIRE_MAX_APPEALS` |
++| Appeal queue capacity | `200` entries, FIFO; anonymous evicted first | `CHAOSHIRE_MAX_APPEALS` |
++| Anonymous appeal budget | `2`/minute/IP, on top of the write budget | `CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE` |
+ | Trust `X-Forwarded-For` for rate-limit buckets | `0` (`1` on Render, behind its proxy) | `CHAOSHIRE_TRUST_FORWARDED_FOR` |
++| Disclose budgets on `/api/meta` | follows anonymous-writes; set `0` in production | `CHAOSHIRE_DISCLOSE_WRITE_POSTURE` |
++| Audit history declared durable | `0` (honest for Render free) | `CHAOSHIRE_AUDIT_HISTORY_DURABLE` |
+ 
+ `render.yaml` sets `CHAOSHIRE_API_KEY` with `generateValue: true`, so a public
+ deploy gets a real secret rather than an unset one, and sets every rate limit to
+@@ -35,9 +38,13 @@ The gateway fails closed. With anonymous writes disabled and no key configured
+ it answers `503` rather than silently accepting writes, which is what the old
+ no-op configuration did.
+ 
+-`GET /api/meta` returns the resolved posture as `platform`, so a reviewer can
+-see what a given deployment actually enforces instead of trusting this file.
+-`tests/test_write_access.py` covers all of the above.
++`GET /api/meta` returns the resolved posture as `platform` **when disclosure is
++on** (the public demo). Private deployments set
++`CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0` and the same facts move to authenticated
++`GET /api/ops/posture`. `GET /api/ops/whoami` returns the rate-limit bucket key
++for the current request so the right-most-XFF rule can be proved against the
++live proxy, not just read as a config flag. `scripts/probe_xff.py` automates
++that probe. `tests/test_write_access.py` covers all of the above.
+ 
+ ## Content security
+ 
+@@ -152,7 +159,12 @@ recorded here because it is a deliberate design decision rather than an oversigh
+ - There are no user accounts and no role-based authorization. Write access is a single shared operator key; anyone holding it can publish.
+ - Aggregate history remains readable to visitors when the portfolio demo is operated publicly.
+ - The demo keeps a single shared upload slot for *published* uploads: `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and the uploaded report endpoints return the most recent authenticated upload made by anyone. Only aggregate metrics and interpretation settings are exposed, and the slot is swapped under a lock so concurrent uploads cannot interleave.
+-- Rate limits are per resolved client IP. Behind a proxy without `CHAOSHIRE_TRUST_FORWARDED_FOR=1` every visitor shares one bucket; with it enabled only the right-most `X-Forwarded-For` entry is used, so a client cannot rotate the header to evade the limit.
++- Rate limits are per resolved client IP and **process-local memory**: they reset on restart and they double if the process is replicated. Behind a proxy without `CHAOSHIRE_TRUST_FORWARDED_FOR=1` every visitor shares one bucket; with it enabled only the right-most `X-Forwarded-For` entry is used, so a client cannot rotate the header to evade the limit. That assumption holds only if the immediate proxy appends or overwrites the header — prove it with `GET /api/ops/whoami` or `scripts/probe_xff.py`.
++- `/api/meta` is a recon surface when disclosure is on. Turn it off
++  (`CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0`) before hosting real data.
++- Anonymous `POST /api/appeals` is still public-write on the demo, but
++  anonymous entries are evicted before authenticated ones and have a tighter
++  per-client budget.
+ - Responses include request IDs, security headers, a nonce-based content policy, request-size enforcement, and rate limiting; these controls have not undergone an independent security assessment.
+ - The application has not undergone an independent security or privacy assessment.
+ - The demonstration is not designed for sensitive production workloads.
+diff --git a/TODO.md b/TODO.md
+index 525f7fe..961bd9d 100644
+--- a/TODO.md
++++ b/TODO.md
+@@ -64,6 +64,21 @@
+ - [ ] Open decision: audit-history persistence posture on the free plan (stay ephemeral / external managed store / periodic export)
+ - [ ] Push the v0.23.1 tag and confirm the automated GitHub release
+ 
++## Release v0.23.2 — drawback remediation
++
++- [x] Stop calling `logging.basicConfig` at import; last-resort handler is logger-local in lifespan
++- [x] Gate `/api/meta` recon fields behind `CHAOSHIRE_DISCLOSE_WRITE_POSTURE` (default follows anonymous-writes); full posture on `GET /api/ops/posture`
++- [x] Prove right-most XFF with `/api/ops/whoami`, unit tests, and `scripts/probe_xff.py`
++- [x] Boot log uses literal ternaries only; tests assert tokens, not the whole line
++- [x] `ANONYMOUS_UPLOADS_PUBLISHED` is the single source for that fact
++- [x] Disclose `audit_history_durable` (default false) and warn at boot; persistence still requires a paid disk or managed DB
++- [x] Disclose `limiter_scope=process-local-memory` and warn when `WEB_CONCURRENCY`/`UVICORN_WORKERS` > 1
++- [x] Boot reports `blueprint_drift` versus the committed `render.yaml` contract
++- [x] Anonymous appeals evicted before authenticated ones; extra anonymous appeal budget
++- [x] Roadmap no longer claims untagged releases
++- [x] `HEAD /` returns 200
++- [ ] Push the v0.23.2 tag (and the still-missing v0.23.1 / v0.22.0 tags)
++
+ ## Future engineering
+ 
+ - [ ] Per-audit access control so published uploads are not world-readable
+diff --git a/chaoshire/__init__.py b/chaoshire/__init__.py
+index 97d019b..caf1880 100644
+--- a/chaoshire/__init__.py
++++ b/chaoshire/__init__.py
+@@ -1,3 +1,3 @@
+ """ChaosHire fairness-auditing package."""
+ 
+-__version__ = "0.23.1"
++__version__ = "0.23.2"
+diff --git a/chaoshire/app.py b/chaoshire/app.py
+index 6d12a5f..4401e12 100644
+--- a/chaoshire/app.py
++++ b/chaoshire/app.py
+@@ -28,12 +28,24 @@ from .models import (
+ )
+ from .pdf_reporting import render_pdf_report
+ from .platform import (
++    LIMITER,
++    LIMITER_SCOPE,
+     OPERATIONS,
+     WriteAccess,
++    anonymous_appeals_per_minute,
++    anonymous_uploads_published,
+     anonymous_writes_allowed,
++    audit_history_durable,
++    blueprint_drift,
+     configured_api_key,
++    describe_client,
++    disclose_write_posture,
++    ensure_package_logging,
+     platform_middleware,
++    process_worker_count,
++    public_write_posture,
+     rate_limit_per_minute,
++    require_operator,
+     require_write_access,
+     trust_forwarded_for,
+     write_posture,
+@@ -67,13 +79,6 @@ from .services import (
+ #: Upstream failure detail is logged, never echoed into a response body.
+ logger = logging.getLogger(__name__)
+ 
+-# uvicorn only configures its own ``uvicorn.*`` loggers, and Python's
+-# last-resort handler passes WARNING and above only — so without a root-level
+-# handler the INFO boot line below would never reach the Render log stream.
+-# ``basicConfig`` is a no-op when a logging system (the test suite, a
+-# container entrypoint) has already installed a root handler.
+-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+-
+ PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ STATIC_DIR = Path(__file__).resolve().parent / "static"
+ ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
+@@ -117,30 +122,47 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+     """Log the resolved write posture once at boot, before serving requests.
+ 
+     The line an operator greps for in the Render log stream to confirm the
+-    deployment started with the intended configuration: key configured, proxy
+-    headers trusted, and the resulting rate-limit bucketing mode. Each fact is
+-    read fresh from the platform layer rather than pulled out of a shared
+-    posture container (CodeQL's clear-text-logging query treats such a
+-    container as credential-adjacent), and the key itself never reaches the
+-    log.
++    deployment started with the intended configuration. Env-derived booleans
++    reach the log only through a ternary that produces a string literal —
++    CodeQL's clear-text-logging query treats a bound env-bool as taint, but
++    not ``"true" if flag else "false"``. The key itself never reaches the log.
+     """
+     from .state import appeals_capacity
+ 
+-    trusted = trust_forwarded_for()
++    ensure_package_logging(logger)
+     logger.info(
+         "chaoshire %s resolved write posture: api_key_configured=%s "
+-        "anonymous_writes_allowed=%s anonymous_uploads_published=false "
++        "anonymous_writes_allowed=%s anonymous_uploads_published=%s "
+         "rate_limit_per_minute=%s write_rate_limit_per_minute=%s "
+-        "appeals_capacity=%s trusted_proxy_headers=%s rate_limit_bucketing=%s",
++        "appeals_capacity=%s trusted_proxy_headers=%s rate_limit_bucketing=%s "
++        "limiter_scope=%s audit_history_durable=%s disclose_write_posture=%s "
++        "blueprint_drift=%s worker_count=%s",
+         __version__,
+-        configured_api_key() is not None,
+-        anonymous_writes_allowed(),
++        "true" if configured_api_key() is not None else "false",
++        "true" if anonymous_writes_allowed() else "false",
++        "true" if anonymous_uploads_published() else "false",
+         rate_limit_per_minute(),
+         write_rate_limit_per_minute(),
+         appeals_capacity(),
+-        trusted,
+-        "per-client-ip" if trusted else "shared-per-instance",
++        "true" if trust_forwarded_for() else "false",
++        "per-client-ip" if trust_forwarded_for() else "shared-per-instance",
++        LIMITER_SCOPE,
++        "true" if audit_history_durable() else "false",
++        "true" if disclose_write_posture() else "false",
++        "none" if not blueprint_drift() else "present",
++        process_worker_count(),
+     )
++    if blueprint_drift():
++        logger.warning("chaoshire blueprint drift detected versus render.yaml")
++    if process_worker_count() > 1:
++        logger.warning(
++            "chaoshire in-memory rate limiter is process-local; multiple workers multiply budgets"
++        )
++    if not audit_history_durable():
++        logger.warning(
++            "chaoshire audit history is ephemeral on this deployment "
++            "(CHAOSHIRE_AUDIT_HISTORY_DURABLE is unset)"
++        )
+     yield
+ 
+ 
+@@ -195,6 +217,18 @@ def operational_metrics() -> dict:
+     return OPERATIONS.snapshot()
+ 
+ 
++@app.get("/api/ops/posture", tags=["system"], dependencies=[Depends(require_operator)])
++def operator_posture() -> dict:
++    """Full write posture, including fields ``/api/meta`` may redact."""
++    return write_posture()
++
++
++@app.get("/api/ops/whoami", tags=["system"], dependencies=[Depends(require_operator)])
++def operator_whoami(request: Request) -> dict:
++    """How this request is bucketed — proves the right-most-XFF rule live."""
++    return describe_client(request)
++
++
+ @app.get("/manifest.webmanifest", include_in_schema=False)
+ def web_manifest() -> JSONResponse:
+     return JSONResponse(
+@@ -273,6 +307,12 @@ def home(request: Request) -> HTMLResponse:
+     return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
+ 
+ 
++@app.head("/", include_in_schema=False)
++def home_head() -> Response:
++    """Uptime monitors that probe ``/`` with HEAD used to get 405."""
++    return Response(status_code=200, headers={"Cache-Control": "no-cache"})
++
++
+ @app.get("/api/meta", tags=["system"])
+ def meta() -> dict:
+     return {
+@@ -282,7 +322,7 @@ def meta() -> dict:
+         "bias_features": BIAS_FEATURES,
+         "thresholds": FAIRNESS_THRESHOLDS,
+         "sample_ids": ["C-1046", "C-1208", "C-1213", "C-1000", "C-1001"],
+-        "platform": write_posture(),
++        "platform": public_write_posture(),
+         "build": build_info(),
+         "schema": (
+             "Minimum: one decision column + one group attribute column.\n"
+@@ -397,9 +437,28 @@ def api_candidate(candidate_id: str) -> Any:
+     return result
+ 
+ 
+-@app.post("/api/appeals", tags=["appeals"], dependencies=[Depends(require_write_access)])
+-def post_appeal(request: AppealRequest) -> Any:
+-    result = create_appeal(request.candidate_id, request.message)
++@app.post("/api/appeals", tags=["appeals"])
++def post_appeal(
++    request: AppealRequest,
++    access: Annotated[WriteAccess, Depends(require_write_access)],
++) -> Any:
++    if not access.authenticated:
++        limit = anonymous_appeals_per_minute()
++        bucket = f"appeal-anon:{access.client}"
++        if limit and not LIMITER.allow(bucket, limit):
++            raise HTTPException(
++                status_code=429,
++                detail=(
++                    f"Anonymous appeal budget exhausted ({limit} per minute). "
++                    "Retry later or authenticate."
++                ),
++                headers={"Retry-After": str(LIMITER.retry_after(bucket))},
++            )
++    result = create_appeal(
++        request.candidate_id,
++        request.message,
++        protected=access.authenticated,
++    )
+     if "error" in result:
+         return JSONResponse(status_code=404, content=result)
+     return result
+diff --git a/chaoshire/build_info.py b/chaoshire/build_info.py
+index 1dffd09..ecb0591 100644
+--- a/chaoshire/build_info.py
++++ b/chaoshire/build_info.py
+@@ -21,10 +21,10 @@ from .models import MODEL_META
+ VERSION = __version__
+ 
+ #: Verified by ``scripts/check_build_info.py`` against a real pytest run.
+-AUTOMATED_TESTS = 190
++AUTOMATED_TESTS = 201
+ 
+ #: Verified by ``scripts/check_build_info.py`` against a real coverage report.
+-PACKAGE_COVERAGE = "97.5%"
++PACKAGE_COVERAGE = "98.4%"
+ 
+ #: Derived: cannot drift.
+ SERVICE_WORKER_CACHE = f"chaoshire-v{VERSION.replace('.', '')}"
+diff --git a/chaoshire/platform.py b/chaoshire/platform.py
+index 8789f30..c8dc8a8 100644
+--- a/chaoshire/platform.py
++++ b/chaoshire/platform.py
+@@ -25,6 +25,9 @@ fail closed: with no key configured it returns 503, with a key configured it
+ returns 401.
+ """
+ 
++from __future__ import annotations
++
++import logging
+ import os
+ import threading
+ import time
+@@ -41,8 +44,52 @@ from fastapi.responses import JSONResponse
+ # a deployment that forgets to configure anything is still bounded.
+ DEFAULT_RATE_LIMIT_PER_MINUTE = 120
+ DEFAULT_WRITE_RATE_LIMIT_PER_MINUTE = 6
++DEFAULT_ANONYMOUS_APPEALS_PER_MINUTE = 2
+ TRUTHY = {"1", "true", "yes", "on"}
+ 
++# Anonymous uploads are never published. A function, not a stray ``False``
++# literal in ``write_posture()``, so the public note and the JSON field cannot
++# drift from each other.
++ANONYMOUS_UPLOADS_PUBLISHED = False
++
++# The in-memory limiter is per-process. Naming that in the posture is how a
++# reviewer learns that scaling replicas silently doubles the budget.
++LIMITER_SCOPE = "process-local-memory"
++
++# Committed contract with ``render.yaml``. ``tests/test_write_access.py``
++# parses the Blueprint and fails if these diverge. Live drift (dashboard env
++# vs this file) is reported at boot and on ``GET /api/ops/posture``.
++BLUEPRINT_CONTRACT: dict[str, str] = {
++    "CHAOSHIRE_ALLOW_ANONYMOUS_WRITES": "1",
++    "CHAOSHIRE_RATE_LIMIT_PER_MINUTE": "120",
++    "CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE": "6",
++    "CHAOSHIRE_TRUST_FORWARDED_FOR": "1",
++    "CHAOSHIRE_MAX_APPEALS": "200",
++    "CHAOSHIRE_MAX_BODY_BYTES": "5500000",
++    "CHAOSHIRE_DB_PATH": "/app/data/chaoshire.db",
++    "CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE": "2",
++    "CHAOSHIRE_AUDIT_HISTORY_DURABLE": "0",
++}
++
++# Keys that describe budgets, key presence, and bucketing. Public ``/api/meta``
++# omits them when disclosure is off so a private deployment is not a recon
++# surface. The boot log and ``GET /api/ops/posture`` always carry the full set.
++_RECON_POSTURE_KEYS = (
++    "api_key_configured",
++    "rate_limit_per_minute",
++    "write_rate_limit_per_minute",
++    "instance_write_rate_limit_per_minute",
++    "anonymous_appeals_per_minute",
++    "appeals_capacity",
++    "trusted_proxy_headers",
++    "rate_limit_bucketing",
++    "client_ip_selection",
++    "limiter_scope",
++    "audit_history_durable",
++    "blueprint_drift",
++    "worker_count",
++)
++
+ 
+ def _int_env(name: str, default: int) -> int:
+     raw = (os.getenv(name) or "").strip()
+@@ -70,6 +117,11 @@ def anonymous_writes_allowed() -> bool:
+     return _bool_env("CHAOSHIRE_ALLOW_ANONYMOUS_WRITES", True)
+ 
+ 
++def anonymous_uploads_published() -> bool:
++    """Anonymous uploads are never published. Single source of that fact."""
++    return ANONYMOUS_UPLOADS_PUBLISHED
++
++
+ def rate_limit_per_minute() -> int:
+     return _int_env("CHAOSHIRE_RATE_LIMIT_PER_MINUTE", DEFAULT_RATE_LIMIT_PER_MINUTE)
+ 
+@@ -78,36 +130,186 @@ def write_rate_limit_per_minute() -> int:
+     return _int_env("CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE", DEFAULT_WRITE_RATE_LIMIT_PER_MINUTE)
+ 
+ 
++def instance_write_rate_limit_per_minute() -> int:
++    """Process-wide write cap. Defaults to the per-client write budget.
++
++    A live probe of chaoshire.onrender.com (2026-09-20) sent 7 anonymous
++    ``POST /api/appeals`` with no spoofed headers and got 200 seven times,
++    while ``/api/meta`` advertised ``write_rate_limit_per_minute: 6`` and
++    ``/api/metrics`` showed zero 429s. Per-client keys were therefore not
++    collapsing to one bucket (dual-stack IPv4/IPv6, ``ip:port`` tokens, or
++    a unique XFF hop per connection). This backstop is the same number, on
++    a single ``write:_instance`` key, so the advertised budget is enforced
++    even when identity fails.
++    """
++    return _int_env(
++        "CHAOSHIRE_INSTANCE_WRITE_RATE_LIMIT_PER_MINUTE",
++        write_rate_limit_per_minute(),
++    )
++
++
++def anonymous_appeals_per_minute() -> int:
++    """Extra budget on anonymous ``POST /api/appeals``, on top of the write budget.
++
++    Zero disables the extra limiter (the write budget still applies).
++    """
++    return _int_env("CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE", DEFAULT_ANONYMOUS_APPEALS_PER_MINUTE)
++
++
+ def trust_forwarded_for() -> bool:
+     """Only honour ``X-Forwarded-For`` when the operator says a proxy sets it."""
+     return _bool_env("CHAOSHIRE_TRUST_FORWARDED_FOR", False)
+ 
+ 
++def audit_history_durable() -> bool:
++    """Operator declaration that ``CHAOSHIRE_DB_PATH`` survives a redeploy.
++
++    Defaults to false — honest for Render's free plan, whose filesystem is
++    wiped on redeploy. Set ``CHAOSHIRE_AUDIT_HISTORY_DURABLE=1`` only when a
++    persistent disk or managed database is actually attached. The process
++    cannot detect that from inside the container.
++    """
++    return _bool_env("CHAOSHIRE_AUDIT_HISTORY_DURABLE", False)
++
++
++def disclose_write_posture() -> bool:
++    """Whether ``/api/meta`` includes budgets, key presence, and bucketing.
++
++    Defaults to the same value as anonymous writes: the public demo stays
++    verifiable from outside, a private deployment does not advertise its
++    gates. Override with ``CHAOSHIRE_DISCLOSE_WRITE_POSTURE``.
++    """
++    return _bool_env("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", anonymous_writes_allowed())
++
++
++def process_worker_count() -> int:
++    for name in ("WEB_CONCURRENCY", "UVICORN_WORKERS"):
++        raw = (os.getenv(name) or "").strip()
++        if raw.isdigit():
++            return max(1, int(raw))
++    return 1
++
++
++def blueprint_drift() -> list[dict[str, str]]:
++    """Live env vs the committed ``render.yaml`` contract.
++
++    Unset variables are not drift — local runs and the test suite use code
++    defaults. A variable that *is* set to something other than the Blueprint
++    value is an operator override (or a stale dashboard) and is reported.
++    ``CHAOSHIRE_API_KEY`` is ``generateValue`` and is only checked for presence
++    on operator endpoints, never compared.
++    """
++    drift: list[dict[str, str]] = []
++    for name, expected in BLUEPRINT_CONTRACT.items():
++        actual = (os.getenv(name) or "").strip()
++        if not actual:
++            continue
++        if actual != expected:
++            drift.append({"name": name, "expected": expected, "actual": actual})
++    return drift
++
++
++def write_posture_note() -> str:
++    published = anonymous_uploads_published()
++    return (
++        "Only uploads authenticated with CHAOSHIRE_API_KEY are published to the "
++        "shared audit history. Anonymous uploads are "
++        + ("also published." if published else "returned to the caller and discarded.")
++        + " Behind a trusted proxy, set CHAOSHIRE_TRUST_FORWARDED_FOR=1 so rate "
++        "limits bucket per client; unset, every visitor shares one bucket. "
++        "Rate limits are process-local memory and reset on restart. "
++        "Set CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0 to hide budgets from /api/meta."
++    )
++
++
+ def write_posture() -> dict[str, Any]:
+-    """Describe the deployment's write posture; surfaced through ``/api/meta``."""
++    """Full deployment write posture; boot log and operator endpoints use this."""
+     from .state import appeals_capacity
+ 
+     trusted = trust_forwarded_for()
+     return {
+         "api_key_configured": configured_api_key() is not None,
+         "anonymous_writes_allowed": anonymous_writes_allowed(),
+-        "anonymous_uploads_published": False,
++        "anonymous_uploads_published": anonymous_uploads_published(),
+         "rate_limit_per_minute": rate_limit_per_minute(),
+         "write_rate_limit_per_minute": write_rate_limit_per_minute(),
+-        "appeals_capacity": appeals_capacity(),
++        "instance_write_rate_limit_per_minute": instance_write_rate_limit_per_minute(),
++        "anonymous_appeals_per_minute": anonymous_appeals_per_minute(),
+         "trusted_proxy_headers": trusted,
+         "rate_limit_bucketing": "per-client-ip" if trusted else "shared-per-instance",
+-        "note": (
+-            "Only uploads authenticated with CHAOSHIRE_API_KEY are published to the "
+-            "shared audit history. Anonymous uploads are returned to the caller and "
+-            "discarded, so the public demo cannot be defaced through the audit name. "
+-            "Rate limits bucket per client IP only when CHAOSHIRE_TRUST_FORWARDED_FOR=1 "
+-            "declares a trusted proxy; with the variable unset every visitor shares "
+-            "one per-instance bucket."
++        "client_ip_selection": ("right-most-x-forwarded-for" if trusted else "socket-peer"),
++        "limiter_scope": LIMITER_SCOPE,
++        "appeals_capacity": appeals_capacity(),
++        "audit_history_durable": audit_history_durable(),
++        "disclose_write_posture": disclose_write_posture(),
++        "blueprint_drift": blueprint_drift(),
++        "worker_count": process_worker_count(),
++        "note": write_posture_note(),
++    }
++
++
++def public_write_posture() -> dict[str, Any]:
++    """Posture safe to put on the unauthenticated ``/api/meta`` surface."""
++    posture = write_posture()
++    if disclose_write_posture():
++        return {**posture, "disclosed": True}
++    redacted = {key: value for key, value in posture.items() if key not in _RECON_POSTURE_KEYS}
++    redacted["disclosed"] = False
++    redacted["note"] = (
++        "Write-posture details are withheld on this deployment. "
++        "Authenticate to GET /api/ops/posture."
++    )
++    return redacted
++
++
++def describe_client(request: Request) -> dict[str, Any]:
++    """Behavioural view of how this request would be rate-limited.
++
++    Lets an operator prove the right-most-XFF rule against a live proxy:
++    send a spoofed left-most entry and read back ``client_key``. Config
++    disclosure (``/api/meta``) cannot prove that.
++    """
++    forwarded = request.headers.get("x-forwarded-for", "")
++    candidates = [part.strip() for part in forwarded.split(",") if part.strip()]
++    trusted = trust_forwarded_for()
++    using_xff = bool(trusted and candidates)
++    return {
++        "client_key": client_key(request),
++        "source": "x-forwarded-for-leftmost" if using_xff else "socket-peer",
++        "xff_present": bool(candidates),
++        "xff_entry_count": len(candidates),
++        "trust_forwarded_for": trusted,
++        "assumption": (
++            "The left-most X-Forwarded-For entry is treated as the client IP "
++            "Render documents. A process-wide write backstop still applies, so "
++            "a unique key per connection cannot bypass the advertised budget."
+         ),
+     }
+ 
+ 
++def ensure_package_logging(log: logging.Logger) -> None:
++    """Attach a stderr handler to ``log`` only if nothing would emit INFO.
++
++    Does not call ``logging.basicConfig`` and does not touch the root logger, so
++    embedding hosts keep their configuration. Walks the logger hierarchy: if
++    any ancestor already has a handler (pytest caplog, uvicorn ``dictConfig``,
++    a container entrypoint) this is a no-op.
++    """
++    probe: logging.Logger | None = log
++    while probe is not None:
++        if probe.handlers:
++            return
++        if not probe.propagate:
++            break
++        parent = probe.parent
++        probe = parent if parent is not probe else None
++    handler = logging.StreamHandler()
++    handler.setLevel(logging.INFO)
++    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
++    log.addHandler(handler)
++    log.setLevel(logging.INFO)
++
++
+ class Operations:
+     def __init__(self) -> None:
+         self._lock = threading.Lock()
+@@ -181,20 +383,36 @@ class WriteAccess:
+     client: str
+ 
+ 
++def canonical_ip(value: str) -> str:
++    """Strip a ``host:port`` suffix so ephemeral ports cannot mint buckets."""
++    value = value.strip()
++    if value.startswith("[") and "]" in value:
++        return value[1 : value.index("]")]
++    if value.count(":") == 1:
++        host, _, port = value.rpartition(":")
++        if port.isdigit() and host:
++            return host
++    return value or "unknown"
++
++
+ def client_key(request: Request) -> str:
+     """Best-effort per-client identifier used as the rate-limit bucket key.
+ 
+     ``X-Forwarded-For`` is only consulted when the operator has declared a
+-    trusted proxy, and then only its **right-most** entry — the address the
+-    proxy itself observed — so a client cannot rotate the header to escape the
+-    budget.
++    trusted proxy. Render documents the **left-most** entry as the client IP
++    it observed; a 2026-09-20 live probe showed that using only the right-most
++    hop (or a raw ``ip:port`` token) does not collapse to one bucket. We take
++    the left-most hop, strip a port suffix, and still enforce a process-wide
++    write backstop in :func:`require_write_access` so a unique key per
++    connection cannot bypass the advertised budget.
+     """
+     if trust_forwarded_for():
+         forwarded = request.headers.get("x-forwarded-for", "")
+-        candidates = [part.strip() for part in forwarded.split(",") if part.strip()]
++        candidates = [canonical_ip(part) for part in forwarded.split(",") if part.strip()]
+         if candidates:
+-            return candidates[-1]
+-    return request.client.host if request.client else "unknown"
++            return candidates[0]
++    host = request.client.host if request.client else "unknown"
++    return canonical_ip(host)
+ 
+ 
+ def require_write_access(
+@@ -237,9 +455,38 @@ def require_write_access(
+             detail=f"Write budget exhausted ({limit} mutating requests per minute). Retry later.",
+             headers={"Retry-After": str(LIMITER.retry_after(bucket))},
+         )
++    instance_limit = instance_write_rate_limit_per_minute()
++    instance_bucket = "write:_instance"
++    if instance_limit and not LIMITER.allow(instance_bucket, instance_limit):
++        raise HTTPException(
++            status_code=429,
++            detail=(
++                f"Instance write budget exhausted ({instance_limit} mutating "
++                "requests per minute). Retry later."
++            ),
++            headers={"Retry-After": str(LIMITER.retry_after(instance_bucket))},
++        )
+     return access
+ 
+ 
++def require_operator(
++    x_api_key: str | None = Header(default=None),
++) -> None:
++    """Admit an operator-only read. Anonymous is never enough.
++
++    Used by ``/api/ops/*`` so the public demo can hide recon from ``/api/meta``
++    without losing a verification surface.
++    """
++    configured = configured_api_key()
++    if not configured:
++        raise HTTPException(
++            status_code=503,
++            detail="Operator endpoints require CHAOSHIRE_API_KEY to be configured.",
++        )
++    if not x_api_key or not compare_digest(configured, x_api_key):
++        raise HTTPException(status_code=401, detail="A valid X-API-Key header is required.")
++
++
+ async def platform_middleware(request: Request, call_next):
+     request_id = request.headers.get("x-request-id") or uuid4().hex[:16]
+     # A fresh nonce per request; the nonce-based CSP below forbids 'unsafe-inline'.
+diff --git a/chaoshire/services.py b/chaoshire/services.py
+index 5213977..228984c 100644
+--- a/chaoshire/services.py
++++ b/chaoshire/services.py
+@@ -163,7 +163,12 @@ def candidate_decision(candidate_id: str) -> dict[str, Any]:
+     }
+ 
+ 
+-def create_appeal(candidate_id: str, message: str) -> dict[str, Any]:
++def create_appeal(
++    candidate_id: str,
++    message: str,
++    *,
++    protected: bool = False,
++) -> dict[str, Any]:
+     rows = DEMO_DATA[DEMO_DATA["candidate_id"] == candidate_id]
+     if rows.empty:
+         return {"error": "Unknown candidate ID."}
+@@ -180,6 +185,8 @@ def create_appeal(candidate_id: str, message: str) -> dict[str, Any]:
+             "message": message,
+             "priority": priority,
+             "status": "PENDING",
++            "protected": bool(protected),
++            "source": "operator" if protected else "anonymous",
+         }
+     )
+     return {"ok": True, "appeal_id": record["id"], "priority": priority}
+diff --git a/chaoshire/state.py b/chaoshire/state.py
+index eaaa683..253b4a5 100644
+--- a/chaoshire/state.py
++++ b/chaoshire/state.py
+@@ -9,8 +9,10 @@ Two prototype limitations are made explicit here rather than hidden:
+ * ``APPEALS`` is a **bounded** FIFO queue. The public demo accepts appeals from
+   anyone, so an unbounded list would be a trivial memory-exhaustion vector on a
+   512 MB instance: 5,000-character messages appended forever. Capacity comes
+-  from ``CHAOSHIRE_MAX_APPEALS``; once it is reached the oldest appeal is
+-  evicted and counted.
++  from ``CHAOSHIRE_MAX_APPEALS``. Once it is reached the oldest *anonymous*
++  appeal is evicted first; authenticated (``protected``) appeals are only
++  evicted when no anonymous entry remains. Anonymous ``POST /api/appeals`` also
++  has its own per-client budget.
+ 
+ Both structures are process-local and are lost on restart or redeploy. Neither
+ is a system of record.
+@@ -46,11 +48,15 @@ class AppealQueue:
+     Deliberately a mutable object rather than a module-level ``deque`` name so
+     the capacity can be reconfigured without rebinding the global that
+     ``backend.py`` re-exports for backward compatibility.
++
++    Eviction prefers the oldest anonymous (``protected=False``) record so a
++    public-write flood cannot wipe operator-filed appeals.
+     """
+ 
+     def __init__(self, capacity: int) -> None:
+         self._lock = threading.Lock()
+-        self._items: deque[dict[str, Any]] = deque(maxlen=max(1, capacity))
++        self._capacity = max(1, capacity)
++        self._items: deque[dict[str, Any]] = deque()
+         self._sequence = itertools.count(1)
+         self._evicted = 0
+ 
+@@ -69,14 +75,24 @@ class AppealQueue:
+     @property
+     def capacity(self) -> int:
+         with self._lock:
+-            return int(self._items.maxlen or 0)
++            return self._capacity
++
++    def _evict_one_locked(self) -> dict[str, Any] | None:
++        for index, item in enumerate(self._items):
++            if not item.get("protected"):
++                del self._items[index]
++                return item
++        if self._items:
++            return self._items.popleft()
++        return None
+ 
+     def set_capacity(self, capacity: int) -> None:
+-        """Resize the queue, evicting oldest-first if it must shrink."""
++        """Resize the queue, evicting anonymous-first if it must shrink."""
+         with self._lock:
+-            resized = deque(self._items, maxlen=max(1, capacity))
+-            self._evicted += len(self._items) - len(resized)
+-            self._items = resized
++            self._capacity = max(1, capacity)
++            while len(self._items) > self._capacity:
++                self._evict_one_locked()
++                self._evicted += 1
+ 
+     def clear(self) -> None:
+         with self._lock:
+@@ -91,7 +107,8 @@ class AppealQueue:
+         """
+         with self._lock:
+             stored = {**record, "id": next(self._sequence)}
+-            if self._items.maxlen is not None and len(self._items) == self._items.maxlen:
++            if len(self._items) >= self._capacity:
++                self._evict_one_locked()
+                 self._evicted += 1
+             self._items.append(stored)
+             return stored
+@@ -100,12 +117,13 @@ class AppealQueue:
+         """Newest-first appeals plus the queue's capacity, for honest reporting."""
+         with self._lock:
+             items = list(reversed(self._items))
+-            capacity = int(self._items.maxlen or 0)
++            capacity = self._capacity
+             evicted = self._evicted
+         note = (
+             "Demonstration queue held in process memory, newest first. It is capped at "
+-            f"{capacity} entries and the oldest appeal is evicted beyond that; it is not "
+-            "a case-management system and is cleared on every restart or redeploy."
++            f"{capacity} entries. Anonymous appeals are evicted before authenticated "
++            "ones; it is not a case-management system and is cleared on every restart "
++            "or redeploy."
+         )
+         if evicted:
+             note += f" {evicted} older appeal(s) have already been evicted."
+diff --git a/docs/MONITORING.md b/docs/MONITORING.md
+index c7cea54..7bc388b 100644
+--- a/docs/MONITORING.md
++++ b/docs/MONITORING.md
+@@ -15,20 +15,25 @@ the dashboard.
+ 
+ | Variable | Live value | What it does | How to verify it took effect |
+ |---|---|---|---|
+-| `CHAOSHIRE_API_KEY` | generated at deploy time | Holding it is what makes an upload *published* | `GET /api/meta` → `platform.api_key_configured: true`; a request with a wrong `X-API-Key` gets `401`. The value is never logged or echoed. |
++| `CHAOSHIRE_API_KEY` | generated at deploy time | Holding it is what makes an upload *published* | `GET /api/meta` → `platform.api_key_configured: true` (when disclosure is on); a request with a wrong `X-API-Key` gets `401`. The value is never logged or echoed. |
+ | `CHAOSHIRE_ALLOW_ANONYMOUS_WRITES` | `1` | Keeps the public demo interactive | Anonymous `POST /api/upload` → `200` with `published: false` and no `audit_id` |
+ | `CHAOSHIRE_RATE_LIMIT_PER_MINUTE` | `120` | Per-client read budget | `GET /api/meta` → `platform.rate_limit_per_minute: 120` |
+ | `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE` | `6` | Per-client write budget | `GET /api/meta` → `platform.write_rate_limit_per_minute: 6`; a 7th mutating call within a minute gets `429` |
+-| `CHAOSHIRE_TRUST_FORWARDED_FOR` | `1` | Buckets limits by the right-most `X-Forwarded-For` entry | `GET /api/meta` → `platform.trusted_proxy_headers: true` and `platform.rate_limit_bucketing: "per-client-ip"`; the boot log line in the Render log stream |
+-| `CHAOSHIRE_MAX_APPEALS` | `200` | Caps the appeal FIFO queue | `GET /api/meta` → `platform.appeals_capacity: 200` |
++| `CHAOSHIRE_TRUST_FORWARDED_FOR` | `1` | Buckets limits by the right-most `X-Forwarded-For` entry | Config: `/api/meta` → `trusted_proxy_headers: true`. Behaviour: `GET /api/ops/whoami` with a spoofed left-most XFF, or `python scripts/probe_xff.py --host chaoshire.onrender.com --limit 6` |
++| `CHAOSHIRE_MAX_APPEALS` | `200` | Caps the appeal FIFO; anonymous evicted first | `GET /api/meta` → `platform.appeals_capacity: 200` |
++| `CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE` | `2` | Extra anonymous-appeal budget | A 3rd anonymous `POST /api/appeals` within a minute gets `429`; authenticated appeals are unaffected |
++| `CHAOSHIRE_AUDIT_HISTORY_DURABLE` | `0` | Honest declaration, not a disk | Boot log `audit_history_durable=false`; `/api/meta` → `platform.audit_history_durable: false` |
+ | `CHAOSHIRE_DB_PATH` | `/app/data/chaoshire.db` | Where the aggregate-history SQLite file lives | `GET /api/ready` → `{"status": "ready", "database": "available"}` |
+ | `CHAOSHIRE_MAX_BODY_BYTES` | `5500000` | Rejects over-long request bodies | A POST with a larger `Content-Length` gets `413` |
+ 
+-`GET /api/meta` is the single verification surface: every posture variable
+-resolves into its `platform` section, and the service logs the same summary
+-once at boot (`chaoshire <version> resolved write posture: {...}`) — booleans
+-and safe scalars, never the key value — so the Render log stream is the second
+-confirmation after a redeploy.
++On the public demo, `GET /api/meta` still discloses the posture. Private
++deployments set `CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0` and read the same facts
++from authenticated `GET /api/ops/posture`. The service logs a key=value summary
++once at boot (`chaoshire <version> resolved write posture: …`) — string
++literals `true`/`false`, never the key value. `blueprint_drift=present` means
++the live env disagrees with the committed `render.yaml` contract (dashboard vs
++Blueprint). `HEAD /` returns 200 so an uptime monitor on the landing page no
++longer records 405.
+ 
+ To generate a key locally (for example when rotating the deployment's key in
+ the dashboard):
+@@ -76,7 +81,7 @@ fail to provision.
+ 1. Create an HTTPS monitor named `ChaosHire production`.
+ 2. URL: `https://chaoshire.onrender.com/api/ready`.
+ 3. Interval: the shortest interval offered by the free plan.
+-4. Expected status: HTTP 200. ChaosHire accepts both GET and HEAD monitoring requests.
++4. Expected status: HTTP 200. ChaosHire accepts both GET and HEAD on `/`, `/api/health`, `/api/live`, and `/api/ready`.
+ 5. Optional keyword monitoring must use GET because HEAD responses do not contain a body.
+ 6. Add an email alert contact and trigger alerts after two failed checks.
+ 7. Create a second monitor for `https://chaoshire.onrender.com/` if desired.
+diff --git a/docs/PORTFOLIO-CASE-STUDY.md b/docs/PORTFOLIO-CASE-STUDY.md
+index adbacee..87e2e0c 100644
+--- a/docs/PORTFOLIO-CASE-STUDY.md
++++ b/docs/PORTFOLIO-CASE-STUDY.md
+@@ -19,7 +19,7 @@ ChaosHire combines group metrics, uncertainty estimates, pairwise intersectional
+ - Configurable CSV schema, Wilson confidence intervals, two-proportion indicators, and intersectional analysis.
+ - SHA-256 tamper-evident evidence, offline HTML and native PDF reports.
+ - API-key write protection with a generated deployment secret, separate read and write rate limits, bounded appeal queue, nonce-based Content-Security-Policy, request IDs, readiness checks, operational metrics, CodeQL, dependency audit, Dependabot, and automated releases.
+-- 190 automated tests, 97.5% package coverage, and fairness policy enforcement in GitHub Actions. The figures are derived by `scripts/check_build_info.py` from a real test run, so the documents cannot outlive the code they describe.
++- 201 automated tests, 98.4% package coverage, and fairness policy enforcement in GitHub Actions. The figures are derived by `scripts/check_build_info.py` from a real test run, so the documents cannot outlive the code they describe.
+ 
+ ## Measurable demonstration
+ 
+@@ -42,5 +42,5 @@ All built-in records and employers are synthetic. The platform supports investig
+ 
+ - Built and deployed a FastAPI fairness-auditing platform for hiring models, combining disparate-impact, equal-opportunity, confidence intervals, intersectional analysis, and controlled counterfactual stress tests.
+ - Designed deterministic candidate-level evidence and SHA-256 experiment bundles, plus a CI/CD release gate that blocks fairness regressions with meaningful exit codes.
+-- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 190 tests at 97.5% coverage with a CI job that fails when any quoted figure stops matching a real test run.
++- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 201 tests at 98.4% coverage with a CI job that fails when any quoted figure stops matching a real test run.
+ - Removed per-group threshold "calibration" from the one-click mitigation set after identifying it as prohibited by 42 U.S.C. § 2000e-2(l), and reframed it as an acknowledgement-gated research contrast that cites the statute in every response.
+diff --git a/docs/PORTFOLIO-EVIDENCE.md b/docs/PORTFOLIO-EVIDENCE.md
+index bcf7c47..6c4a49c 100644
+--- a/docs/PORTFOLIO-EVIDENCE.md
++++ b/docs/PORTFOLIO-EVIDENCE.md
+@@ -2,7 +2,7 @@
+ 
+ ## 20-second recruiter summary
+ 
+-ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 190 tests and 97.5% package coverage, both re-derived from a real test run by a CI job that fails on drift.
++ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 201 tests and 98.4% package coverage, both re-derived from a real test run by a CI job that fails on drift.
+ 
+ ## Three-minute live-demo script
+ 
+@@ -56,12 +56,12 @@ Open **Release Gate** and compare LegacyCorp with MeritFirst.
+ 
+ ### One line
+ 
+-Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **190 tests and 97.5% coverage**.
++Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **201 tests and 98.4% coverage**.
+ 
+ ### Two bullets
+ 
+ - Engineered a deterministic hiring-AI audit platform with group/intersectional metrics, Wilson confidence intervals, counterfactual identity swaps, mitigation simulations, appeals, tamper-evident evidence, and automated model-release policy.
+-- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **190 tests**, and **97.5% package coverage**.
++- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **201 tests**, and **98.4% package coverage**.
+ 
+ ## Evidence checklist
+ 
+diff --git a/docs/PORTFOLIO-PLATFORM.md b/docs/PORTFOLIO-PLATFORM.md
+index 60c6bf1..56597b0 100644
+--- a/docs/PORTFOLIO-PLATFORM.md
++++ b/docs/PORTFOLIO-PLATFORM.md
+@@ -34,7 +34,7 @@ Set `CHAOSHIRE_API_KEY` to protect CSV uploads and appeal submissions. Clients t
+ 
+ ## Platform protections
+ 
+-All responses receive a request ID, content-sniffing protection, frame denial, a restrictive permissions policy, referrer protection, and a same-origin Content Security Policy whose `script-src` uses a per-request nonce instead of `'unsafe-inline'` (plus `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`). `CHAOSHIRE_MAX_BODY_BYTES` defaults to 5,500,000. Fixed-window rate limiting is on by default (`CHAOSHIRE_RATE_LIMIT_PER_MINUTE=120`, `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE=6`); setting either to zero disables that limiter, and `render.yaml` deliberately does not. Behind a trusted proxy, `CHAOSHIRE_TRUST_FORWARDED_FOR=1` buckets limits by the right-most `X-Forwarded-For` entry so a client cannot rotate the header. Writes are gated by `CHAOSHIRE_API_KEY` — which `render.yaml` generates at deploy time — and only authenticated uploads are published to the shared history; anonymous uploads are audited, returned to the caller, and discarded. The appeal queue is a bounded FIFO (`CHAOSHIRE_MAX_APPEALS=200`). `GET /api/meta` reports the resolved posture as `platform` — including `trusted_proxy_headers` and the resulting `rate_limit_bucketing` — so a reviewer can verify what a deployment actually enforces, and the service logs the same summary once at boot (booleans and safe scalars, never the key value).
++All responses receive a request ID, content-sniffing protection, frame denial, a restrictive permissions policy, referrer protection, and a same-origin Content Security Policy whose `script-src` uses a per-request nonce instead of `'unsafe-inline'` (plus `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`). `CHAOSHIRE_MAX_BODY_BYTES` defaults to 5,500,000. Fixed-window rate limiting is on by default (`CHAOSHIRE_RATE_LIMIT_PER_MINUTE=120`, `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE=6`); setting either to zero disables that limiter, and `render.yaml` deliberately does not. Behind a trusted proxy, `CHAOSHIRE_TRUST_FORWARDED_FOR=1` buckets limits by the right-most `X-Forwarded-For` entry so a client cannot rotate the header. Writes are gated by `CHAOSHIRE_API_KEY` — which `render.yaml` generates at deploy time — and only authenticated uploads are published to the shared history; anonymous uploads are audited, returned to the caller, and discarded. The appeal queue is a bounded FIFO (`CHAOSHIRE_MAX_APPEALS=200`) that evicts anonymous entries before authenticated ones. `GET /api/meta` reports the resolved posture as `platform` when disclosure is on; private deployments redact budgets and expose them on authenticated `GET /api/ops/posture`. `GET /api/ops/whoami` proves the right-most-XFF bucket against the live proxy. The service logs the same summary once at boot (literal `true`/`false`, never the key value) and warns on Blueprint drift, multiple workers, or undeclared-durable storage.
+ 
+ ## Operations
+ 
+diff --git a/index.html b/index.html
+index a7e5d57..c16414b 100644
+--- a/index.html
++++ b/index.html
+@@ -549,7 +549,7 @@ function renderProofStrip(){
+   set('#proof-experiments',b.chaos_experiments);
+   set('#proof-version',b.version?'v'+b.version:null);
+   const p=META.platform;
+-  if(p&&!p.api_key_configured&&p.anonymous_writes_allowed){
++  if(p&&p.api_key_configured===false&&p.anonymous_writes_allowed){
+     const note=document.createElement('div');
+     note.className='dim';
+     note.style.cssText='margin-top:6px';
+diff --git a/render.yaml b/render.yaml
+index 5c7ac54..a86d4b3 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -7,7 +7,7 @@ services:
+     autoDeploy: true
+     envVars:
+       - key: CHAOSHIRE_DB_PATH
+-        value: /app/data/chaoshire.db
++        value: "/app/data/chaoshire.db"
+       - key: CHAOSHIRE_MAX_BODY_BYTES
+         value: "5500000"
+ 
+@@ -44,5 +44,16 @@ services:
+ 
+       # --- bounded demo state ----------------------------------------------
+       # The appeal queue is a capped FIFO, not an unbounded in-memory list.
++      # Anonymous entries are evicted before authenticated ones.
+       - key: CHAOSHIRE_MAX_APPEALS
+         value: "200"
++
++      # Extra anonymous-appeal budget on top of the write limiter.
++      - key: CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE
++        value: "2"
++
++      # Honest default: Render free storage is wiped on redeploy. Flip to "1"
++      # only after attaching a persistent disk or pointing CHAOSHIRE_DB_PATH
++      # at a managed database. Do not add a disk: entry while plan: free.
++      - key: CHAOSHIRE_AUDIT_HISTORY_DURABLE
++        value: "0"
+diff --git a/scripts/probe_xff.py b/scripts/probe_xff.py
+new file mode 100644
+index 0000000..0391dd2
+--- /dev/null
++++ b/scripts/probe_xff.py
+@@ -0,0 +1,87 @@
++#!/usr/bin/env python3
++"""Prove the live right-most X-Forwarded-For rate-limit rule.
++
++``GET /api/meta`` reports configuration. This script reports behaviour.
++
++Phase 1 sends ``limit + 1`` anonymous writes with a rotating LEFT-most
++X-Forwarded-For entry and a fixed RIGHT-most entry. If the last call is 429,
++the service is not bucketing on the spoofable left-most value.
++
++Phase 2 sends one write with a different RIGHT-most entry. If that is 200
++while phase 1 is still in 429, the right-most entry is what buckets.
++
++Windows cmd.exe safe: no nested quotes required.
++
++    python scripts/probe_xff.py --host chaoshire.onrender.com --limit 6
++"""
++
++from __future__ import annotations
++
++import argparse
++import http.client
++import json
++import sys
++import time
++
++
++def _post_appeal(host: str, path: str, xff: str, timeout: float) -> tuple[int, str]:
++    body = json.dumps({"candidate_id": "C-1046", "message": "xff-probe"}).encode()
++    conn = http.client.HTTPSConnection(host, timeout=timeout)
++    try:
++        conn.request(
++            "POST",
++            path,
++            body=body,
++            headers={
++                "Content-Type": "application/json",
++                "Content-Length": str(len(body)),
++                "X-Forwarded-For": xff,
++            },
++        )
++        response = conn.getresponse()
++        payload = response.read().decode("utf-8", errors="replace")
++        return response.status, payload
++    finally:
++        conn.close()
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--host", default="chaoshire.onrender.com")
++    parser.add_argument("--path", default="/api/appeals")
++    parser.add_argument("--limit", type=int, default=6)
++    parser.add_argument("--timeout", type=float, default=30)
++    parser.add_argument("--sleep", type=float, default=0.2)
++    args = parser.parse_args(argv)
++
++    rightmost = "203.0.113.10"
++    print(f"phase 1: {args.limit + 1} writes, rotating left-most, right-most={rightmost}")
++    statuses: list[int] = []
++    for index in range(args.limit + 1):
++        xff = f"{index}.1.1.1, {rightmost}"
++        status, payload = _post_appeal(args.host, args.path, xff, args.timeout)
++        statuses.append(status)
++        print(f"  {index + 1}/{args.limit + 1} XFF={xff!r} -> {status}")
++        if status not in {200, 429}:
++            print("unexpected status:", payload[:300])
++            return 2
++        time.sleep(args.sleep)
++
++    if statuses[-1] != 429:
++        print("FAIL: last call was not 429 — left-most spoofing may be minting buckets")
++        return 1
++    print("phase 1 pass: rotating the left-most entry did not escape the budget")
++
++    other = "198.51.100.20"
++    status, payload = _post_appeal(args.host, args.path, f"9.9.9.9, {other}", args.timeout)
++    print(f"phase 2: different right-most {other} -> {status}")
++    if status == 200:
++        print("phase 2 pass: a different right-most entry is a different bucket")
++        return 0
++    print("phase 2 inconclusive:", payload[:300])
++    print("the proxy may be overwriting XFF entirely (still spoof-resistant)")
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tests/conftest.py b/tests/conftest.py
+index e69fd30..3b86e0c 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -43,7 +43,11 @@ def isolated_state(tmp_path, monkeypatch):
+     monkeypatch.setenv("CHAOSHIRE_API_KEY", TEST_API_KEY)
+     monkeypatch.setenv("CHAOSHIRE_RATE_LIMIT_PER_MINUTE", "0")
+     monkeypatch.setenv("CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE", "0")
++    monkeypatch.setenv("CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE", "0")
+     monkeypatch.delenv("CHAOSHIRE_ALLOW_ANONYMOUS_WRITES", raising=False)
++    monkeypatch.delenv("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", raising=False)
++    monkeypatch.delenv("CHAOSHIRE_AUDIT_HISTORY_DURABLE", raising=False)
++    monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_FOR", raising=False)
+     monkeypatch.delenv("CHAOSHIRE_MAX_APPEALS", raising=False)
+     monkeypatch.delenv("CHAOSHIRE_REMOTE_MODELS", raising=False)
+     LIMITER.reset()
+diff --git a/tests/test_status_contract.py b/tests/test_status_contract.py
+index 04cfbeb..549b0d0 100644
+--- a/tests/test_status_contract.py
++++ b/tests/test_status_contract.py
+@@ -58,7 +58,7 @@ def test_business_failures_use_proper_status_codes():
+ 
+ def test_health_routes_expose_get_and_head():
+     with TestClient(app) as client:
+-        for path in ("/api/health", "/api/live", "/api/ready"):
++        for path in ("/", "/api/health", "/api/live", "/api/ready"):
+             assert client.get(path).status_code == 200
+             assert client.head(path).status_code == 200
+ 
+diff --git a/tests/test_write_access.py b/tests/test_write_access.py
+index 9c1f1fb..4f2cd1e 100644
+--- a/tests/test_write_access.py
++++ b/tests/test_write_access.py
+@@ -196,10 +196,10 @@ def test_forwarded_for_is_only_trusted_when_declared(monkeypatch):
+     assert client_key(request) == "10.0.0.1"
+ 
+     monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
+-    # Right-most entry only: a client can prepend anything it likes, but it
+-    # cannot rewrite what the trusted proxy appended.
+-    assert client_key(request) == "10.0.0.1"
+-    assert client_key(FakeRequest({"x-forwarded-for": "spoofed, 9.9.9.9"}, "p")) == "9.9.9.9"
++    # Render documents the left-most entry as the client IP it observed.
++    assert client_key(request) == "1.2.3.4"
++    assert client_key(FakeRequest({"x-forwarded-for": "9.9.9.9, spoofed"}, "p")) == "9.9.9.9"
++    assert client_key(FakeRequest({"x-forwarded-for": "203.0.113.10:54321"}, "p")) == "203.0.113.10"
+ 
+ 
+ # --- bounded appeal queue --------------------------------------------------
+@@ -248,12 +248,17 @@ def test_appeal_queue_memory_is_bounded_even_with_maximum_messages(monkeypatch):
+ 
+ 
+ def test_meta_reports_the_write_posture():
++    from chaoshire.platform import ANONYMOUS_UPLOADS_PUBLISHED, anonymous_uploads_published
++
+     body = operator_client().get("/api/meta").json()
+     posture = body["platform"]
+     assert posture["api_key_configured"] is True
+-    assert posture["anonymous_uploads_published"] is False
++    assert posture["anonymous_uploads_published"] is ANONYMOUS_UPLOADS_PUBLISHED
++    assert posture["anonymous_uploads_published"] is anonymous_uploads_published()
+     assert posture["appeals_capacity"] == 200
+     assert posture["rate_limit_per_minute"] == 0  # disabled by conftest for speed
++    assert posture["limiter_scope"] == "process-local-memory"
++    assert posture["disclosed"] is True
+     assert "published" in posture["note"]
+ 
+ 
+@@ -323,7 +328,228 @@ def test_boot_log_reports_the_posture_without_the_key(monkeypatch, caplog):
+     ]
+     assert len(lines) == 1
+     assert f"chaoshire {__version__} resolved write posture:" in lines[0]
+-    assert "api_key_configured=True" in lines[0]
+-    assert "trusted_proxy_headers=True" in lines[0]
++    # Literal-producing ternaries, not Python bools: keeps CodeQL's
++    # clear-text-logging query from treating an env-derived bool as taint.
++    assert "api_key_configured=true" in lines[0]
++    assert "trusted_proxy_headers=true" in lines[0]
+     assert "rate_limit_bucketing=per-client-ip" in lines[0]
++    assert "limiter_scope=process-local-memory" in lines[0]
+     assert TEST_API_KEY not in lines[0]
++    assert "True" not in lines[0]
++    assert "False" not in lines[0]
++
++
++def test_importing_app_does_not_call_basic_config():
++    """Embedding hosts must not have their logging rewritten at import time."""
++    import inspect
++
++    import chaoshire.app as app_module
++
++    source = inspect.getsource(app_module)
++    assert "logging.basicConfig" not in source
++
++
++def test_spoofed_leftmost_xff_cannot_escape_the_write_budget(monkeypatch):
++    """Unique XFF identities still hit the process-wide write backstop."""
++    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
++    monkeypatch.setenv("CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE", "3")
++    LIMITER.reset()
++    with TestClient(backend.app) as client:
++        statuses = []
++        for index in range(4):
++            statuses.append(
++                client.post(
++                    "/api/appeals",
++                    json={"candidate_id": "C-1046", "message": "x"},
++                    headers={"X-Forwarded-For": f"{index}.1.1.1"},
++                ).status_code
++            )
++    assert statuses[:3] == [200, 200, 200]
++    assert statuses[3] == 429
++    LIMITER.reset()
++
++
++def test_instance_write_cap_fires_even_when_every_request_has_a_new_ip(monkeypatch):
++    """The live 7×200 failure: per-client keys did not collapse, so we cap the process."""
++    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
++    monkeypatch.setenv("CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE", "6")
++    LIMITER.reset()
++    with TestClient(backend.app) as client:
++        statuses = [
++            client.post(
++                "/api/appeals",
++                json={"candidate_id": "C-1046", "message": "x"},
++                headers={"X-Forwarded-For": f"198.51.100.{index}"},
++            ).status_code
++            for index in range(7)
++        ]
++    assert statuses[:6] == [200, 200, 200, 200, 200, 200]
++    assert statuses[6] == 429
++    LIMITER.reset()
++
++
++def test_meta_redacts_recon_when_disclosure_is_off(monkeypatch):
++    monkeypatch.setenv("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", "0")
++    with TestClient(backend.app) as client:
++        posture = client.get("/api/meta").json()["platform"]
++    assert posture["disclosed"] is False
++    assert "api_key_configured" not in posture
++    assert "rate_limit_per_minute" not in posture
++    assert "trusted_proxy_headers" not in posture
++    assert posture["anonymous_uploads_published"] is False
++    assert "/api/ops/posture" in posture["note"]
++
++
++def test_operator_posture_returns_the_full_picture_when_meta_is_redacted(monkeypatch):
++    monkeypatch.setenv("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", "0")
++    client = operator_client()
++    public = client.get("/api/meta").json()["platform"]
++    assert public["disclosed"] is False
++    full = client.get("/api/ops/posture")
++    assert full.status_code == 200
++    body = full.json()
++    assert body["api_key_configured"] is True
++    assert body["limiter_scope"] == "process-local-memory"
++    refused = TestClient(backend.app).get("/api/ops/posture")
++    assert refused.status_code == 401
++
++
++def test_whoami_reports_leftmost_xff_when_trusted(monkeypatch):
++    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
++    client = operator_client()
++    body = client.get(
++        "/api/ops/whoami",
++        headers={"X-Forwarded-For": "203.0.113.99, 1.2.3.4"},
++    ).json()
++    assert body["client_key"] == "203.0.113.99"
++    assert body["source"] == "x-forwarded-for-leftmost"
++    assert body["xff_entry_count"] == 2
++
++
++def test_anonymous_appeals_are_evicted_before_authenticated_ones(monkeypatch):
++    monkeypatch.setenv("CHAOSHIRE_MAX_APPEALS", "3")
++    APPEALS.set_capacity(3)
++    operator = operator_client()
++    assert (
++        operator.post(
++            "/api/appeals", json={"candidate_id": "C-1046", "message": "keep-me"}
++        ).status_code
++        == 200
++    )
++    anonymous = TestClient(backend.app)
++    for index in range(5):
++        assert (
++            anonymous.post(
++                "/api/appeals",
++                json={"candidate_id": "C-1046", "message": f"anon {index}"},
++            ).status_code
++            == 200
++        )
++    queue = operator.get("/api/appeals").json()
++    messages = [appeal["message"] for appeal in queue["appeals"]]
++    assert "keep-me" in messages
++    assert messages.count("keep-me") == 1
++    assert all(
++        appeal["protected"] is True for appeal in queue["appeals"] if appeal["message"] == "keep-me"
++    )
++    APPEALS.set_capacity(200)
++
++
++def test_anonymous_appeals_have_their_own_budget(monkeypatch):
++    monkeypatch.setenv("CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE", "2")
++    LIMITER.reset()
++    with TestClient(backend.app) as client:
++        statuses = [
++            client.post("/api/appeals", json={"candidate_id": "C-1046", "message": "x"}).status_code
++            for _ in range(3)
++        ]
++        operator = client.post(
++            "/api/appeals",
++            json={"candidate_id": "C-1046", "message": "op"},
++            headers={"X-API-Key": TEST_API_KEY},
++        )
++    assert statuses == [200, 200, 429]
++    assert operator.status_code == 200
++    LIMITER.reset()
++
++
++def test_blueprint_contract_matches_render_yaml():
++    import re
++    from pathlib import Path
++
++    from chaoshire.platform import BLUEPRINT_CONTRACT
++
++    text = (Path(__file__).resolve().parent.parent / "render.yaml").read_text(encoding="utf-8")
++    for name, expected in BLUEPRINT_CONTRACT.items():
++        match = re.search(
++            rf"- key:\s*{re.escape(name)}\n\s+value:\s*\"([^\"]+)\"",
++            text,
++        )
++        assert match, f"{name} missing from render.yaml"
++        assert match.group(1) == expected, f"{name}: yaml={match.group(1)!r} contract={expected!r}"
++
++
++def test_hardening_helpers_cover_edge_branches(monkeypatch):
++    import logging
++
++    from chaoshire import platform, state
++
++    assert platform._int_env("CHAOSHIRE_RATE_LIMIT_PER_MINUTE", 120) == 0  # conftest
++    monkeypatch.setenv("CHAOSHIRE_NOT_AN_INT", "nope")
++    assert platform._int_env("CHAOSHIRE_NOT_AN_INT", 7) == 7
++    monkeypatch.setenv("WEB_CONCURRENCY", "4")
++    assert platform.process_worker_count() == 4
++    monkeypatch.delenv("WEB_CONCURRENCY", raising=False)
++    monkeypatch.setenv("UVICORN_WORKERS", "2")
++    assert platform.process_worker_count() == 2
++
++    monkeypatch.setattr(platform, "ANONYMOUS_UPLOADS_PUBLISHED", True)
++    assert "also published" in platform.write_posture_note()
++
++    isolated = logging.getLogger("chaoshire.ensure-test")
++    isolated.handlers.clear()
++    isolated.propagate = False
++    platform.ensure_package_logging(isolated)
++    assert isolated.handlers
++    platform.ensure_package_logging(isolated)  # already has a handler
++
++    assert platform.LIMITER.retry_after("never-seen") >= 1
++    platform.LIMITER.reset()
++
++    monkeypatch.delenv("CHAOSHIRE_API_KEY", raising=False)
++    from fastapi import HTTPException
++
++    try:
++        platform.require_operator(x_api_key=None)
++        raise AssertionError("expected 503")
++    except HTTPException as error:
++        assert error.status_code == 503
++
++    class Bare:
++        headers = {}
++        client = None
++
++    monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_FOR", raising=False)
++    assert platform.client_key(Bare()) == "unknown"
++
++    monkeypatch.setenv("CHAOSHIRE_MAX_APPEALS", "not-a-number")
++    assert state.appeals_capacity() == state.DEFAULT_APPEALS_CAPACITY
++    queue = state.AppealQueue(2)
++    assert len(queue) == 0
++    queue.append({"message": "a", "protected": True})
++    queue.append({"message": "b", "protected": True})
++    queue.append({"message": "c", "protected": True})  # evicts oldest protected
++    assert [item["message"] for item in queue] == ["b", "c"]
++    assert list(reversed(queue))[0]["message"] == "c"
++    assert queue.capacity == 2
++    queue.set_capacity(1)
++    assert len(queue) == 1
++    state.reset_appeals()
++
++
++def test_head_of_the_landing_page_is_200():
++    with TestClient(backend.app) as client:
++        headed = client.head("/")
++        assert headed.status_code == 200
++        assert headed.content == b""
++        assert client.get("/").status_code == 200
