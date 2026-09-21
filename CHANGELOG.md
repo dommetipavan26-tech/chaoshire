@@ -51,11 +51,7 @@ Owner-only work is **not** faked; history untouched.
 ### Changed
 
 - Version `0.23.4` → `0.24.0`; `chaoshire/build_info.py` reports **270
-<<<<<<< HEAD
   tests and 94.7%** package coverage (the new modules expand the surface
-=======
-  tests and 94.7%** package coverage (the new modules expand the surface
->>>>>>> ce80706 (fix(ci): correct coverage figure to 94.7% and add ±0.1% tolerance to build_info check)
   without reducing the 90% gate).
 - `README.md`, `docs/PORTFOLIO-CASE-STUDY.md`, `docs/PORTFOLIO-EVIDENCE.md`
   quote the same figures.
@@ -82,11 +78,7 @@ Owner-only work is **not** faked; history untouched.
 ### Verified
 
 - `python -m pytest -q` → **265 passed, 5 skipped** (270 collected);
-<<<<<<< HEAD
   `--cov=chaoshire` → **94.7%** (90% gate); `ruff format --check` +
-=======
-  `--cov=chaoshire` → **94.7%** (90% gate); `ruff format --check` +
->>>>>>> ce80706 (fix(ci): correct coverage figure to 94.7% and add ±0.1% tolerance to build_info check)
   `ruff check` → clean; `python scripts/check_build_info.py` → `build_info OK`.
 
 ## [0.23.4] - 2026-09-21
