@@ -206,7 +206,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.23.2 baseline contains **201 tests with 98.3% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
+GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.23.3 baseline contains **201 tests with 98.3% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
 
 `chaoshire/build_info.py` is the single source of truth for every number the
 landing page and this README quote. Version, model count, experiment count and

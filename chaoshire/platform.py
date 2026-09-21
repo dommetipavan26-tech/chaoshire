@@ -237,7 +237,7 @@ def write_posture() -> dict[str, Any]:
         "anonymous_appeals_per_minute": anonymous_appeals_per_minute(),
         "trusted_proxy_headers": trusted,
         "rate_limit_bucketing": "per-client-ip" if trusted else "shared-per-instance",
-        "client_ip_selection": ("right-most-x-forwarded-for" if trusted else "socket-peer"),
+        "client_ip_selection": ("left-most-x-forwarded-for" if trusted else "socket-peer"),
         "limiter_scope": LIMITER_SCOPE,
         "appeals_capacity": appeals_capacity(),
         "audit_history_durable": audit_history_durable(),
@@ -265,7 +265,7 @@ def public_write_posture() -> dict[str, Any]:
 def describe_client(request: Request) -> dict[str, Any]:
     """Behavioural view of how this request would be rate-limited.
 
-    Lets an operator prove the right-most-XFF rule against a live proxy:
+    Lets an operator prove the left-most-XFF rule against a live proxy:
     send a spoofed left-most entry and read back ``client_key``. Config
     disclosure (``/api/meta``) cannot prove that.
     """

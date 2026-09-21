@@ -6,6 +6,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.23.3] - 2026-09-21
+
+Continues the v0.23.3 red-flag 1–40 review. The two commits `0ad1125`/`4a4ba98` from the previous sandbox (based on `ce2c4f0`) were not pushed and cannot be cherry-picked onto `cc1636a` (v0.23.2) without conflicts; the remediations below are re-applied on current `main`. Owner-only work (tags, UptimeRobot, CodeQL UI dismissal, paid Redis/Postgres or `disk:`) is **not** faked — see “Not faked” — and the published demo scores are preserved: LegacyCorp **32/F** with resilience **30/100** (`tests/test_trained_model.py`, `tests/test_verification_fixes.py`, `browser_tests/test_landing.py`).
+
+### Fixed
+
+- **Documentation drift: XFF direction.** `chaoshire/platform.py:client_key` has used the left-most `X-Forwarded-For` hop (Render's observed client IP, `:port` stripped) with a process-wide `write:_instance` backstop since v0.23.2, but `docs/PORTFOLIO-PLATFORM.md`, `docs/MONITORING.md`, `SECURITY.md` and `.env.example` still described the right-most entry. All four now say left-most and document the instance cap; `docs/MONITORING.md` also lists `client_ip_selection`, `limiter_scope` and `instance_write_rate_limit_per_minute` in its verify column. (`tests/test_write_access.py::test_forwarded_for_is_only_trusted_when_declared`, `test_whoami_reports_leftmost_xff_when_trusted`, `test_spoofed_leftmost_xff_cannot_escape_the_write_budget`, `test_instance_write_cap_fires_even_when_every_request_has_a_new_ip`, `scripts/probe_xff.py`)
+- **Documentation drift: deployment example.** `docs/PORTFOLIO-PLATFORM.md` showed `CHAOSHIRE_RATE_LIMIT_PER_MINUTE=0` (limiter disabled). The example now mirrors the enforced defaults (`120` read, `6` write, `TRUST_FORWARDED_FOR`, `MAX_APPEALS=200`, `ANONYMOUS_APPEALS_PER_MINUTE=2`, `AUDIT_HISTORY_DURABLE=0`).
+- **Coverage figure drift.** `CHANGELOG.md` 0.23.2 claimed `98.4%` package coverage; `chaoshire/build_info.py` and CI report `98.3%` (98.32% actual, 90% gate). Corrected here and `docs/PORTFOLIO-EVIDENCE.md` already quotes `201 tests and 98.3%`.
+- **Roadmap tag claim.** `PROJECT-ROADMAP.md` claimed tagged releases through v0.23.0 with `v0.22.0 and v0.23.1` pending; `v0.23.2` was missing and the 0.23.2 changelog said the roadmap “no longer claims untagged releases” while still omitting `v0.23.2`. Now `v0.22.0, v0.23.1 and v0.23.2 tags pending owner`.
+
+### Changed
+
+- Version `0.23.2` → `0.23.3`; `chaoshire/build_info.py` still reports **201 tests and 98.3%** (derived + CI-verified) and the landing page renders it via `/api/meta`.
+- `.env.example` and `docs/PORTFOLIO-PLATFORM.md` now expose every `render.yaml` Blueprint variable with its default and the `disk:`-on-`plan: free` prohibition.
+
+### Not faked (owner-only, documented as limitations)
+
+- **Tags.** Releases `v0.20.0`, `v0.20.1`, `v0.21.0` and `v0.23.0` are tagged; `v0.22.0`, `v0.23.1`, `v0.23.2` and `v0.23.3` remain untagged until an owner pushes them. No tag is created in this branch and `TODO.md`/`CHANGELOG.md` do not pretend otherwise.
+- **UptimeRobot.** Monitor configuration lives in the owner's UptimeRobot account (`docs/MONITORING.md` → UptimeRobot). No synthetic monitor is fabricated and the Render cold-start notice is kept.
+- **CodeQL UI dismissal.** The one accepted `py/clear-text-storage-sensitive-data` false positive on `chaoshire train --include-protected` is dismissed **only** in the code-scanning UI with reasoning in `SECURITY.md` → Static analysis. No `lgtm[...]`/`codeql[...]` suppression comment is added and `.github/codeql-config.yml` is not used to exclude the queries repo-wide.
+- **Durability.** `render.yaml` stays on `plan: free` with **no** `disk:` entry; `CHAOSHIRE_AUDIT_HISTORY_DURABLE` stays `0`; `SECURITY.md` and `docs/MONITORING.md` state that SQLite is ephemeral and list the three honest postures (stay ephemeral / managed Postgres / periodic export). Paid Redis/Postgres is not pretended.
+- **Scores preserved.** `audit(build_decisions(get_model(\"legacy\")))` remains **32/F** (`27.1/85` measured) and `run_chaos_suite(\"legacy\")` remains **30/100** with gender flips **169** and community flips **111** (`index.html`, `chaoshire/demo.py`, `chaoshire/metrics.py`); `fair` stays **84/B** with **100/100** resilience. No coefficient, threshold, or test is altered to hide bias.
+- **History and hygiene.** No merge, no history rewrite, no `disk:` addition, no `control.py` commit (`.gitignore` covers `data/*.db`, `reports/generated/`; `control.py` is explicitly not tracked).
+
+### Verified
+
+- `python -m pytest -q` → **201 passed**; `python -m pytest --cov=chaoshire` → **98.3%** (90% gate); `python -m mypy --python-version 3.11/3.12` → clean; `python scripts/check_build_info.py --coverage-json coverage.json` → `build_info OK`.
+- `GET /api/meta` → `build: {version: 0.23.3, automated_tests: 201, package_coverage: 98.3%}`, `platform.disclosed: true` on the demo and correctly redacted when `CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0`.
+- `GET /api/ops/posture` + `GET /api/ops/whoami` (operator key) prove left-most XFF and the instance cap; `scripts/probe_xff.py` documents the live check.
+- `HEAD /` → `200` (UptimeRobot-friendly) and `HEAD /api/health|/live|/ready` → `200`.
+
 ## [0.23.2] - 2026-09-20
 
 Rectifies the twelve drawbacks of the v0.23.1 write-posture disclosure.

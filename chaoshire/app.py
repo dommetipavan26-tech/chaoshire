@@ -225,7 +225,7 @@ def operator_posture() -> dict:
 
 @app.get("/api/ops/whoami", tags=["system"], dependencies=[Depends(require_operator)])
 def operator_whoami(request: Request) -> dict:
-    """How this request is bucketed — proves the right-most-XFF rule live."""
+    """How this request is bucketed — proves the left-most-XFF rule live."""
     return describe_client(request)
 
 
