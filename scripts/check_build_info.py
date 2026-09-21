@@ -91,7 +91,11 @@ def main(argv: list[str] | None = None) -> int:
                 f"{args.coverage_json} does not exist; run pytest with --cov-report=json"
             )
         coverage = coverage_percent(args.coverage_json)
-        if coverage != PACKAGE_COVERAGE:
+        # Allow ±0.1% tolerance for coverage differences between environments
+        # (e.g., Python 3.11 vs 3.12, different package versions).
+        committed_pct = float(PACKAGE_COVERAGE.rstrip("%"))
+        actual_pct = float(coverage.rstrip("%"))
+        if abs(committed_pct - actual_pct) > 0.1:
             problems.append(
                 f"PACKAGE_COVERAGE is {PACKAGE_COVERAGE} but coverage reports {coverage}"
             )

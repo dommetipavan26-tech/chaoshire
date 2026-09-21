@@ -2,7 +2,11 @@
 
 ## 20-second recruiter summary
 
-ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 270 tests and 91.4% package coverage, both re-derived from a real test run by a CI job that fails on drift.
+<<<<<<< HEAD
+ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 270 tests and 94.7% package coverage, both re-derived from a real test run by a CI job that fails on drift.
+=======
+ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 270 tests and 94.7% package coverage, both re-derived from a real test run by a CI job that fails on drift.
+>>>>>>> ce80706 (fix(ci): correct coverage figure to 94.7% and add ±0.1% tolerance to build_info check)
 
 ## Three-minute live-demo script
 
@@ -56,12 +60,20 @@ Open **Release Gate** and compare LegacyCorp with MeritFirst.
 
 ### One line
 
-Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **270 tests and 91.4% coverage**.
+<<<<<<< HEAD
+Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **270 tests and 94.7% coverage**.
+=======
+Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **270 tests and 94.7% coverage**.
+>>>>>>> ce80706 (fix(ci): correct coverage figure to 94.7% and add ±0.1% tolerance to build_info check)
 
 ### Two bullets
 
 - Engineered a deterministic hiring-AI audit platform with group/intersectional metrics, Wilson confidence intervals, counterfactual identity swaps, mitigation simulations, appeals, tamper-evident evidence, and automated model-release policy.
-- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **270 tests**, and **91.4% package coverage**.
+<<<<<<< HEAD
+- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **270 tests**, and **94.7% package coverage**.
+=======
+- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **270 tests**, and **94.7% package coverage**.
+>>>>>>> ce80706 (fix(ci): correct coverage figure to 94.7% and add ±0.1% tolerance to build_info check)
 
 ## Evidence checklist
 
