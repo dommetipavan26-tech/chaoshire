@@ -37,7 +37,7 @@ services:
         value: "6"
 
       # Render fronts the service with a trusted proxy; without this every
-      # visitor would share one rate-limit bucket. Only the right-most
+      # visitor would share one rate-limit bucket. Only the left-most
       # X-Forwarded-For entry is used, so a client cannot rotate the header.
       - key: CHAOSHIRE_TRUST_FORWARDED_FOR
         value: "1"

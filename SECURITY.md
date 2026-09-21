@@ -42,9 +42,10 @@ no-op configuration did.
 on** (the public demo). Private deployments set
 `CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0` and the same facts move to authenticated
 `GET /api/ops/posture`. `GET /api/ops/whoami` returns the rate-limit bucket key
-for the current request so the right-most-XFF rule can be proved against the
-live proxy, not just read as a config flag. `scripts/probe_xff.py` automates
-that probe. `tests/test_write_access.py` covers all of the above.
+for the current request so the left-most-XFF rule and the instance-wide
+`write:_instance` backstop can be proved against the live proxy, not just read
+as a config flag. `scripts/probe_xff.py` automates that probe.
+`tests/test_write_access.py` covers all of the above.
 
 ## Content security
 
@@ -159,7 +160,7 @@ recorded here because it is a deliberate design decision rather than an oversigh
 - There are no user accounts and no role-based authorization. Write access is a single shared operator key; anyone holding it can publish.
 - Aggregate history remains readable to visitors when the portfolio demo is operated publicly.
 - The demo keeps a single shared upload slot for *published* uploads: `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and the uploaded report endpoints return the most recent authenticated upload made by anyone. Only aggregate metrics and interpretation settings are exposed, and the slot is swapped under a lock so concurrent uploads cannot interleave.
-- Rate limits are per resolved client IP and **process-local memory**: they reset on restart and they double if the process is replicated. Behind a proxy without `CHAOSHIRE_TRUST_FORWARDED_FOR=1` every visitor shares one bucket; with it enabled only the right-most `X-Forwarded-For` entry is used, so a client cannot rotate the header to evade the limit. That assumption holds only if the immediate proxy appends or overwrites the header — prove it with `GET /api/ops/whoami` or `scripts/probe_xff.py`.
+- Rate limits are per resolved client IP and **process-local memory**: they reset on restart and they double if the process is replicated. Behind a proxy without `CHAOSHIRE_TRUST_FORWARDED_FOR=1` every visitor shares one bucket; with it enabled only the left-most `X-Forwarded-For` entry (the client IP Render observed, with any `:port` stripped) is used, and a process-wide `write:_instance` bucket at the same write budget enforces the advertised cap even when per-client keys diverge. A client still cannot rotate the header to evade the limit, and the backstop proves it even when identity fails — verify with `GET /api/ops/whoami` or `scripts/probe_xff.py`.
 - `/api/meta` is a recon surface when disclosure is on. Turn it off
   (`CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0`) before hosting real data.
 - Anonymous `POST /api/appeals` is still public-write on the demo, but

@@ -68,7 +68,7 @@
 
 - [x] Stop calling `logging.basicConfig` at import; last-resort handler is logger-local in lifespan
 - [x] Gate `/api/meta` recon fields behind `CHAOSHIRE_DISCLOSE_WRITE_POSTURE` (default follows anonymous-writes); full posture on `GET /api/ops/posture`
-- [x] Prove right-most XFF with `/api/ops/whoami`, unit tests, and `scripts/probe_xff.py`
+- [x] Prove left-most XFF with `/api/ops/whoami`, unit tests, `scripts/probe_xff.py`, and a process-wide `write:_instance` backstop
 - [x] Boot log uses literal ternaries only; tests assert tokens, not the whole line
 - [x] `ANONYMOUS_UPLOADS_PUBLISHED` is the single source for that fact
 - [x] Disclose `audit_history_durable` (default false) and warn at boot; persistence still requires a paid disk or managed DB
@@ -78,6 +78,20 @@
 - [x] Roadmap no longer claims untagged releases
 - [x] `HEAD /` returns 200
 - [ ] Push the v0.23.2 tag (and the still-missing v0.23.1 / v0.22.0 tags)
+
+## Release v0.23.3 — continue red-flag 1–40
+
+Re-applied on `main` at `cc1636a` (v0.23.2) — the previous sandbox's `0ad1125`/`4a4ba98` branch from `ce2c4f0` was not pushed and conflicts if cherry-picked. Owner-only work is not faked; scores `32/F` and `30/100` are preserved.
+
+- [x] Fix docs drift: `.env.example`, `docs/PORTFOLIO-PLATFORM.md`, `docs/MONITORING.md`, `SECURITY.md` now say **left-most** X-Forwarded-For (code: `platform.client_key` → `candidates[0]` + `canonical_ip`) and document the `write:_instance` cap
+- [x] Fix `docs/PORTFOLIO-PLATFORM.md` deployment example (`0` → `120` read budget and every Blueprint var)
+- [x] Correct coverage-figure drift (`98.4%` → `98.3%`); `chaoshire/build_info.py` stays at `201 tests / 98.3%` via `scripts/check_build_info.py`
+- [x] Correct roadmap tag claim to `v0.22.0, v0.23.1 and v0.23.2 tags pending owner`
+- [x] Preserve `audit(legacy) == 32/F` and `chaos(legacy).resilience == 30/100` (169 gender, 111 community flips) — no coefficient/threshold change
+- [x] Do **not** fake owner-only: no new tags, no synthetic UptimeRobot monitor, no CodeQL inline suppression, no `disk:` on `plan: free`, no paid Redis/Postgres, no `control.py` commit; ephemerality and limitations stay documented in `SECURITY.md`/`docs/MONITORING.md`/`docs/PERSISTENCE.md`
+- [x] `HEAD /` and `HEAD /api/health|/live|/ready` → `200`; CSP nonce per-request, no `unsafe-inline` for scripts, `esc()` covers `& < > \" '` + backtick
+- [x] Verify `python -m pytest -q` (201), `--cov` (98.3%), `mypy` (3.11/3.12 clean), `check_build_info.py` (--coverage-json) and `GET /api/meta`/`/api/ops/*` live checks
+- [ ] Push the v0.23.3 tag (and the still-missing v0.23.2 / v0.23.1 / v0.22.0 tags) — owner
 
 ## Future engineering
 

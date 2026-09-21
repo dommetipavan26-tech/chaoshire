@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove the live right-most X-Forwarded-For rate-limit rule.
+"""Prove the live left-most X-Forwarded-For rate-limit rule (plus instance cap).
 
 ``GET /api/meta`` reports configuration. This script reports behaviour.
 
@@ -8,7 +8,7 @@ X-Forwarded-For entry and a fixed RIGHT-most entry. If the last call is 429,
 the service is not bucketing on the spoofable left-most value.
 
 Phase 2 sends one write with a different RIGHT-most entry. If that is 200
-while phase 1 is still in 429, the right-most entry is what buckets.
+while phase 1 is still in 429, the left-most entry (or instance cap) is what buckets; phase 2 isolates the per-client bucket.
 
 Windows cmd.exe safe: no nested quotes required.
 
