@@ -185,4 +185,6 @@ def test_pwa_and_mobile_accessibility_markers():
     assert 'href="#main"' in page
     assert "@media(max-width:600px)" in page
     assert "prefers-reduced-motion" in page
-    assert "Review Agent" in page and "Guided Demo" in page
+    # The tab was renamed from "Review Agent" — the reviewer flagged the name as
+    # an AI overclaim for a deterministic rules engine (v0.23.4 red-flag pass).
+    assert "Fairness Review" in page and "Guided Demo" in page

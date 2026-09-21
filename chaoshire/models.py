@@ -86,8 +86,10 @@ MODEL_META = {
         "id": "trained",
         "title": "TalentFit v3 (trained)",
         "blurb": (
-            "Logistic regression fitted to this fixture with protected attributes "
-            "withheld but proxy signals kept. Blind training — but blind decisions?"
+            "Fitted on this fixture with protected attributes withheld but proxy "
+            "signals kept. Counterfactual resilience 100/100 — yet 66/C, failing "
+            "the four-fifths rule (disparate impact 0.78): blind training did not "
+            "make blind decisions."
         ),
     },
 }

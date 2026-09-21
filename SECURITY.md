@@ -154,7 +154,7 @@ recorded here because it is a deliberate design decision rather than an oversigh
 
 ## Current limitations
 
-- Raw uploaded CSV rows and appeals are stored in process memory; both are bounded (request-size cap and a 200-entry appeal queue) but neither survives a restart.
+- Raw uploaded CSV rows and appeals are stored in process memory; both are bounded (request-size cap and a 200-entry appeal queue) but neither survives a restart. `GET /api/appeals` serves **redacted copies** only — names masked to initials; emails, bare 7+ digit runs and phone-like runs replaced with `[email redacted]`, `[number redacted]` and `[phone redacted]` — and discloses the rules in the response (`chaoshire/redaction.py`). Redaction is mechanical string matching and can miss novel identifier formats; the "synthetic data only" rule for the public demo still applies.
 - Named aggregate audit results and interpretation settings are stored in SQLite; raw candidate rows and IDs are not written to history.
 - Render free-tier storage is ephemeral and must not be treated as a durable record system.
 - There are no user accounts and no role-based authorization. Write access is a single shared operator key; anyone holding it can publish.

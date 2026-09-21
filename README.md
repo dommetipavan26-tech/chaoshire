@@ -26,6 +26,13 @@ That second question powers the **Chaos Lab**:
 
 Each experiment produces a `PASS`, `WARN`, or `FAIL`. Together they form a 0–100 **Chaos Resilience Score**.
 
+On the shipped fixtures the privilege-keyword injection verdict is labelled
+**fixture-limited** (in the API payload, next to the badge in the Chaos Lab, and
+in `docs/CONTINUOUS-FAIRNESS.md`): those résumés cannot clear the decision
+threshold at the fixtures' prestige weight, so the PASS records how much
+headroom exists rather than general resistance to résumé gaming. The label
+changes no verdict and no resilience point.
+
 ## Demonstration results
 
 The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and three transparent reference models:
@@ -103,7 +110,7 @@ than left for a reader to infer:
 - Reusable counterfactual and stress-test framework with configurable thresholds
 - Deterministic experiment IDs and candidate-level before/after evidence
 - Side-by-side model-version comparison and automated CI/CD fairness release gate
-- Deterministic evidence-grounded fairness review agent with prioritized human actions
+- Deterministic evidence-grounded fairness review with prioritized human actions (a transparent rules engine — not an AI agent or language model)
 - Pluggable decision-adapter contract for reference, CSV, and production providers
 - Tamper-evident SHA-256 evidence bundles with verification API and CLI
 - Self-contained HTML reports plus dependency-free native PDF summaries
@@ -206,7 +213,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.23.3 baseline contains **201 tests with 98.3% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
+GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.23.4 baseline contains **216 tests with 98.4% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
 
 `chaoshire/build_info.py` is the single source of truth for every number the
 landing page and this README quote. Version, model count, experiment count and

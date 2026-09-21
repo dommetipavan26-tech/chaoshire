@@ -32,7 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--model", choices=["legacy", "fair", "trained"], default="legacy")
     report.add_argument("--format", choices=["html", "pdf"], default="html")
     report.add_argument("--output", default="chaoshire-report.html")
-    review = commands.add_parser("review", help="Run the evidence-grounded fairness review agent")
+    review = commands.add_parser(
+        "review", help="Run the evidence-grounded fairness review (deterministic rules)"
+    )
     review.add_argument("--model", choices=["legacy", "fair", "trained"], default="legacy")
     evidence = commands.add_parser(
         "evidence", help="Write a tamper-evident aggregate evidence bundle"

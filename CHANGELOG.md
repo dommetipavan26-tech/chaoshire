@@ -6,6 +6,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.23.4] - 2026-09-21
+
+Finishes the red-flag 1–40 items still visible on the v0.23.3 live deployment:
+the sensational Chaos Lab story blurbs, an unlabelled privilege-injection PASS,
+the “Fairness Review Agent” branding, the stale TalentFit blurb, and the
+unredacted `GET /api/appeals` queue. The published demo scores are preserved —
+LegacyCorp **32/F** with resilience **30/100** (169 gender, 111 community
+flips) — and owner-only work is **not** faked (see “Not faked”). Historical
+`CHANGELOG.md`/`TODO.md` records keep the original “Fairness Review Agent”
+feature name; nothing here rewrites history.
+
+### Fixed
+
+- **Chaos stories no longer read as marketing narrative.** The five `ChaosTest.story` blurbs (“Does the model get gamed?”, “Who survives?”, “A fair model must not change a single decision”) now describe the mechanical experiment — transform, re-score, count of decisions crossing the accept threshold. The gap-stress and age-stress observation `detail` strings (“Disproportionately impacts returning parents and caregivers.”, “Detects hidden ageism in ranking features.”) now state what the test measures (decision flips) and what it does not (intent, disparate treatment, age discrimination). Verdicts, thresholds, evidence and the resilience score are untouched. (`tests/test_review_honesty.py`)
+- **The privilege-injection PASS is labelled.** `ChaosTest` gained a `fixture_limit` scope note — populated for Privilege-Keyword Injection only — that ships in every `/api/chaos` result and renders in the Chaos Lab as a **fixture-limited** chip next to the verdict plus a visible scope note: the PASS records that the shipped fixtures cannot accept the injected résumés (exact headroom stays in `detail`), not general résumé-gaming resistance; a prestige-heavy fixture is regression-proven to FAIL (`tests/test_verification_fixes.py`). The label changes no verdict and no resilience point (LegacyCorp stays 30/100). `docs/CONTINUOUS-FAIRNESS.md` and the README say the same. (`tests/test_review_honesty.py`)
+- **“Fairness Review Agent” is no longer the product name of a rules engine.** The review payload’s `agent.name` is now `ChaosHire Fairness Review (deterministic rules)` and its `limitations` open with “produced by deterministic rules, not an AI agent or language model”; the dashboard tab is **Fairness Review** with a plain disclosure; guided-demo step 4 is “Run the deterministic fairness review”; the CLI help, README and `docs/PORTFOLIO-PLATFORM.md` say rules engine. `POST /api/agent/review` keeps its route for backward compatibility, and `external_ai: false` was already honest — the *name* was not. (`tests/test_review_honesty.py`, `tests/test_portfolio_platform.py`)
+- **The TalentFit blurb reports the measured result** instead of ending on a teaser (“Blind training — but blind decisions?”): “Counterfactual resilience 100/100 — yet 66/C, failing the four-fifths rule (disparate impact 0.78): blind training did not make blind decisions.” (`tests/test_review_honesty.py`)
+
+### Security
+
+- **`GET /api/appeals` serves redacted copies.** New `chaoshire/redaction.py` masks candidate names to initials and replaces emails, bare 7+ digit runs and phone-like runs in messages with `[email redacted]`, `[number redacted]` and `[phone redacted]` on the read path; the response carries a `redaction` block that discloses the rules, and the dashboard prints them under the review queue. The stored record keeps the original text in process memory only and is never mutated or persisted. Redaction is mechanical string matching with no claimed PII detection — `tests/test_appeals_redaction.py` pins the rules, including that identifier-free text round-trips unchanged and that the candidate lookup still shows an applicant their own record — and `SECURITY.md`/`docs/PORTFOLIO-PLATFORM.md` document the limits (“synthetic data only” still applies).
+
+### Changed
+
+- Version `0.23.3` → `0.23.4`; `chaoshire/build_info.py` now reports **216 tests and 98.4%** package coverage (derived + `scripts/check_build_info.py` verified), and `README.md`/`docs/PORTFOLIO-CASE-STUDY.md`/`docs/PORTFOLIO-EVIDENCE.md` quote the same figures.
+- `PROJECT-ROADMAP.md` records the current tag state (v0.23.3 tagged by the owner; v0.22.0, v0.23.1, v0.23.2 and v0.23.4 pending owner).
+
+### Not faked (owner-only, documented as limitations)
+
+- **Tags.** `v0.20.0`, `v0.20.1`, `v0.21.0`, `v0.23.0` and `v0.23.3` (owner, on `4447fe1`) are tagged; `v0.22.0`, `v0.23.1` and `v0.23.2` remain untagged; **no `v0.23.4` tag is created in this branch** and `TODO.md`/`PROJECT-ROADMAP.md` do not pretend otherwise.
+- **UptimeRobot.** Monitor configuration lives in the owner's UptimeRobot account (`docs/MONITORING.md`). No synthetic monitor is fabricated and the Render cold-start notice is kept.
+- **CodeQL UI dismissal.** The one accepted `py/clear-text-storage-sensitive-data` false positive on `chaoshire train --include-protected` stays dismissed **only** in the code-scanning UI with reasoning in `SECURITY.md` → Static analysis. No inline suppression comment is added and no repo-wide query exclusion is used.
+- **Durability.** `render.yaml` stays on `plan: free` with **no** `disk:` entry; `CHAOSHIRE_AUDIT_HISTORY_DURABLE` stays `0`; paid Redis/Postgres is not pretended; ephemeral storage remains documented in `SECURITY.md`/`docs/MONITORING.md`/`docs/PERSISTENCE.md`.
+- **Scores preserved.** `audit(legacy)` remains **32/F** and `run_chaos_suite("legacy")` remains **30/100** (gender flips **169**, community flips **111**) — `chaoshire/models.py`, `chaoshire/metrics.py` and every experiment computation are unchanged (only story/detail wording and an added `fixture_limit` field). (`tests/test_trained_model.py`, `tests/test_verification_fixes.py`, `tests/test_review_honesty.py`)
+- **History and hygiene.** No merge, no history rewrite, no `disk:` addition, no `control.py` commit (`.gitignore` covers `data/*.db`, `reports/generated/`; `control.py` is explicitly not tracked).
+
+### Verified
+
+- `python -m pytest -q` → **216 passed**; `python -m pytest --cov=chaoshire` → **98.4%** (90% gate); `ruff format --check` + `ruff check` → clean; `python -m mypy --python-version 3.11/3.12` → clean; `python scripts/check_build_info.py --coverage-json coverage.json` → `build_info OK`.
+- Local `uvicorn` smoke: `GET /api/appeals` redacts names/messages and discloses the rules; `GET /api/chaos` carries `fixture_limit` on the labelled PASS; `POST /api/agent/review` names the rules engine and reports `external_ai: false`; `GET /api/meta` serves the measured TalentFit blurb; `HEAD /` → `200`.
+
 ## [0.23.3] - 2026-09-21
 
 Continues the v0.23.3 red-flag 1–40 review. The two commits `0ad1125`/`4a4ba98` from the previous sandbox (based on `ce2c4f0`) were not pushed and cannot be cherry-picked onto `cc1636a` (v0.23.2) without conflicts; the remediations below are re-applied on current `main`. Owner-only work (tags, UptimeRobot, CodeQL UI dismissal, paid Redis/Postgres or `disk:`) is **not** faked — see “Not faked” — and the published demo scores are preserved: LegacyCorp **32/F** with resilience **30/100** (`tests/test_trained_model.py`, `tests/test_verification_fixes.py`, `browser_tests/test_landing.py`).

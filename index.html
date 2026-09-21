@@ -142,7 +142,7 @@ const gradeColor=g=>({A:'var(--green)',B:'var(--green)',C:'var(--amber)',D:'var(
 const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${esc(v)}</span>`;
 
 const TABS=[['welcome','Home'],['overview','Fairness Dashboard'],['chaos','⚡ Chaos Lab'],['filtered','Who Got Filtered Out'],
-  ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model'],['history','Audit History'],['compare','Release Gate'],['agent','Review Agent'],['demo','Guided Demo']];
+  ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model'],['history','Audit History'],['compare','Release Gate'],['agent','Fairness Review'],['demo','Guided Demo']];
 $('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${esc(id)}" class="${i===0?'on':''}" aria-current="${i===0?'page':'false'}">${esc(l)}</button>`).join('');
 function showTab(id){
   document.querySelectorAll('nav button').forEach(x=>{const on=x.dataset.t===id;x.classList.toggle('on',on);x.setAttribute('aria-current',on?'page':'false');});
@@ -259,10 +259,11 @@ $('#tab-chaos').addEventListener('click',async e=>{
     <div class="dim">Model under test: ${esc(r.model.title)}</div></div><div class="grid g2" style="margin-top:14px">`;
   for(const t of r.tests){
     html+=`<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start">
-      <h3>${esc(t.name)}</h3>${vChip(t.verdict)}</div>
+      <h3>${esc(t.name)}</h3><div>${vChip(t.verdict)}${t.fixture_limit?'<span class="chip warn" style="margin-left:6px">fixture-limited</span>':''}</div></div>
       <p class="dim" style="font-size:13px;margin:6px 0">${esc(t.story)}</p>
       <div><span class="dim">${esc(t.metric)}:</span> <b>${esc(t.value)}</b></div>
       <div class="dim" style="font-size:12.5px;margin-top:4px">${esc(t.detail)}</div>
+      ${t.fixture_limit?`<div class="dim" style="font-size:12px;margin-top:6px"><b>Scope note:</b> ${esc(t.fixture_limit)}</div>`:''}
       ${t.evidence_count?`<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--blue)">View ${Math.min(t.evidence.length,t.evidence_count)} of ${t.evidence_count} affected candidates</summary><div style="overflow:auto;margin-top:7px"><table><tr><th>ID</th><th>Before</th><th>After</th><th>Δ score</th></tr>${t.evidence.map(x=>`<tr><td>${esc(x.candidate_id)}</td><td>${x.before_score??'—'} ${x.before_decision||''}</td><td>${x.after_score??x.score??'—'} ${x.after_decision||x.decision||''}</td><td>${x.score_delta??'—'}</td></tr>`).join('')}</table></div></details>`:''}</div>`;
   }
   $('#chaosout').innerHTML=html+'</div>';
@@ -394,11 +395,12 @@ $('#tab-appeals').addEventListener('click',async e=>{
 });
 async function loadQueue(){
   const r=await jget('/api/appeals');
+  const redactNote=r.redaction?`<div class="dim" style="margin-top:8px">${esc(r.redaction.note)}</div>`:'';
   $('#queue').innerHTML=r.appeals.length?`<table><tr><th>#</th><th>Candidate</th><th>Appeal</th><th>Auto-triage</th><th>Status</th></tr>
    ${r.appeals.map(a=>`<tr><td>${esc(a.id)}</td><td><b>${esc(a.name)}</b><br><span class="dim">${esc(a.candidate_id)}</span></td><td>${esc(a.message)}</td>
    <td><span class="chip ${String(a.priority).startsWith('HIGH')?'warn':'info'}">${esc(a.priority)}</span></td><td><span class="chip info">${esc(a.status)}</span></td></tr>`).join('')}</table>
-   <div class="dim" style="margin-top:8px">${esc(r.note||'')}</div>`
-   :`<span class="dim">No appeals yet.</span><div class="dim" style="margin-top:8px">${esc(r.note||'')}</div>`;
+   <div class="dim" style="margin-top:8px">${esc(r.note||'')}</div>${redactNote}`
+   :`<span class="dim">No appeals yet.</span><div class="dim" style="margin-top:8px">${esc(r.note||'')}</div>${redactNote}`;
 }
 
 /* ---------------- UPLOAD ---------------- */
@@ -516,13 +518,13 @@ $('#tab-compare').addEventListener('click',async e=>{
   $('#gateout').innerHTML=gproblem?`<div class="err">${esc(gproblem)}</div>`:`<div class="chip ${r.passed?'ok':'bad'}" style="font-size:16px">${esc(r.status)}: ${r.passed?'release approved':'release blocked'}</div><div style="margin-top:8px">${r.checks.map(c=>`<div class="grow"><span class="chip ${c.passed?'ok':'bad'}">${c.passed?'PASS':'FAIL'}</span><span>${esc(c.label)}</span><span class="dim">actual: ${esc(c.actual)}</span></div>`).join('')}</div>`;
 });
 
-/* ---------------- FAIRNESS REVIEW AGENT ---------------- */
-$('#tab-agent').innerHTML='<div class="card"><h3>Fairness Review Agent</h3><p class="dim">Open this tab to generate a transparent, evidence-linked review.</p></div>';
+/* ---------------- FAIRNESS REVIEW ---------------- */
+$('#tab-agent').innerHTML='<div class="card"><h3>Fairness Review</h3><p class="dim">Open this tab to generate a transparent, evidence-linked review. Deterministic rules only — no AI agent or language model is involved.</p></div>';
 async function loadAgent(){
   const s=$('#tab-agent');s.setAttribute('aria-busy','true');s.innerHTML='<div class="card"><p class="dim">Reviewing aggregate evidence and Chaos results…</p></div>';
   const r=await jpost('/api/agent/review',{model:MODEL,dataset:'demo',include_chaos:true});
   const severity=x=>x==='CRITICAL'?'bad':x==='HIGH'?'warn':'info';
-  s.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><div class="dim">${esc(r.agent.name)} · ${esc(r.agent.mode)}</div><h3>${esc(r.summary)}</h3><div class="dim">Review ${esc(r.review_id)} · conclusions link directly to aggregate evidence</div></div><span class="chip ${r.disposition==='MONITOR'?'ok':'bad'}" style="font-size:15px">${esc(r.disposition)}</span></div></div>
+  s.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><div class="dim">${esc(r.agent.name)} · ${esc(r.agent.mode.replaceAll('_',' '))} — not an AI agent</div><h3>${esc(r.summary)}</h3><div class="dim">Review ${esc(r.review_id)} · conclusions link directly to aggregate evidence</div></div><span class="chip ${r.disposition==='MONITOR'?'ok':'bad'}" style="font-size:15px">${esc(r.disposition)}</span></div></div>
   <div class="kicker">Prioritized findings</div><div class="grid g2">${r.findings.map(f=>`<article class="card"><span class="chip ${severity(f.severity)}">${f.severity}</span><h3 style="margin-top:9px">${esc(f.title)}</h3><p class="dim">${esc(f.explanation)}</p><div style="margin-top:8px"><b>Actual:</b> ${esc(JSON.stringify(f.actual))} · <b>Threshold:</b> ${esc(JSON.stringify(f.threshold))}</div><code class="dim">${esc(f.evidence_path)}</code></article>`).join('')||'<div class="card"><span class="chip ok">No policy findings</span></div>'}</div>
   <div class="card" style="margin-top:14px"><h3>Human action plan</h3><ol style="padding-left:20px">${r.recommended_actions.map(a=>`<li style="margin:7px 0">${esc(a)}</li>`).join('')}</ol><p class="dim" style="margin-top:10px">${r.limitations.map(esc).join(' ')}</p></div>`;
   s.removeAttribute('aria-busy');

@@ -25,6 +25,7 @@ from .models import (
     get_model,
     score,
 )
+from .redaction import redact_appeal, redaction_notice
 from .repository import save_audit
 from .state import UPLOADED, UPLOADED_LOCK, appeals_snapshot, append_appeal
 
@@ -193,7 +194,16 @@ def create_appeal(
 
 
 def list_appeals() -> dict[str, Any]:
-    return appeals_snapshot()
+    """Redacted, newest-first view of the appeal queue.
+
+    The public listing is read by every visitor (it feeds the demo's HR review
+    queue), so it serves redacted copies of each record and discloses the
+    redaction rules in the same payload — see :mod:`chaoshire.redaction`.
+    """
+    snapshot = appeals_snapshot()
+    snapshot["appeals"] = [redact_appeal(record) for record in snapshot["appeals"]]
+    snapshot["redaction"] = redaction_notice()
+    return snapshot
 
 
 # ---------------------------------------------------------------------------

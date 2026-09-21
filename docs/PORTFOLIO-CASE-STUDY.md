@@ -19,7 +19,7 @@ ChaosHire combines group metrics, uncertainty estimates, pairwise intersectional
 - Configurable CSV schema, Wilson confidence intervals, two-proportion indicators, and intersectional analysis.
 - SHA-256 tamper-evident evidence, offline HTML and native PDF reports.
 - API-key write protection with a generated deployment secret, separate read and write rate limits, bounded appeal queue, nonce-based Content-Security-Policy, request IDs, readiness checks, operational metrics, CodeQL, dependency audit, Dependabot, and automated releases.
-- 201 automated tests, 98.3% package coverage, and fairness policy enforcement in GitHub Actions. The figures are derived by `scripts/check_build_info.py` from a real test run, so the documents cannot outlive the code they describe.
+- 216 automated tests, 98.4% package coverage, and fairness policy enforcement in GitHub Actions. The figures are derived by `scripts/check_build_info.py` from a real test run, so the documents cannot outlive the code they describe.
 
 ## Measurable demonstration
 
@@ -42,5 +42,5 @@ All built-in records and employers are synthetic. The platform supports investig
 
 - Built and deployed a FastAPI fairness-auditing platform for hiring models, combining disparate-impact, equal-opportunity, confidence intervals, intersectional analysis, and controlled counterfactual stress tests.
 - Designed deterministic candidate-level evidence and SHA-256 experiment bundles, plus a CI/CD release gate that blocks fairness regressions with meaningful exit codes.
-- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 201 tests at 98.3% coverage with a CI job that fails when any quoted figure stops matching a real test run.
+- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 216 tests at 98.4% coverage with a CI job that fails when any quoted figure stops matching a real test run.
 - Removed per-group threshold "calibration" from the one-click mitigation set after identifying it as prohibited by 42 U.S.C. § 2000e-2(l), and reframed it as an acknowledgement-gated research contrast that cites the statute in every response.
