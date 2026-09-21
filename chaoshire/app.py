@@ -17,6 +17,9 @@ from .chaos import run_chaos_suite
 from .config import FAIRNESS_THRESHOLDS
 from .demo import guided_demo
 from .evidence import build_evidence_bundle, verify_evidence_bundle
+from .explain import shap_batch, shap_explanation
+from .loghook import log_shipping_status, webhook_enabled
+from .loghook import ship as ship_event
 from .metrics import audit
 from .models import (
     BIAS_FEATURES,
@@ -62,6 +65,7 @@ from .schemas import (
     EvidenceVerifyRequest,
     FairnessGateRequest,
     MitigationRequest,
+    ShapBatchRequest,
     UploadRequest,
 )
 from .services import (
@@ -81,6 +85,7 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATIC_CSS = STATIC_DIR / "chaoshire.css"
 ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
 # Constant lookup table: request strings select an entry but never become part
 # of a filesystem path, which keeps the icon route free of path-injection taint.
@@ -163,6 +168,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "chaoshire audit history is ephemeral on this deployment "
             "(CHAOSHIRE_AUDIT_HISTORY_DURABLE is unset)"
         )
+    if webhook_enabled():
+        logger.info("chaoshire log-shipping webhook configured")
     yield
 
 
@@ -267,6 +274,16 @@ def web_manifest() -> JSONResponse:
     )
 
 
+@app.get("/static/chaoshire.css", include_in_schema=False)
+def static_css() -> Response:
+    """External stylesheet — served with a long cache so the CSP can drop 'unsafe-inline'."""
+    return Response(
+        STATIC_CSS.read_bytes(),
+        media_type="text/css",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/icons/{name}", include_in_schema=False)
 def app_icon(name: str) -> Response:
     icon_path = ICON_PATHS.get(name)
@@ -284,7 +301,7 @@ def service_worker() -> Response:
     # The cache name is derived from the package version so a release cannot ship
     # a service worker that keeps serving the previous version's precached shell.
     script = """const CACHE='__CACHE_NAME__';
-self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/icons/icon-192.png','/icons/icon-512.png'])),self.skipWaiting()])));
+self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/static/chaoshire.css','/icons/icon-192.png','/icons/icon-512.png'])),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))),self.clients.claim()])));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request.url).pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))});""".replace(
         "__CACHE_NAME__", SERVICE_WORKER_CACHE
@@ -324,6 +341,7 @@ def meta() -> dict:
         "sample_ids": ["C-1046", "C-1208", "C-1213", "C-1000", "C-1001"],
         "platform": public_write_posture(),
         "build": build_info(),
+        "log_shipping": log_shipping_status(),
         "schema": (
             "Minimum: one decision column + one group attribute column.\n"
             "Optional: candidate ID and qualification/ground-truth columns. "
@@ -382,8 +400,27 @@ def api_audit(model: ModelQuery, dataset: DatasetQuery) -> Any:
         result = uploaded_audit()
         if "error" in result:
             return JSONResponse(status_code=404, content=result)
+        ship_event(
+            "audit.completed",
+            {
+                "model": model,
+                "dataset": dataset,
+                "certificate_grade": result.get("certificate", {}).get("grade"),
+                "candidates": result.get("stats", {}).get("candidates"),
+            },
+        )
         return result
-    return {"model": MODEL_META[model], **audit(build_decisions(get_model(model)))}
+    result = {"model": MODEL_META[model], **audit(build_decisions(get_model(model)))}
+    ship_event(
+        "audit.completed",
+        {
+            "model": model,
+            "dataset": dataset,
+            "certificate_grade": result.get("certificate", {}).get("grade"),
+            "candidates": result.get("stats", {}).get("candidates"),
+        },
+    )
+    return result
 
 
 @app.get("/api/chaos", tags=["chaos lab"])
@@ -427,6 +464,21 @@ def api_explain(candidate_id: str, model: ModelQuery) -> Any:
     if "error" in result:
         return JSONResponse(status_code=404, content=result)
     return result
+
+
+@app.get("/api/explain/shap/{candidate_id}", tags=["explainability"])
+def api_explain_shap(candidate_id: str, model: ModelQuery) -> Any:
+    """SHAP-compatible feature-attribution vector for one candidate."""
+    result = shap_explanation(candidate_id, model)
+    if "error" in result:
+        return JSONResponse(status_code=404, content=result)
+    return result
+
+
+@app.post("/api/explain/shap/batch", tags=["explainability"])
+def api_explain_shap_batch(request: ShapBatchRequest) -> dict:
+    """SHAP-compatible explanations for a list of candidates."""
+    return shap_batch(request.candidate_ids, request.model)
 
 
 @app.get("/api/candidate/{candidate_id}", tags=["appeals"])

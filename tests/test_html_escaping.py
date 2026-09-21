@@ -79,7 +79,11 @@ REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
         "v==='PASS'?'ok':v==='WARN'?'warn':'bad'",
         "x.bias_related?'bad':'info'",
     },
-    "style": {
+    # ``data-style`` replaced inline ``style`` so the CSP can drop
+    # ``style-src 'unsafe-inline'``. Values are applied via CSSOM after
+    # innerHTML, not parsed as HTML attribute markup, so the same
+    # presentational-constant rule applies.
+    "data-style": {
         "assessable?c.total*3.6:0",
         "at.statistical_test.significant_at_0_05?'var(--rose)':'var(--green)'",
         "col",
@@ -98,6 +102,7 @@ REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
         "x.impact<0?'var(--rose)':'var(--green)'",
         "x.worst_disparate_impact*100",
     },
+    "style": set(),
 }
 
 
@@ -125,6 +130,11 @@ def test_breakout_capable_attributes_always_escape():
     for attribute, expressions in _interpolations().items():
         if attribute not in BREAKOUT_ATTRIBUTES and not attribute.startswith("data-"):
             continue
+        # data-style values are applied via CSSOM after innerHTML, not parsed
+        # as HTML attribute markup, so they are reviewed as presentational
+        # (same contract as inline style=), not breakout-capable.
+        if attribute in REVIEWED_PRESENTATIONAL_INTERPOLATIONS:
+            continue
         for expression in expressions:
             if not expression.startswith(("esc(", "encodeURIComponent(")):
                 offenders.append(f'{attribute}="${{{expression}}}"')
@@ -135,7 +145,7 @@ def test_breakout_capable_attributes_always_escape():
 
 def test_presentational_interpolations_are_reviewed():
     for attribute, expressions in _interpolations().items():
-        if attribute in {"class", "style"} or attribute.startswith("aria-"):
+        if attribute in {"class", "style", "data-style"} or attribute.startswith("aria-"):
             reviewed = REVIEWED_PRESENTATIONAL_INTERPOLATIONS.get(attribute, set())
             unreviewed = expressions - reviewed
             assert not unreviewed, (
@@ -165,6 +175,11 @@ def test_csp_is_nonce_based_and_fresh_per_request():
         csp = response.headers["content-security-policy"]
         script_src = csp.split("script-src")[1].split(";")[0]
         assert "'unsafe-inline'" not in script_src
+        # The external stylesheet (chaoshire/static/chaoshire.css) lets the
+        # CSP drop style-src 'unsafe-inline'; dynamic values are applied via
+        # CSSOM after innerHTML, which is not restricted by style-src.
+        style_src = csp.split("style-src")[1].split(";")[0]
+        assert "'unsafe-inline'" not in style_src
         assert "'unsafe-eval'" not in csp
         assert "frame-ancestors 'none'" in csp
         assert "base-uri 'self'" in csp

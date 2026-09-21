@@ -77,8 +77,10 @@ def test_build_info_payload_is_what_the_api_serves():
         "chaos_experiments": CHAOS_EXPERIMENTS,
         "reference_models": REFERENCE_MODELS,
         "demo_candidates": DEMO_CANDIDATES,
+        "repository_backend": payload["repository_backend"],
         "verification": payload["verification"],
     }
+    assert payload["repository_backend"] in ("sqlite", "postgres")
     assert "checked against a real pytest run" in payload["verification"]
     assert client.get("/api/meta").json()["build"] == payload
 

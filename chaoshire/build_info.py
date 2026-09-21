@@ -21,10 +21,10 @@ from .models import MODEL_META
 VERSION = __version__
 
 #: Verified by ``scripts/check_build_info.py`` against a real pytest run.
-AUTOMATED_TESTS = 216
+AUTOMATED_TESTS = 270
 
 #: Verified by ``scripts/check_build_info.py`` against a real coverage report.
-PACKAGE_COVERAGE = "98.4%"
+PACKAGE_COVERAGE = "94.7%"
 
 #: Derived: cannot drift.
 SERVICE_WORKER_CACHE = f"chaoshire-v{VERSION.replace('.', '')}"
@@ -35,6 +35,8 @@ DEMO_CANDIDATES = len(DEMO_DATA)
 
 def build_info() -> dict[str, object]:
     """The payload ``/api/meta`` serves as ``build``."""
+    from .repository_postgres import postgres_enabled
+
     return {
         "version": VERSION,
         "automated_tests": AUTOMATED_TESTS,
@@ -42,6 +44,7 @@ def build_info() -> dict[str, object]:
         "chaos_experiments": CHAOS_EXPERIMENTS,
         "reference_models": REFERENCE_MODELS,
         "demo_candidates": DEMO_CANDIDATES,
+        "repository_backend": "postgres" if postgres_enabled() else "sqlite",
         "verification": (
             "version, model count, experiment count and fixture size are derived from "
             "the running package; the test and coverage figures are checked against a "

@@ -190,6 +190,8 @@ def adapter_catalog() -> dict[str, Any]:
     except ValueError:
         configured = []
         remote_status = "misconfigured"
+    from .explain import adapter_catalog_entry
+
     return {
         "contract": "DecisionAdapter.describe() + DecisionAdapter.decisions()",
         "required_normalized_columns": ["accepted"],
@@ -219,6 +221,7 @@ def adapter_catalog() -> dict[str, Any]:
                 ),
                 "configured_models": configured,
             },
+            adapter_catalog_entry(),
         ],
         "security_note": "ChaosHire consumes decisions; it does not require model weights or execute uploaded code.",
     }

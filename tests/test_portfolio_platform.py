@@ -91,6 +91,7 @@ def test_adapter_catalog_endpoint():
         "csv-decisions",
         "callable-decisions",
         "remote-http",
+        "shap-compatible",
     }
 
 
@@ -183,8 +184,13 @@ def test_pwa_and_mobile_accessibility_markers():
     assert page.count("</html>") == 1
     assert page.rstrip().endswith("</html>")
     assert 'href="#main"' in page
-    assert "@media(max-width:600px)" in page
-    assert "prefers-reduced-motion" in page
+    # External stylesheet carries the responsive and reduced-motion rules; the
+    # page only links to it (style-src 'unsafe-inline' was dropped in v0.24.0).
+    css = client.get("/static/chaoshire.css")
+    assert css.status_code == 200
+    assert "@media(max-width:600px)" in css.text
+    assert "prefers-reduced-motion" in css.text
+    assert 'href="/static/chaoshire.css"' in page
     # The tab was renamed from "Review Agent" — the reviewer flagged the name as
     # an AI overclaim for a deterministic rules engine (v0.23.4 red-flag pass).
     assert "Fairness Review" in page and "Guided Demo" in page

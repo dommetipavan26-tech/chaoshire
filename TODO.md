@@ -109,10 +109,10 @@ Closes the five items still visible on the v0.23.3 live deployment. Scores `32/F
 ## Future engineering
 
 - [ ] Per-audit access control so published uploads are not world-readable
-- [ ] Move `style-src 'unsafe-inline'` out of the CSP by externalising the inline stylesheet
+- [x] Move `style-src 'unsafe-inline'` out of the CSP by externalising the inline stylesheet (`chaoshire/static/chaoshire.css`, JS templates use `data-style=""` applied via CSSOM)
 - [ ] User accounts and auditor/reviewer roles
-- [ ] Managed PostgreSQL repository
-- [ ] Authenticated remote model connector
-- [ ] Durable metrics and external log shipping
+- [x] Optional PostgreSQL repository behind env (`CHAOSHIRE_DB_BACKEND=postgres` + `CHAOSHIRE_DATABASE_URL`; SQLite stays default — `chaoshire/repository_postgres.py`)
+- [x] Authenticated remote REST connector (`RemoteDecisionAdapter` in `chaoshire/adapters.py`, operator-configured via `CHAOSHIRE_REMOTE_MODELS`)
+- [x] Structured external JSON log shipping (`CHAOSHIRE_LOG_WEBHOOK_URL`; events: audit/appeal/chaos/mitigation/upload — `chaoshire/loghook.py`)
 - [ ] Dependency and container vulnerability scanning
-- [ ] SHAP-compatible explanation adapter
+- [x] SHAP-compatible explanation adapter (`/api/explain/shap/{id}`, `/api/explain/shap/batch` — `chaoshire/explain.py`)

@@ -11,6 +11,7 @@ import pandas as pd
 
 from .config import DECISION_THRESHOLD
 from .data import DEMO_DATA
+from .loghook import ship as ship_event
 from .metrics import round4
 from .models import MODEL_META, Coefficients, get_model, score
 
@@ -357,10 +358,20 @@ def run_chaos_suite(
         sort_keys=True,
     ).encode()
     experiment_id = f"EXP-{hashlib.sha256(fingerprint).hexdigest()[:12].upper()}"
-    return {
+    result = {
         "experiment_id": experiment_id,
         "tests": tests,
         "resilience": resilience,
         "model": MODEL_META[model],
         "configuration": {"thresholds": configured, "evidence_limit": evidence_limit},
     }
+    ship_event(
+        "chaos.completed",
+        {
+            "experiment_id": experiment_id,
+            "model": model,
+            "resilience": resilience,
+            "verdicts": {test["id"]: test["verdict"] for test in tests},
+        },
+    )
+    return result

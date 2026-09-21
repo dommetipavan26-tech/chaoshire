@@ -6,6 +6,81 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-09-21
+
+Future engineering items from `PROJECT-ROADMAP.md` and `TODO.md` — external
+CSS, JSON log shipping, optional Postgres adapter, SHAP-compatible
+explanations, and marking the remote REST connector as shipped. LegacyCorp
+stays **32/F** and Chaos stays **30/100** (169 gender, 111 community flips).
+Owner-only work is **not** faked; history untouched.
+
+### Added
+
+- **External CSS.** The `<style>` block was extracted to
+  `chaoshire/static/chaoshire.css` and served at `/static/chaoshire.css`
+  with a long cache. Static inline `style=""` attributes in the HTML body
+  were replaced with utility classes; dynamic values in JavaScript template
+  literals use `data-style=""` and are applied via CSSOM after `innerHTML`
+  (which is not restricted by `style-src`). The CSP now reads
+  `style-src 'self'` — `'unsafe-inline'` is dropped from both `script-src`
+  and `style-src`. (`tests/test_external_css.py`)
+- **Structured JSON log shipping.** `chaoshire/loghook.py` POSTs structured
+  events to `CHAOSHIRE_LOG_WEBHOOK_URL` on a background thread. Events
+  shipped: `audit.completed`, `appeal.created`, `chaos.completed`,
+  `mitigation.completed`, `upload.completed`. Optional HMAC-SHA256
+  signature via `CHAOSHIRE_LOG_WEBHOOK_SECRET`. Failures are logged but
+  never block the request; the queue is bounded. `/api/meta` reports
+  `log_shipping` status. (`tests/test_log_shipping.py`)
+- **Optional PostgreSQL adapter.** `chaoshire/repository_postgres.py`
+  implements the same interface as the SQLite backend, activated by
+  `CHAOSHIRE_DB_BACKEND=postgres` and `CHAOSHIRE_DATABASE_URL`. SQLite
+  stays the zero-config default. Lazy `psycopg2` import means the
+  dependency is only required on deployments that opt in.
+  (`tests/test_postgres_adapter.py`)
+- **SHAP-compatible explanation adapter.** `chaoshire/explain.py` produces
+  SHAP-compatible feature-attribution vectors (`base_value` + per-feature
+  `values` + `feature_names`) for any reference model, without depending on
+  the `shap` package itself. Routes: `GET /api/explain/shap/{id}` and
+  `POST /api/explain/shap/batch`. Listed in `/api/adapters`.
+  (`tests/test_shap_adapter.py`)
+- **Remote REST connector marked done.** `RemoteDecisionAdapter` in
+  `chaoshire/adapters.py` (shipped in v0.20.0) implements the
+  authenticated HTTP connector; `PROJECT-ROADMAP.md` and `TODO.md` now
+  reflect that.
+
+### Changed
+
+- Version `0.23.4` → `0.24.0`; `chaoshire/build_info.py` reports **270
+  tests and 94.7%** package coverage (the new modules expand the surface
+  without reducing the 90% gate).
+- `README.md`, `docs/PORTFOLIO-CASE-STUDY.md`, `docs/PORTFOLIO-EVIDENCE.md`
+  quote the same figures.
+- `PROJECT-ROADMAP.md` and `TODO.md` mark the remote REST connector,
+  optional Postgres adapter, log shipping, external CSS and SHAP adapter
+  as done.
+- `.env.example` documents `CHAOSHIRE_DB_BACKEND`,
+  `CHAOSHIRE_DATABASE_URL`, `CHAOSHIRE_LOG_WEBHOOK_URL` and
+  `CHAOSHIRE_LOG_WEBHOOK_SECRET`.
+- `/api/meta` serves `log_shipping` and `build.repository_backend`.
+- The service worker precaches `/static/chaoshire.css`.
+
+### Not faked
+
+- **No paid Redis/Postgres.** The Postgres adapter is real code that
+  requires a live `DATABASE_URL` — the free-tier Render deployment still
+  uses SQLite, `CHAOSHIRE_AUDIT_HISTORY_DURABLE` stays `0`, and `render.yaml`
+  still has no `disk:`.
+- **No `control.py` commit, no Blueprint adoption, no history rewrite.**
+- **No tags created.** `v0.24.0` tag is left for the owner.
+- **Scores preserved.** `audit(legacy)` → **32/F**, `run_chaos_suite("legacy")`
+  → **30/100** (gender **169**, community **111**).
+
+### Verified
+
+- `python -m pytest -q` → **265 passed, 5 skipped** (270 collected);
+  `--cov=chaoshire` → **94.7%** (90% gate); `ruff format --check` +
+  `ruff check` → clean; `python scripts/check_build_info.py` → `build_info OK`.
+
 ## [0.23.4] - 2026-09-21
 
 Finishes the red-flag 1–40 items still visible on the v0.23.3 live deployment:

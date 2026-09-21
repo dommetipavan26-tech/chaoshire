@@ -526,7 +526,7 @@ async def platform_middleware(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; style-src 'self'; "
         f"script-src 'self' 'nonce-{request.state.csp_nonce}'; "
         "img-src 'self' data:; connect-src 'self'; "
         "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
