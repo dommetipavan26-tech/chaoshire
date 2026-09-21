@@ -30,7 +30,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] SQLite-backed aggregate audit runs and history
 - [x] Raw-row non-persistence privacy boundary
 - [x] Non-assessable audit verdicts and strict reference-model validation
-- [ ] Managed PostgreSQL adapter for durable cloud history
+- [x] Optional PostgreSQL adapter for durable cloud history (behind env; SQLite stays default)
 
 ## Phase 3 — Chaos Lab framework
 
@@ -41,7 +41,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Comparison between model versions
 - [x] Fairness regression gate for CI/CD
 - [x] Pluggable decision-source adapter contract
-- [ ] Authenticated remote REST scoring connector
+- [x] Authenticated remote REST scoring connector (`RemoteDecisionAdapter`, operator-configured via `CHAOSHIRE_REMOTE_MODELS`)
 
 ## Phase 4 — Reports and product polish
 
@@ -55,7 +55,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Request IDs, operational metrics, rate limiting, and privacy controls
 - [x] Installable PWA icons, manifest metadata, and offline icon caching
 - [ ] User accounts and auditor/reviewer roles
-- [ ] Structured external log shipping
+- [x] Structured external log shipping (`CHAOSHIRE_LOG_WEBHOOK_URL`, HMAC-signed JSON events)
 - [x] Architecture diagram (`docs/ARCHITECTURE.svg`)
 - [ ] Short demonstration video
 

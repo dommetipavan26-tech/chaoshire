@@ -1,7 +1,12 @@
-"""SQLite repository for aggregate audit evidence.
+"""Repository dispatcher and SQLite backend for aggregate audit evidence.
 
 Raw uploaded candidate rows are deliberately never written to this database.
 The default local path can be overridden with ``CHAOSHIRE_DB_PATH``.
+
+Set ``CHAOSHIRE_DB_BACKEND=postgres`` and ``CHAOSHIRE_DATABASE_URL`` to use
+the optional PostgreSQL adapter in :mod:`chaoshire.repository_postgres`.
+SQLite remains the zero-config default for local runs, tests, and the
+free-tier deployment.
 """
 
 import json
@@ -13,6 +18,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+
+def _postgres_active() -> bool:
+    """Whether the operator opted into the PostgreSQL backend."""
+    return (os.getenv("CHAOSHIRE_DB_BACKEND") or "").strip().lower() == "postgres"
 
 
 def database_path() -> str:
@@ -39,6 +49,11 @@ def connect() -> Iterator[sqlite3.Connection]:
 
 
 def initialise_database() -> None:
+    if _postgres_active():
+        from .repository_postgres import initialise_database as _pg_init
+
+        _pg_init()
+        return
     with connect() as connection:
         connection.execute(
             """
@@ -69,6 +84,10 @@ def save_audit(
     source: str = "uploaded_csv",
 ) -> str:
     """Persist aggregate results and return a stable public audit ID."""
+    if _postgres_active():
+        from .repository_postgres import save_audit as _pg_save
+
+        return _pg_save(result, name, configuration, source)
     initialise_database()
     audit_id = f"AUD-{uuid4().hex[:12].upper()}"
     created_at = datetime.now(UTC).isoformat()
@@ -105,6 +124,10 @@ def save_audit(
 
 
 def list_audits(limit: int = 50) -> list[dict[str, Any]]:
+    if _postgres_active():
+        from .repository_postgres import list_audits as _pg_list
+
+        return _pg_list(limit)
     initialise_database()
     safe_limit = max(1, min(limit, 100))
     with connect() as connection:
@@ -137,6 +160,10 @@ def list_audits(limit: int = 50) -> list[dict[str, Any]]:
 
 
 def get_audit(audit_id: str) -> dict[str, Any] | None:
+    if _postgres_active():
+        from .repository_postgres import get_audit as _pg_get
+
+        return _pg_get(audit_id)
     initialise_database()
     with connect() as connection:
         row = connection.execute(

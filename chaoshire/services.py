@@ -12,6 +12,7 @@ import pandas as pd
 
 from .config import DECISION_THRESHOLD
 from .data import DEMO_DATA
+from .loghook import ship as ship_event
 from .metrics import audit, round4
 from .models import (
     BIAS_FEATURES,
@@ -190,6 +191,12 @@ def create_appeal(
             "source": "operator" if protected else "anonymous",
         }
     )
+    # The appeal message is user-supplied free text; ship only the metadata so
+    # a webhook receiver never sees the body without explicit operator intent.
+    ship_event(
+        "appeal.created",
+        {"appeal_id": record["id"], "priority": priority, "candidate_id": candidate_id},
+    )
     return {"ok": True, "appeal_id": record["id"], "priority": priority}
 
 
@@ -349,6 +356,16 @@ def mitigate(
             "applied": "Per-group decision cutoffs aligned to the highest group selection rate",
             "after": audit(build_decisions(coefficients, thresholds)),
         }
+    ship_event(
+        "mitigation.completed",
+        {
+            "strategies": list(strategies),
+            "before_grade": payload["before"]["certificate"]["grade"],
+            "after_grade": payload["after"]["certificate"]["grade"],
+            "before_score": payload["before"]["certificate"]["total"],
+            "after_score": payload["after"]["certificate"]["total"],
+        },
+    )
     return payload
 
 
@@ -560,7 +577,7 @@ def upload_decisions(
         result["created_at"] = datetime.now(UTC).isoformat()
         result["source"] = "uploaded_csv_unpublished"
 
-    return {
+    upload_result = {
         "ok": True,
         "audit_id": audit_id,
         "audit_name": safe_name,
@@ -580,6 +597,17 @@ def upload_decisions(
         ),
         "audit": result,
     }
+    ship_event(
+        "upload.completed",
+        {
+            "audit_id": audit_id,
+            "published": publish,
+            "rows": int(len(uploaded)),
+            "attributes": attributes,
+            "certificate_grade": result["certificate"]["grade"],
+        },
+    )
+    return upload_result
 
 
 def uploaded_audit() -> dict[str, Any]:

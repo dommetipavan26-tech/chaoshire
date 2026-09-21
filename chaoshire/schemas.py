@@ -76,6 +76,13 @@ class ConnectorAuditRequest(BaseModel):
     model_id: str = Field(min_length=1, max_length=100)
 
 
+class ShapBatchRequest(BaseModel):
+    """SHAP-compatible explanation batch for a list of candidate IDs."""
+
+    candidate_ids: list[str] = Field(min_length=1, max_length=100)
+    model: str = Field(default="legacy", pattern="^(legacy|fair|trained)$")
+
+
 class UploadRequest(BaseModel):
     """Configuration for interpreting a model-decision CSV export."""
 
