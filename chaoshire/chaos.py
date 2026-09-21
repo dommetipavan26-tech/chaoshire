@@ -41,6 +41,10 @@ class ChaosTest:
     story: str
     metric: str
     experiment: Experiment
+    #: Honest scope note for experiments whose PASS is bounded by the fixture
+    #: itself. Shown next to the verdict so a green badge cannot imply more than
+    #: the experiment can actually falsify. Empty for tests without such a limit.
+    fixture_limit: str = ""
 
     def execute(self, coefficients: Coefficients, threshold: dict[str, float], limit: int) -> dict:
         observation = self.experiment(coefficients, limit)
@@ -60,6 +64,7 @@ class ChaosTest:
             "rate": round4(observation.rate),
             "detail": observation.detail,
             "verdict": verdict,
+            "fixture_limit": self.fixture_limit,
             "threshold": threshold,
             "evidence": observation.evidence[:limit],
             "evidence_count": len(observation.evidence),
@@ -216,7 +221,11 @@ def gap_stress_experiment(coefficients: Coefficients, _limit: int) -> Observatio
     return Observation(
         rate,
         f"{rate:.1%} of {len(selected)}",
-        "Disproportionately impacts returning parents and caregivers.",
+        (
+            "Career-gap penalties that flip qualified hires are a proxy risk for "
+            "caregivers and returners; this test counts the flips, not intent or "
+            "disparate treatment."
+        ),
         _decision_evidence(selected.reset_index(drop=True), before, after, changed),
     )
 
@@ -234,44 +243,82 @@ def age_stress_experiment(coefficients: Coefficients, _limit: int) -> Observatio
     return Observation(
         rate,
         f"{rate:.1%} of {len(selected)}",
-        "Detects hidden ageism in ranking features.",
+        (
+            "Re-scoring one profile in an older age band measures age sensitivity "
+            "in the ranking; this test counts the flips, not intent or age "
+            "discrimination."
+        ),
         _decision_evidence(selected.reset_index(drop=True), before, after, changed),
     )
 
+
+#: The privilege-injection fixture deliberately cannot be gamed by the shipped
+#: reference models (see docs/CONTINUOUS-FAIRNESS.md), so its verdict must carry
+#: this scope note wherever it is rendered. The label changes no verdict and no
+#: resilience point — it states what the PASS can and cannot falsify.
+INJECTION_FIXTURE_LIMIT = (
+    "Fixture-limited verdict: these synthetic résumés do not clear the decision "
+    "threshold on the shipped fixtures, so the test cannot FAIL at the current "
+    "prestige weight (the exact headroom is in the detail line). PASS means "
+    "'this fixture cannot be gamed this way', not 'the model is résumé-gaming "
+    "resistant'; a prestige-heavy variant of the fixture is regression-proven "
+    "to FAIL (tests/test_verification_fixes.py)."
+)
 
 CHAOS_TESTS = [
     ChaosTest(
         "gender_swap",
         "Gender-Swap Counterfactual",
-        "Every candidate's gender marker is flipped and the model re-scores them. A fair model must not change a single decision.",
+        (
+            "Every candidate's gender marker is flipped (M→F, F→M, NB→M) and the "
+            "same rows are re-scored. The rate counts decisions that cross the "
+            "accept threshold."
+        ),
         "Decisions flipped",
         gender_swap_experiment,
     ),
     ChaosTest(
         "ethnicity_swap",
         "Name/Community-Swap Counterfactual",
-        "The community signal (name, school cluster) is swapped between majority and minority groups — same résumé, different identity.",
+        (
+            "The community signal is reassigned between groups (G1↔G3, G2→G1) and "
+            "the same rows are re-scored. The rate counts decisions that cross the "
+            "accept threshold."
+        ),
         "Decisions flipped",
         community_swap_experiment,
     ),
     ChaosTest(
         "adversarial",
         "Privilege-Keyword Injection",
-        "50 fake résumés with low skills but elite-college branding and majority markers are injected. Does the model get gamed?",
+        (
+            "50 synthetic résumés with bottom-quartile skills, no certifications "
+            "and near-maximum prestige are scored against the same threshold. The "
+            "rate counts how many are accepted."
+        ),
         "Fake candidates accepted",
         injection_experiment,
+        INJECTION_FIXTURE_LIMIT,
     ),
     ChaosTest(
         "gap_stress",
         "Career-Gap Stress Test",
-        "Every accepted, genuinely-qualified candidate gets a career gap added (parental leave, illness). Who survives?",
+        (
+            "Every accepted, qualified candidate is re-scored with a career gap "
+            "set; all other features are unchanged. The rate counts qualified "
+            "hires that fall below the accept threshold."
+        ),
         "Qualified hires newly rejected",
         gap_stress_experiment,
     ),
     ChaosTest(
         "age_stress",
         "Ageing Stress Test",
-        "Accepted young candidates are re-submitted as 50+. Same skills, same experience — only the birth year changes.",
+        (
+            "Accepted candidates aged 18–35 are re-scored in the 50+ band; all "
+            "other features are unchanged. The rate counts hires that fall below "
+            "the accept threshold."
+        ),
         "Hires newly rejected",
         age_stress_experiment,
     ),

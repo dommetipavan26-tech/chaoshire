@@ -32,7 +32,12 @@ is roughly three times smaller than the ~0.27 required to accept the strongest
 injected résumé. The experiment's detail string therefore reports the score
 headroom and the required prestige weight, and the regression suite verifies
 that a prestige-heavy variant of the fixture (prestige weight 0.35) FAILS while
-the merit-only fixture PASSES. Re-tuning the shipped fixture would change the
+the merit-only fixture PASSES. Because the fixture bounds what this test can
+falsify, the verdict ships with a `fixture_limit` scope note in every
+`/api/chaos` payload and a visible **fixture-limited** label next to the badge
+in the Chaos Lab UI — a green PASS means "this fixture cannot be gamed this
+way", not "résumé-gaming resistant". The label changes no verdict and no
+resilience point. Re-tuning the shipped fixture would change the
 published resilience constants, so it is tracked as an owner decision rather
 than a silent change.
 

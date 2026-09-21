@@ -1,7 +1,10 @@
-"""Deterministic, evidence-grounded fairness review agent.
+"""Deterministic, evidence-grounded fairness review.
 
-The agent intentionally uses transparent rules rather than an external language model.
-Every conclusion links to a metric in the supplied aggregate audit or Chaos run.
+This is a transparent rules engine — not an AI agent and not a language model.
+Every conclusion links to a metric in the supplied aggregate audit or Chaos run,
+and no audit data is sent anywhere. Earlier releases branded it the "Fairness
+Review Agent"; the name overclaimed what it is, so current-facing surfaces call
+it a fairness review and say plainly what it is not.
 """
 
 import hashlib
@@ -125,7 +128,7 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
     return {
         "review_id": _fingerprint(basis),
         "agent": {
-            "name": "ChaosHire Fairness Review Agent",
+            "name": "ChaosHire Fairness Review (deterministic rules)",
             "mode": "deterministic_rules",
             "external_ai": False,
             "evidence_grounded": True,
@@ -139,6 +142,7 @@ def review_audit(audit: dict[str, Any], chaos: dict[str, Any] | None = None) -> 
         "findings": findings,
         "recommended_actions": actions,
         "limitations": [
+            "This review is produced by deterministic rules, not an AI agent or language model.",
             "This review is decision support, not legal advice or proof of discrimination.",
             "Statistical and counterfactual evidence requires human validation and domain context.",
         ],

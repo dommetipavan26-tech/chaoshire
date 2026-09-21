@@ -75,7 +75,7 @@ def guided_demo() -> dict[str, Any]:
             },
             {
                 "id": 4,
-                "title": "Ask the review agent",
+                "title": "Run the deterministic fairness review",
                 "message": review["summary"],
                 "evidence": review,
             },

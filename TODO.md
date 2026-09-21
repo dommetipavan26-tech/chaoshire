@@ -93,6 +93,19 @@ Re-applied on `main` at `cc1636a` (v0.23.2) — the previous sandbox's `0ad1125`
 - [x] Verify `python -m pytest -q` (201), `--cov` (98.3%), `mypy` (3.11/3.12 clean), `check_build_info.py` (--coverage-json) and `GET /api/meta`/`/api/ops/*` live checks
 - [ ] Push the v0.23.3 tag (and the still-missing v0.23.2 / v0.23.1 / v0.22.0 tags) — owner
 
+## Release v0.23.4 — finish red-flag 1–40
+
+Closes the five items still visible on the v0.23.3 live deployment. Scores `32/F` and `30/100` preserved; owner-only work is not faked; history untouched.
+
+- [x] Chaos Lab stories rewritten from marketing narrative (“Does the model get gamed?”, “Who survives?”) to method text; gap/age-stress details no longer claim “Detects hidden ageism” or “Disproportionately impacts…” (`tests/test_review_honesty.py`)
+- [x] Privilege-injection verdict labelled `fixture-limited` (payload field + Chaos Lab chip + scope note + README/`docs/CONTINUOUS-FAIRNESS.md`); no verdict or resilience-score change
+- [x] “Fairness Review Agent” renamed to **Fairness Review** (rules engine, not an AI agent) in the payload name, dashboard tab, demo step 4, CLI help, README and `docs/PORTFOLIO-PLATFORM.md`; `/api/agent/review` kept for compatibility; historical records untouched
+- [x] TalentFit blurb states the measured outcome (resilience 100/100 vs 66/C, DI 0.78) instead of a teaser question
+- [x] `GET /api/appeals` serves redacted copies (`chaoshire/redaction.py`): names → initials, emails/7+ digit runs/phone-like runs → fixed placeholders, rules disclosed in the payload and the UI; `SECURITY.md` + `docs/PORTFOLIO-PLATFORM.md` document the limits (`tests/test_appeals_redaction.py`)
+- [x] Do **not** fake owner-only work: no tags, no UptimeRobot, no CodeQL inline suppression, no `disk:` on `plan: free`, no paid Redis/Postgres, no `control.py` commit
+- [x] Verify `python -m pytest -q` (216), `--cov` (98.4%), `ruff format --check`/`ruff check`, `mypy` (3.11/3.12 clean), `check_build_info.py` (--coverage-json), and a local smoke of `/api/appeals`, `/api/chaos`, `/api/agent/review`, `/api/meta`, `HEAD /`
+- [ ] Push the v0.23.4 tag (and the still-missing v0.23.2 / v0.23.1 / v0.22.0 tags) — owner
+
 ## Future engineering
 
 - [ ] Per-audit access control so published uploads are not world-readable
