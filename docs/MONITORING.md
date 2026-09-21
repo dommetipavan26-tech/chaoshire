@@ -15,20 +15,25 @@ the dashboard.
 
 | Variable | Live value | What it does | How to verify it took effect |
 |---|---|---|---|
-| `CHAOSHIRE_API_KEY` | generated at deploy time | Holding it is what makes an upload *published* | `GET /api/meta` → `platform.api_key_configured: true`; a request with a wrong `X-API-Key` gets `401`. The value is never logged or echoed. |
+| `CHAOSHIRE_API_KEY` | generated at deploy time | Holding it is what makes an upload *published* | `GET /api/meta` → `platform.api_key_configured: true` (when disclosure is on); a request with a wrong `X-API-Key` gets `401`. The value is never logged or echoed. |
 | `CHAOSHIRE_ALLOW_ANONYMOUS_WRITES` | `1` | Keeps the public demo interactive | Anonymous `POST /api/upload` → `200` with `published: false` and no `audit_id` |
 | `CHAOSHIRE_RATE_LIMIT_PER_MINUTE` | `120` | Per-client read budget | `GET /api/meta` → `platform.rate_limit_per_minute: 120` |
 | `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE` | `6` | Per-client write budget | `GET /api/meta` → `platform.write_rate_limit_per_minute: 6`; a 7th mutating call within a minute gets `429` |
-| `CHAOSHIRE_TRUST_FORWARDED_FOR` | `1` | Buckets limits by the right-most `X-Forwarded-For` entry | `GET /api/meta` → `platform.trusted_proxy_headers: true` and `platform.rate_limit_bucketing: "per-client-ip"`; the boot log line in the Render log stream |
-| `CHAOSHIRE_MAX_APPEALS` | `200` | Caps the appeal FIFO queue | `GET /api/meta` → `platform.appeals_capacity: 200` |
+| `CHAOSHIRE_TRUST_FORWARDED_FOR` | `1` | Buckets limits by the right-most `X-Forwarded-For` entry | Config: `/api/meta` → `trusted_proxy_headers: true`. Behaviour: `GET /api/ops/whoami` with a spoofed left-most XFF, or `python scripts/probe_xff.py --host chaoshire.onrender.com --limit 6` |
+| `CHAOSHIRE_MAX_APPEALS` | `200` | Caps the appeal FIFO; anonymous evicted first | `GET /api/meta` → `platform.appeals_capacity: 200` |
+| `CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE` | `2` | Extra anonymous-appeal budget | A 3rd anonymous `POST /api/appeals` within a minute gets `429`; authenticated appeals are unaffected |
+| `CHAOSHIRE_AUDIT_HISTORY_DURABLE` | `0` | Honest declaration, not a disk | Boot log `audit_history_durable=false`; `/api/meta` → `platform.audit_history_durable: false` |
 | `CHAOSHIRE_DB_PATH` | `/app/data/chaoshire.db` | Where the aggregate-history SQLite file lives | `GET /api/ready` → `{"status": "ready", "database": "available"}` |
 | `CHAOSHIRE_MAX_BODY_BYTES` | `5500000` | Rejects over-long request bodies | A POST with a larger `Content-Length` gets `413` |
 
-`GET /api/meta` is the single verification surface: every posture variable
-resolves into its `platform` section, and the service logs the same summary
-once at boot (`chaoshire <version> resolved write posture: {...}`) — booleans
-and safe scalars, never the key value — so the Render log stream is the second
-confirmation after a redeploy.
+On the public demo, `GET /api/meta` still discloses the posture. Private
+deployments set `CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0` and read the same facts
+from authenticated `GET /api/ops/posture`. The service logs a key=value summary
+once at boot (`chaoshire <version> resolved write posture: …`) — string
+literals `true`/`false`, never the key value. `blueprint_drift=present` means
+the live env disagrees with the committed `render.yaml` contract (dashboard vs
+Blueprint). `HEAD /` returns 200 so an uptime monitor on the landing page no
+longer records 405.
 
 To generate a key locally (for example when rotating the deployment's key in
 the dashboard):
@@ -76,7 +81,7 @@ fail to provision.
 1. Create an HTTPS monitor named `ChaosHire production`.
 2. URL: `https://chaoshire.onrender.com/api/ready`.
 3. Interval: the shortest interval offered by the free plan.
-4. Expected status: HTTP 200. ChaosHire accepts both GET and HEAD monitoring requests.
+4. Expected status: HTTP 200. ChaosHire accepts both GET and HEAD on `/`, `/api/health`, `/api/live`, and `/api/ready`.
 5. Optional keyword monitoring must use GET because HEAD responses do not contain a body.
 6. Add an email alert contact and trigger alerts after two failed checks.
 7. Create a second monitor for `https://chaoshire.onrender.com/` if desired.

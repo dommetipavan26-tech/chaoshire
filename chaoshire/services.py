@@ -163,7 +163,12 @@ def candidate_decision(candidate_id: str) -> dict[str, Any]:
     }
 
 
-def create_appeal(candidate_id: str, message: str) -> dict[str, Any]:
+def create_appeal(
+    candidate_id: str,
+    message: str,
+    *,
+    protected: bool = False,
+) -> dict[str, Any]:
     rows = DEMO_DATA[DEMO_DATA["candidate_id"] == candidate_id]
     if rows.empty:
         return {"error": "Unknown candidate ID."}
@@ -180,6 +185,8 @@ def create_appeal(candidate_id: str, message: str) -> dict[str, Any]:
             "message": message,
             "priority": priority,
             "status": "PENDING",
+            "protected": bool(protected),
+            "source": "operator" if protected else "anonymous",
         }
     )
     return {"ok": True, "appeal_id": record["id"], "priority": priority}

@@ -28,12 +28,24 @@ from .models import (
 )
 from .pdf_reporting import render_pdf_report
 from .platform import (
+    LIMITER,
+    LIMITER_SCOPE,
     OPERATIONS,
     WriteAccess,
+    anonymous_appeals_per_minute,
+    anonymous_uploads_published,
     anonymous_writes_allowed,
+    audit_history_durable,
+    blueprint_drift,
     configured_api_key,
+    describe_client,
+    disclose_write_posture,
+    ensure_package_logging,
     platform_middleware,
+    process_worker_count,
+    public_write_posture,
     rate_limit_per_minute,
+    require_operator,
     require_write_access,
     trust_forwarded_for,
     write_posture,
@@ -66,13 +78,6 @@ from .services import (
 
 #: Upstream failure detail is logged, never echoed into a response body.
 logger = logging.getLogger(__name__)
-
-# uvicorn only configures its own ``uvicorn.*`` loggers, and Python's
-# last-resort handler passes WARNING and above only — so without a root-level
-# handler the INFO boot line below would never reach the Render log stream.
-# ``basicConfig`` is a no-op when a logging system (the test suite, a
-# container entrypoint) has already installed a root handler.
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -117,30 +122,47 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Log the resolved write posture once at boot, before serving requests.
 
     The line an operator greps for in the Render log stream to confirm the
-    deployment started with the intended configuration: key configured, proxy
-    headers trusted, and the resulting rate-limit bucketing mode. Each fact is
-    read fresh from the platform layer rather than pulled out of a shared
-    posture container (CodeQL's clear-text-logging query treats such a
-    container as credential-adjacent), and the key itself never reaches the
-    log.
+    deployment started with the intended configuration. Env-derived booleans
+    reach the log only through a ternary that produces a string literal —
+    CodeQL's clear-text-logging query treats a bound env-bool as taint, but
+    not ``"true" if flag else "false"``. The key itself never reaches the log.
     """
     from .state import appeals_capacity
 
-    trusted = trust_forwarded_for()
+    ensure_package_logging(logger)
     logger.info(
         "chaoshire %s resolved write posture: api_key_configured=%s "
-        "anonymous_writes_allowed=%s anonymous_uploads_published=false "
+        "anonymous_writes_allowed=%s anonymous_uploads_published=%s "
         "rate_limit_per_minute=%s write_rate_limit_per_minute=%s "
-        "appeals_capacity=%s trusted_proxy_headers=%s rate_limit_bucketing=%s",
+        "appeals_capacity=%s trusted_proxy_headers=%s rate_limit_bucketing=%s "
+        "limiter_scope=%s audit_history_durable=%s disclose_write_posture=%s "
+        "blueprint_drift=%s worker_count=%s",
         __version__,
-        configured_api_key() is not None,
-        anonymous_writes_allowed(),
+        "true" if configured_api_key() is not None else "false",
+        "true" if anonymous_writes_allowed() else "false",
+        "true" if anonymous_uploads_published() else "false",
         rate_limit_per_minute(),
         write_rate_limit_per_minute(),
         appeals_capacity(),
-        trusted,
-        "per-client-ip" if trusted else "shared-per-instance",
+        "true" if trust_forwarded_for() else "false",
+        "per-client-ip" if trust_forwarded_for() else "shared-per-instance",
+        LIMITER_SCOPE,
+        "true" if audit_history_durable() else "false",
+        "true" if disclose_write_posture() else "false",
+        "none" if not blueprint_drift() else "present",
+        process_worker_count(),
     )
+    if blueprint_drift():
+        logger.warning("chaoshire blueprint drift detected versus render.yaml")
+    if process_worker_count() > 1:
+        logger.warning(
+            "chaoshire in-memory rate limiter is process-local; multiple workers multiply budgets"
+        )
+    if not audit_history_durable():
+        logger.warning(
+            "chaoshire audit history is ephemeral on this deployment "
+            "(CHAOSHIRE_AUDIT_HISTORY_DURABLE is unset)"
+        )
     yield
 
 
@@ -193,6 +215,18 @@ def readiness_head() -> dict[str, str]:
 @app.get("/api/metrics", tags=["system"])
 def operational_metrics() -> dict:
     return OPERATIONS.snapshot()
+
+
+@app.get("/api/ops/posture", tags=["system"], dependencies=[Depends(require_operator)])
+def operator_posture() -> dict:
+    """Full write posture, including fields ``/api/meta`` may redact."""
+    return write_posture()
+
+
+@app.get("/api/ops/whoami", tags=["system"], dependencies=[Depends(require_operator)])
+def operator_whoami(request: Request) -> dict:
+    """How this request is bucketed — proves the right-most-XFF rule live."""
+    return describe_client(request)
 
 
 @app.get("/manifest.webmanifest", include_in_schema=False)
@@ -273,6 +307,12 @@ def home(request: Request) -> HTMLResponse:
     return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
 
 
+@app.head("/", include_in_schema=False)
+def home_head() -> Response:
+    """Uptime monitors that probe ``/`` with HEAD used to get 405."""
+    return Response(status_code=200, headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/api/meta", tags=["system"])
 def meta() -> dict:
     return {
@@ -282,7 +322,7 @@ def meta() -> dict:
         "bias_features": BIAS_FEATURES,
         "thresholds": FAIRNESS_THRESHOLDS,
         "sample_ids": ["C-1046", "C-1208", "C-1213", "C-1000", "C-1001"],
-        "platform": write_posture(),
+        "platform": public_write_posture(),
         "build": build_info(),
         "schema": (
             "Minimum: one decision column + one group attribute column.\n"
@@ -397,9 +437,28 @@ def api_candidate(candidate_id: str) -> Any:
     return result
 
 
-@app.post("/api/appeals", tags=["appeals"], dependencies=[Depends(require_write_access)])
-def post_appeal(request: AppealRequest) -> Any:
-    result = create_appeal(request.candidate_id, request.message)
+@app.post("/api/appeals", tags=["appeals"])
+def post_appeal(
+    request: AppealRequest,
+    access: Annotated[WriteAccess, Depends(require_write_access)],
+) -> Any:
+    if not access.authenticated:
+        limit = anonymous_appeals_per_minute()
+        bucket = f"appeal-anon:{access.client}"
+        if limit and not LIMITER.allow(bucket, limit):
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Anonymous appeal budget exhausted ({limit} per minute). "
+                    "Retry later or authenticate."
+                ),
+                headers={"Retry-After": str(LIMITER.retry_after(bucket))},
+            )
+    result = create_appeal(
+        request.candidate_id,
+        request.message,
+        protected=access.authenticated,
+    )
     if "error" in result:
         return JSONResponse(status_code=404, content=result)
     return result

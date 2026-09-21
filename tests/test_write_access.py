@@ -196,10 +196,10 @@ def test_forwarded_for_is_only_trusted_when_declared(monkeypatch):
     assert client_key(request) == "10.0.0.1"
 
     monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
-    # Right-most entry only: a client can prepend anything it likes, but it
-    # cannot rewrite what the trusted proxy appended.
-    assert client_key(request) == "10.0.0.1"
-    assert client_key(FakeRequest({"x-forwarded-for": "spoofed, 9.9.9.9"}, "p")) == "9.9.9.9"
+    # Render documents the left-most entry as the client IP it observed.
+    assert client_key(request) == "1.2.3.4"
+    assert client_key(FakeRequest({"x-forwarded-for": "9.9.9.9, spoofed"}, "p")) == "9.9.9.9"
+    assert client_key(FakeRequest({"x-forwarded-for": "203.0.113.10:54321"}, "p")) == "203.0.113.10"
 
 
 # --- bounded appeal queue --------------------------------------------------
@@ -248,12 +248,17 @@ def test_appeal_queue_memory_is_bounded_even_with_maximum_messages(monkeypatch):
 
 
 def test_meta_reports_the_write_posture():
+    from chaoshire.platform import ANONYMOUS_UPLOADS_PUBLISHED, anonymous_uploads_published
+
     body = operator_client().get("/api/meta").json()
     posture = body["platform"]
     assert posture["api_key_configured"] is True
-    assert posture["anonymous_uploads_published"] is False
+    assert posture["anonymous_uploads_published"] is ANONYMOUS_UPLOADS_PUBLISHED
+    assert posture["anonymous_uploads_published"] is anonymous_uploads_published()
     assert posture["appeals_capacity"] == 200
     assert posture["rate_limit_per_minute"] == 0  # disabled by conftest for speed
+    assert posture["limiter_scope"] == "process-local-memory"
+    assert posture["disclosed"] is True
     assert "published" in posture["note"]
 
 
@@ -323,7 +328,228 @@ def test_boot_log_reports_the_posture_without_the_key(monkeypatch, caplog):
     ]
     assert len(lines) == 1
     assert f"chaoshire {__version__} resolved write posture:" in lines[0]
-    assert "api_key_configured=True" in lines[0]
-    assert "trusted_proxy_headers=True" in lines[0]
+    # Literal-producing ternaries, not Python bools: keeps CodeQL's
+    # clear-text-logging query from treating an env-derived bool as taint.
+    assert "api_key_configured=true" in lines[0]
+    assert "trusted_proxy_headers=true" in lines[0]
     assert "rate_limit_bucketing=per-client-ip" in lines[0]
+    assert "limiter_scope=process-local-memory" in lines[0]
     assert TEST_API_KEY not in lines[0]
+    assert "True" not in lines[0]
+    assert "False" not in lines[0]
+
+
+def test_importing_app_does_not_call_basic_config():
+    """Embedding hosts must not have their logging rewritten at import time."""
+    import inspect
+
+    import chaoshire.app as app_module
+
+    source = inspect.getsource(app_module)
+    assert "logging.basicConfig" not in source
+
+
+def test_spoofed_leftmost_xff_cannot_escape_the_write_budget(monkeypatch):
+    """Unique XFF identities still hit the process-wide write backstop."""
+    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
+    monkeypatch.setenv("CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE", "3")
+    LIMITER.reset()
+    with TestClient(backend.app) as client:
+        statuses = []
+        for index in range(4):
+            statuses.append(
+                client.post(
+                    "/api/appeals",
+                    json={"candidate_id": "C-1046", "message": "x"},
+                    headers={"X-Forwarded-For": f"{index}.1.1.1"},
+                ).status_code
+            )
+    assert statuses[:3] == [200, 200, 200]
+    assert statuses[3] == 429
+    LIMITER.reset()
+
+
+def test_instance_write_cap_fires_even_when_every_request_has_a_new_ip(monkeypatch):
+    """The live 7×200 failure: per-client keys did not collapse, so we cap the process."""
+    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
+    monkeypatch.setenv("CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE", "6")
+    LIMITER.reset()
+    with TestClient(backend.app) as client:
+        statuses = [
+            client.post(
+                "/api/appeals",
+                json={"candidate_id": "C-1046", "message": "x"},
+                headers={"X-Forwarded-For": f"198.51.100.{index}"},
+            ).status_code
+            for index in range(7)
+        ]
+    assert statuses[:6] == [200, 200, 200, 200, 200, 200]
+    assert statuses[6] == 429
+    LIMITER.reset()
+
+
+def test_meta_redacts_recon_when_disclosure_is_off(monkeypatch):
+    monkeypatch.setenv("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", "0")
+    with TestClient(backend.app) as client:
+        posture = client.get("/api/meta").json()["platform"]
+    assert posture["disclosed"] is False
+    assert "api_key_configured" not in posture
+    assert "rate_limit_per_minute" not in posture
+    assert "trusted_proxy_headers" not in posture
+    assert posture["anonymous_uploads_published"] is False
+    assert "/api/ops/posture" in posture["note"]
+
+
+def test_operator_posture_returns_the_full_picture_when_meta_is_redacted(monkeypatch):
+    monkeypatch.setenv("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", "0")
+    client = operator_client()
+    public = client.get("/api/meta").json()["platform"]
+    assert public["disclosed"] is False
+    full = client.get("/api/ops/posture")
+    assert full.status_code == 200
+    body = full.json()
+    assert body["api_key_configured"] is True
+    assert body["limiter_scope"] == "process-local-memory"
+    refused = TestClient(backend.app).get("/api/ops/posture")
+    assert refused.status_code == 401
+
+
+def test_whoami_reports_leftmost_xff_when_trusted(monkeypatch):
+    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_FOR", "1")
+    client = operator_client()
+    body = client.get(
+        "/api/ops/whoami",
+        headers={"X-Forwarded-For": "203.0.113.99, 1.2.3.4"},
+    ).json()
+    assert body["client_key"] == "203.0.113.99"
+    assert body["source"] == "x-forwarded-for-leftmost"
+    assert body["xff_entry_count"] == 2
+
+
+def test_anonymous_appeals_are_evicted_before_authenticated_ones(monkeypatch):
+    monkeypatch.setenv("CHAOSHIRE_MAX_APPEALS", "3")
+    APPEALS.set_capacity(3)
+    operator = operator_client()
+    assert (
+        operator.post(
+            "/api/appeals", json={"candidate_id": "C-1046", "message": "keep-me"}
+        ).status_code
+        == 200
+    )
+    anonymous = TestClient(backend.app)
+    for index in range(5):
+        assert (
+            anonymous.post(
+                "/api/appeals",
+                json={"candidate_id": "C-1046", "message": f"anon {index}"},
+            ).status_code
+            == 200
+        )
+    queue = operator.get("/api/appeals").json()
+    messages = [appeal["message"] for appeal in queue["appeals"]]
+    assert "keep-me" in messages
+    assert messages.count("keep-me") == 1
+    assert all(
+        appeal["protected"] is True for appeal in queue["appeals"] if appeal["message"] == "keep-me"
+    )
+    APPEALS.set_capacity(200)
+
+
+def test_anonymous_appeals_have_their_own_budget(monkeypatch):
+    monkeypatch.setenv("CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE", "2")
+    LIMITER.reset()
+    with TestClient(backend.app) as client:
+        statuses = [
+            client.post("/api/appeals", json={"candidate_id": "C-1046", "message": "x"}).status_code
+            for _ in range(3)
+        ]
+        operator = client.post(
+            "/api/appeals",
+            json={"candidate_id": "C-1046", "message": "op"},
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+    assert statuses == [200, 200, 429]
+    assert operator.status_code == 200
+    LIMITER.reset()
+
+
+def test_blueprint_contract_matches_render_yaml():
+    import re
+    from pathlib import Path
+
+    from chaoshire.platform import BLUEPRINT_CONTRACT
+
+    text = (Path(__file__).resolve().parent.parent / "render.yaml").read_text(encoding="utf-8")
+    for name, expected in BLUEPRINT_CONTRACT.items():
+        match = re.search(
+            rf"- key:\s*{re.escape(name)}\n\s+value:\s*\"([^\"]+)\"",
+            text,
+        )
+        assert match, f"{name} missing from render.yaml"
+        assert match.group(1) == expected, f"{name}: yaml={match.group(1)!r} contract={expected!r}"
+
+
+def test_hardening_helpers_cover_edge_branches(monkeypatch):
+    import logging
+
+    from chaoshire import platform, state
+
+    assert platform._int_env("CHAOSHIRE_RATE_LIMIT_PER_MINUTE", 120) == 0  # conftest
+    monkeypatch.setenv("CHAOSHIRE_NOT_AN_INT", "nope")
+    assert platform._int_env("CHAOSHIRE_NOT_AN_INT", 7) == 7
+    monkeypatch.setenv("WEB_CONCURRENCY", "4")
+    assert platform.process_worker_count() == 4
+    monkeypatch.delenv("WEB_CONCURRENCY", raising=False)
+    monkeypatch.setenv("UVICORN_WORKERS", "2")
+    assert platform.process_worker_count() == 2
+
+    monkeypatch.setattr(platform, "ANONYMOUS_UPLOADS_PUBLISHED", True)
+    assert "also published" in platform.write_posture_note()
+
+    isolated = logging.getLogger("chaoshire.ensure-test")
+    isolated.handlers.clear()
+    isolated.propagate = False
+    platform.ensure_package_logging(isolated)
+    assert isolated.handlers
+    platform.ensure_package_logging(isolated)  # already has a handler
+
+    assert platform.LIMITER.retry_after("never-seen") >= 1
+    platform.LIMITER.reset()
+
+    monkeypatch.delenv("CHAOSHIRE_API_KEY", raising=False)
+    from fastapi import HTTPException
+
+    try:
+        platform.require_operator(x_api_key=None)
+        raise AssertionError("expected 503")
+    except HTTPException as error:
+        assert error.status_code == 503
+
+    class Bare:
+        headers = {}
+        client = None
+
+    monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_FOR", raising=False)
+    assert platform.client_key(Bare()) == "unknown"
+
+    monkeypatch.setenv("CHAOSHIRE_MAX_APPEALS", "not-a-number")
+    assert state.appeals_capacity() == state.DEFAULT_APPEALS_CAPACITY
+    queue = state.AppealQueue(2)
+    assert len(queue) == 0
+    queue.append({"message": "a", "protected": True})
+    queue.append({"message": "b", "protected": True})
+    queue.append({"message": "c", "protected": True})  # evicts oldest protected
+    assert [item["message"] for item in queue] == ["b", "c"]
+    assert list(reversed(queue))[0]["message"] == "c"
+    assert queue.capacity == 2
+    queue.set_capacity(1)
+    assert len(queue) == 1
+    state.reset_appeals()
+
+
+def test_head_of_the_landing_page_is_200():
+    with TestClient(backend.app) as client:
+        headed = client.head("/")
+        assert headed.status_code == 200
+        assert headed.content == b""
+        assert client.get("/").status_code == 200

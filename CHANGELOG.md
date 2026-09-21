@@ -6,6 +6,64 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-09-20
+
+Rectifies the twelve drawbacks of the v0.23.1 write-posture disclosure.
+
+### Security
+
+- **Import no longer calls ``logging.basicConfig``.** A last-resort stderr
+  handler is attached in the lifespan to the ``chaoshire.app`` logger only
+  when no ancestor already has a handler, so embedding hosts keep their
+  logging. (`tests/test_write_access.py`)
+- **Public ``/api/meta`` is no longer an unconditional recon surface.**
+  Budgets, key-presence and bucketing are omitted when
+  ``CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0`` (the default on private deployments
+  where anonymous writes are off). The public demo still discloses. Full
+  posture moves to authenticated ``GET /api/ops/posture``.
+- **Write budget has a process-wide backstop.** A 2026-09-20 live probe of
+  ``chaoshire.onrender.com`` sent 7 anonymous ``POST /api/appeals`` with
+  **no** spoofed headers and got 200 seven times, while ``/api/meta``
+  advertised ``write_rate_limit_per_minute: 6`` and ``/api/metrics`` showed
+  **zero** 429s. Per-client keys were not collapsing (dual-stack and/or
+  unique XFF hops). ``require_write_access`` now also buckets
+  ``write:_instance`` at the same number, so the advertised cap is enforced
+  even when identity fails. Client IP parsing uses Render's left-most XFF
+  hop and strips ``:port``.
+- **Boot log uses only literal-producing ternaries** (``"true" if flag else
+  "false"``) so CodeQL's clear-text-logging query does not treat an
+  env-derived bool as taint. No new dismissal. Tests assert tokens, not the
+  whole line, and assert the API key never appears.
+- **Anonymous uploads-published is one constant**
+  (``ANONYMOUS_UPLOADS_PUBLISHED``) feeding the JSON field, the boot line and
+  the note — the previous stray ``False`` literal cannot drift.
+- **Anonymous appeals cannot wipe operator-filed ones.** The FIFO evicts the
+  oldest anonymous entry first; authenticated appeals are only dropped when
+  the queue is all-protected. Anonymous ``POST /api/appeals`` also has its
+  own per-client budget (``CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE``, default
+  2) on top of the write limiter.
+- **``HEAD /`` returns 200.** Uptime monitors that probed the landing page
+  with HEAD used to get 405.
+
+### Added
+
+- ``GET /api/ops/posture`` and ``GET /api/ops/whoami`` (operator key required).
+- Boot reports ``limiter_scope=process-local-memory``,
+  ``audit_history_durable``, ``disclose_write_posture``, ``blueprint_drift``
+  (``none``/``present``) and ``worker_count``. A warning is emitted when the
+  live env disagrees with the committed ``render.yaml`` contract, when more
+  than one worker is configured, and when audit history is undeclared-durable.
+- ``CHAOSHIRE_AUDIT_HISTORY_DURABLE`` (default 0) — an honest declaration,
+  not a persistence implementation. Render free still cannot keep a disk.
+- ``scripts/probe_xff.py``.
+
+### Changed
+
+- Version ``0.23.1`` → ``0.23.2``; ``chaoshire/build_info.py`` reports 201
+  automated tests and 98.4% package coverage.
+- Roadmap no longer claims tags that do not exist: tagged releases are
+  v0.20.0, v0.20.1, v0.21.0 and v0.23.0. v0.22.0 and v0.23.1 remain untagged.
+
 ## [0.23.1] - 2026-09-20
 
 The deployment's write posture is now verifiable from the running service
