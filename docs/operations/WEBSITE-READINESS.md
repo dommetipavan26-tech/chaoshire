@@ -46,16 +46,25 @@ A merge does not prove a deploy on the hand-managed service, so [`.github/workfl
 - the HTTP→HTTPS redirect target, HSTS of at least one year, CSP without `unsafe-inline`, and the framing/sniffing/referrer headers;
 - that analytics rejects a non-allowlisted page (422, not counted) and hides counts without the operator key (401);
 - every link on the home, privacy, and terms pages;
-- in Chromium, at 1440/390/320px: no horizontal overflow, all three model choices visible, no analytics beacon before a choice, and correct Reject/Allow behaviour (the beacon is intercepted, so production counts are untouched);
+- in Chromium, at 1440/390/320px: no horizontal overflow while clicking through every product tab (Home to Guided Demo), all three model choices visible, no analytics beacon before a choice, and correct Reject/Allow behaviour (the beacon is intercepted, so production counts are untouched);
 - warm server timings and real-browser page speed, then a second job times a cold start after 17 idle minutes (Render's free instance spins down after 15).
 
 A site still serving an older build is reported as a warning, not a failure. Results appear as annotations and job summaries, and screenshots are kept as the `live-site-evidence` artifact. The same checks run locally with `python scripts/check_live_site.py --base-url https://chaoshire.onrender.com`.
 
 ## Live verification snapshot — 24 September 2026
 
-The source changes **have not reached** the existing Render deployment. The live `/api/ready` returned `{"status":"ready","database":"available"}`, but live `/api/meta` still advertised the previous release's figures (**270 / 94.7%**) rather than this checkout's (**281 / 94.8%**). Requests to the live `/privacy`, `/terms`, `/robots.txt`, `/sitemap.xml`, and `/social-preview.png` returned `{"detail":"Not Found"}`; the home page still showed the older CTA and proof figures. Locally, all five new routes return 200 with the expected content types.
+[Live site checks run #1](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/35996308542) (the push after PR #38) passed **every** check against the hand-deployed Render service, which reported this release's build facts (v0.24.0, 281 tests, 94.8%, stylesheet digest matching that commit):
 
-Direct `curl` requests to the public HTTPS host failed a TLS handshake **from this sandbox**; an independent web fetcher could reach the live API. That sandbox-specific error does **not** establish a live TLS fault, but it prevents independent verification here of HTTP→HTTPS redirects, HSTS response headers, and production timing. The owner must check these from another network after deploying. No live analytics consent, external links, or legal contact channel was verified. The local suite passed **281 tests / 94.8% coverage**, the opt-in browser suite passed **4 tests**, and 21 local axe audits reported no violations (8 had clipped elements needing manual contrast review). A repeat five-run local speed sample measured 33 ms desktop / 30 ms 390px load events; these are not production figures.
+- all 11 routes returned the expected status and content type; privacy, terms and 404 pages carried their titles; robots.txt and sitemap.xml advertised the `https://chaoshire.onrender.com` origin; the social card is a 1200×630 PNG declared as `og:image`;
+- `http://chaoshire.onrender.com/privacy` redirected with 301 to the HTTPS origin, HTTPS `/api/ready` returned 200, HSTS was `max-age=31536000`, and the CSP (no `unsafe-inline`, `frame-ancestors 'none'`), `x-frame-options`, `nosniff` and `no-referrer` headers were all in place;
+- the analytics gate rejected a non-allowlisted page with 422 (nothing counted) and hid counts without the operator key (401);
+- all 14 checked links resolved (9 on this site, the rest external) across `/`, `/privacy`, and `/terms`;
+- in Chromium at 1440/390/320px the home page and `/privacy` showed no horizontal overflow and all three model choices were visible; no analytics beacon fired before a choice, and Reject/Allow behaved as specified (the beacon is intercepted, so production counts were untouched);
+- warm server medians were 206 ms to first byte on `/` (5 warm requests), and real-browser medians of three fresh visits were 335 ms TTFB / 724 ms load at 1440px and 226 ms TTFB / 450 ms load at 390px, with 16.8 KB of HTML on the wire. These are warm GitHub-runner measurements, not Indian field Core Web Vitals, a mobile-network benchmark or a Lighthouse score.
+
+The cold-start job did **not** capture a real cold start: the free instance stayed awake through the 17 idle minutes and answered the "cold" `GET /` in 0.33 s (the warm control answered in 0.28 s). Run **Actions → Live site checks → Run workflow** with **measure cold start** after Render logs a spin-down if a boot figure is needed; do not quote the 0.33 s as a cold start.
+
+The three layout fixes in this revision (score-card text column, phone-width Upload cards, narrow grid cards) landed after run #1 and will be covered by the next live run after the following deploy. Against this revision locally the full suite still passes 281 tests / 94.8% coverage, the opt-in browser suite passes five tests — including a new sweep that opens every tab at 1440/1024/390/320px and fails on sideways scrolling or content escaping a card — and 21 local axe audits report no violations (6 pages keep clipped elements that need manual contrast review).
 
 ## Owner checks before the live rollout
 

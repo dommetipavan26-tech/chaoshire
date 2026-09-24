@@ -8,8 +8,9 @@ what visitors get. This script checks the running site itself:
 * the HTTP -> HTTPS redirect, HSTS, and the other security headers;
 * the analytics endpoints reject bad input and keep counts operator-only;
 * every link on the public pages resolves;
-* in Chromium: no horizontal overflow at 1440/390/320px, all three model
-  choices visible, no analytics beacon before consent, Reject and Allow behave;
+* in Chromium: no horizontal overflow on any tab (clicked through in turn) at
+  1440/390/320px, all three model choices visible, no analytics beacon before
+  consent, Reject and Allow behave;
 * warm server response times and real-browser page speed.
 
     python -m pip install -r requirements-browser.txt
@@ -68,6 +69,28 @@ ROUTES: list[tuple[str, int, str, dict[str, str]]] = [
     ("/api/this-does-not-exist", 404, "application/json", {}),
 ]
 LINK_PAGES = ("/", "/privacy", "/terms")
+
+#: Every product tab, with the JS predicate that is true once its content has
+#: finished rendering. Five tabs fetch their payload inside ``showTab``, so the
+#: layout check has to wait for the fetch instead of racing the loader. Kept in
+#: sync with ``tests/browser/test_layout.py``, which runs the same sweep (plus a
+#: card-escape probe) locally on every browser run.
+TAB_READY: dict[str, str] = {
+    "welcome": "() => !!document.querySelector('#tab-welcome .hero')",
+    "overview": "() => !!document.querySelector('#tab-overview .grid')",
+    "chaos": "() => !!document.querySelector('#tab-chaos .card')",
+    "filtered": "() => !!document.querySelector('#tab-filtered .grid')",
+    "mitigations": "() => !!document.querySelector('#tab-mitigations .mit')",
+    "appeals": "() => !!document.querySelector('#tab-appeals .appeal-lookup')",
+    "upload": "() => !!document.querySelector('#tab-upload #schema')",
+    "history": (
+        "() => {const s = document.querySelector('#tab-history');"
+        "return !!s.querySelector('.history-overflow') || s.textContent.includes('No saved audits yet');}"
+    ),
+    "compare": "() => !!document.querySelector('#cmpout .grid')",
+    "agent": "() => !!document.querySelector('#tab-agent .agent-head')",
+    "demo": "() => !!document.querySelector('#tab-demo .demo-steps')",
+}
 
 
 @dataclass
@@ -437,19 +460,28 @@ def check_browser(base: str, insecure: bool, results: Results) -> None:
                     "() => document.querySelectorAll('#modelsel button[data-m]').length >= 3",
                     timeout=30_000,
                 )
-                home_overflow = overflow(page)
                 choices = page.locator("#modelsel button[data-m]")
                 visible = sum(1 for i in range(choices.count()) if choices.nth(i).is_visible())
                 banner = page.get_by_role("button", name="Allow analytics").is_visible()
                 page.screenshot(path=str(EVIDENCE_DIR / f"home-{width}.png"), full_page=True)
+                # Click through every product tab: all three fixed layout bugs hid
+                # in tab content (score card, schema block, narrow grid cards), so
+                # checking only the home page would not have seen them.
+                tab_overflow: dict[str, int] = {}
+                for tab, ready in TAB_READY.items():
+                    page.locator(f'#tabs button[data-t="{tab}"]').click()
+                    page.wait_for_function(ready, timeout=60_000)
+                    tab_overflow[tab] = overflow(page)
+                worst_tab, worst_overflow = max(tab_overflow.items(), key=lambda item: item[1])
                 load(page, "/privacy")
                 legal_overflow = overflow(page)
                 page.screenshot(path=str(EVIDENCE_DIR / f"privacy-{width}.png"), full_page=True)
                 page.context.close()
                 results.check(
                     "Layout",
-                    home_overflow <= 0 and legal_overflow <= 0 and visible == 3,
-                    f"{width}px: horizontal overflow {max(home_overflow, 0)}px on home, "
+                    worst_overflow <= 0 and legal_overflow <= 0 and visible == 3,
+                    f"{width}px: horizontal overflow {max(worst_overflow, 0)}px on the "
+                    f"{worst_tab} tab (worst of {len(tab_overflow)} tabs), "
                     f"{max(legal_overflow, 0)}px on privacy; {visible}/3 model choices visible",
                 )
                 results.check(

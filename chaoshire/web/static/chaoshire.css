@@ -22,8 +22,13 @@ nav button.on{background:var(--card2);color:var(--txt)}
 main{padding:26px 28px;max-width:1180px;margin:0 auto}
 .tab-heading{font-size:22px;margin:4px 0 18px}
 .grid{display:grid;gap:14px}
-.g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+/* Auto-fit tracks use min() so the floor never exceeds a narrow (or nested)
+   container, and grid children get min-width:0 so long unbreakable content
+   (the upload <pre>, code paths) scrolls/wraps inside its card instead of
+   stretching the track — the safe minmax(0,…) pattern. */
+.g4{grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
+.grid>*{min-width:0}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
 .card h3{font-size:15px;margin-bottom:10px}
 .stat-num{font-size:28px;font-weight:700}
@@ -55,6 +60,7 @@ label{font-size:12.5px;color:var(--dim);display:block;margin:10px 0 5px}
 .mit input{width:auto;margin-top:4px}
 .kicker{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin:22px 0 10px}
 .err{background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.4);color:var(--rose);padding:10px 14px;border-radius:10px;font-size:13px;margin-top:10px}
+code{overflow-wrap:anywhere}
 pre{background:var(--card2);padding:12px;border-radius:10px;font-size:12px;overflow:auto;border:1px solid var(--line)}
 footer{padding:24px 28px;color:var(--dim);font-size:12px;border-top:1px solid var(--line)}
 .hidden{display:none}
@@ -94,8 +100,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .lbl-auto{width:auto;flex:1}
 .lbl-wide{width:170px}
 .lbl-auto-nw{width:auto}
-.flex-card{display:flex;align-items:center;gap:14px}
-.flex-col{flex:1}
+/* The score card wraps the text column under the ring when the 120px ring and
+   the 210px text column cannot share one line, instead of spilling past the
+   card; min-width:0 keeps the column shrinkable inside narrow tracks. */
+.flex-card{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.flex-col{flex:1 1 210px;min-width:0}
 .flex-row{display:flex;gap:8px;flex-wrap:wrap}
 .flex-row-between{display:flex;justify-content:space-between;gap:10px;align-items:start}
 .flex-row-center{display:flex;justify-content:space-between;align-items:center}
@@ -131,7 +140,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .nowrap{white-space:nowrap}
 .overflow-card{overflow:auto}
 .upload-privacy{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
-.upload-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px}
+.upload-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:0 12px}
 .download-actions{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
 .appeal-lookup{display:flex;gap:8px}
 .appeal-bar{margin:10px 0}
@@ -143,9 +152,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .history-overflow{overflow:auto;margin-top:12px}
 .history-detail{margin-top:14px}
 .history-detail-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.history-detail-grid{display:grid;grid-template-columns:repeat(4,1fr);margin-top:14px}
+.history-detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:14px}
 .history-detail-note{margin-top:12px}
-.gate-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px}
+.gate-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:0 12px}
 .details-evidence{margin-top:10px}
 .details-evidence summary{cursor:pointer;color:var(--blue)}
 .details-evidence-inner{overflow:auto;margin-top:7px}
@@ -164,7 +173,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .review-title{margin-top:9px}
 
 @media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:28px}.proof{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){header,nav,main,footer{padding-left:14px;padding-right:14px}.g2{grid-template-columns:1fr}.modelsel{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.mbtn{min-width:0;min-height:44px;padding:10px 8px;overflow-wrap:anywhere}.mbtn:last-child{grid-column:1/-1}nav{flex-wrap:nowrap;overflow-x:auto}nav button{white-space:nowrap;min-height:44px}.card{padding:14px}.stat-num{font-size:24px}.btn{min-height:44px}table{min-width:620px}.hero h2{font-size:38px;letter-spacing:-1px}.proof{grid-template-columns:1fr 1fr}.hero-panel{padding:16px}}
+@media(max-width:600px){header,nav,main,footer{padding-left:14px;padding-right:14px}.g2{grid-template-columns:minmax(0,1fr)}.modelsel{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.mbtn{min-width:0;min-height:44px;padding:10px 8px;overflow-wrap:anywhere}.mbtn:last-child{grid-column:1/-1}nav{flex-wrap:nowrap;overflow-x:auto}nav button{white-space:nowrap;min-height:44px}.card{padding:14px}.stat-num{font-size:24px}.btn{min-height:44px}table{min-width:620px}.hero h2{font-size:38px;letter-spacing:-1px}.proof{grid-template-columns:1fr 1fr}.hero-panel{padding:16px}}
 /* Public pages, consent preferences, and validated demo forms. */
 [hidden]{display:none!important}
 .brand-link{color:var(--txt);font-size:22px;font-weight:700;letter-spacing:.3px;text-decoration:none}
