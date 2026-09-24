@@ -1,0 +1,3160 @@
+diff --git a/.dockerignore b/.dockerignore
+index 4875919..ee57230 100644
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -3,15 +3,19 @@
+ .gitignore
+ .github/
+ 
+-# Local environments and caches
++# Local secrets, environments, caches, and test outputs
++.env
++.env.*
+ .venv/
+ venv/
+ __pycache__/
+ *.py[cod]
+ .pytest_cache/
++.mypy_cache/
++.ruff_cache/
+ .coverage
++coverage.json
+ htmlcov/
+-.ruff_cache/
+ 
+ # Local databases and generated artifacts
+ data/
+@@ -23,7 +27,6 @@ release/
+ 
+ # Documentation sources not needed at runtime
+ docs/
+-browser_tests/
+ examples/
+ scripts/
+ tests/
+diff --git a/.env.example b/.env.example
+index ee1efae..d374d4f 100644
+--- a/.env.example
++++ b/.env.example
+@@ -3,6 +3,14 @@
+ # still refuses to publish anonymous uploads.
+ PORT=8000
+ 
++# Canonical absolute URL for SEO/sitemap and HTTPS redirects. Local HTTP is
++# allowed; Render automatically enables HTTPS enforcement, and the Blueprint
++# sets these to 1. Only enable forwarded-proto trust behind a proxy that
++# overwrites (rather than relays client-supplied) X-Forwarded-Proto.
++CHAOSHIRE_PUBLIC_ORIGIN=https://chaoshire.onrender.com
++CHAOSHIRE_FORCE_HTTPS=0
++CHAOSHIRE_TRUST_FORWARDED_PROTO=0
++
+ # Aggregate audit history. Raw uploaded CSV rows are never persisted.
+ # Render's free filesystem is ephemeral across redeploys.
+ CHAOSHIRE_DB_PATH=data/chaoshire.db
+diff --git a/.github/workflows/browser.yml b/.github/workflows/browser.yml
+index 0cdc2bc..63b6aa9 100644
+--- a/.github/workflows/browser.yml
++++ b/.github/workflows/browser.yml
+@@ -31,7 +31,7 @@ jobs:
+         # summary is re-emitted through ::error:: to reach the PR page too.
+         run: |
+           set +e
+-          output="$(python -m pytest browser_tests -q 2>&1)"
++          output="$(python -m pytest tests/browser -q 2>&1)"
+           code=$?
+           printf '%s\n' "$output"
+           if [ "$code" -ne 0 ]; then
+diff --git a/.gitignore b/.gitignore
+index 0320405..70e5d6e 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,7 +1,9 @@
+-# Python
++# Python and development tools
+ __pycache__/
+ *.py[cod]
+ .pytest_cache/
++.mypy_cache/
++.ruff_cache/
+ .coverage
+ coverage.json
+ htmlcov/
+@@ -26,7 +28,8 @@ data/
+ *.db-wal
+ reports/generated/
+ 
+-# Packaging
++# Packaging and generated release bundles
+ build/
+ dist/
++release/
+ *.egg-info/
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 9c8c6ef..a081159 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -8,7 +8,20 @@ Thank you for helping improve responsible testing of automated decisions.
+ 2. Create a focused branch: `git checkout -b feature/short-description`.
+ 3. Create and activate a virtual environment.
+ 4. Install development dependencies: `python -m pip install -r requirements-dev.txt`.
+-5. Run `python -m ruff check .` and `python -m pytest -q` before opening a pull request; the Quality workflow enforces both.
++5. Run the same default quality checks as CI before opening a pull request:
++
++   ```bash
++   python -m ruff check .
++   python -m ruff format --check .
++   python -m mypy
++   python -m pytest --cov=chaoshire --cov-report=json -q
++   python scripts/check_build_info.py --coverage-json coverage.json
++   python -m chaoshire train --check
++   ```
++
++The Playwright tests require optional browser dependencies and run separately;
++see the [documentation index](docs/README.md) for their commands and the
++[repository layout](README.md#repository-layout) for where each area lives.
+ 
+ ## Pull-request expectations
+ 
+diff --git a/Dockerfile b/Dockerfile
+index b367195..3821c7e 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -9,7 +9,8 @@ WORKDIR /app
+ COPY requirements.txt .
+ RUN pip install --no-cache-dir -r requirements.txt
+ 
+-COPY backend.py index.html ./
++# The packaged web shell lives under chaoshire/web, not at the repository root.
++COPY backend.py ./
+ COPY chaoshire ./chaoshire
+ 
+ RUN useradd --create-home --uid 10001 chaoshire \
+diff --git a/README.md b/README.md
+index b328c34..06193b7 100644
+--- a/README.md
++++ b/README.md
+@@ -2,11 +2,11 @@
+ 
+ ### Chaos testing for fair hiring AI
+ 
+-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [scikit-learn example](docs/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence](docs/PORTFOLIO-EVIDENCE.md) · [Case study](docs/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/ARCHITECTURE.svg) · [Methodology](docs/METHODOLOGY.md) · [Platform](docs/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/MONITORING.md) · [Roadmap](PROJECT-ROADMAP.md)
++[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Privacy Policy](chaoshire/web/privacy.html) · [Terms](chaoshire/web/terms.html) · [scikit-learn example](docs/engineering/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence](docs/portfolio/PORTFOLIO-EVIDENCE.md) · [Case study](docs/portfolio/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/engineering/ARCHITECTURE.svg) · [Methodology](docs/engineering/METHODOLOGY.md) · [Platform](docs/portfolio/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/operations/MONITORING.md) · [Roadmap](docs/planning/PROJECT-ROADMAP.md)
+ 
+ > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
+ 
+-![ChaosHire recruiter landing page](docs/assets/landing-desktop.png)
++![ChaosHire landing page showing LegacyCorp, MeritFirst, and TalentFit (trained) model choices](docs/portfolio/assets/landing-desktop.png)
+ 
+ ChaosHire is an open-source fairness-auditing prototype for hiring models. It combines conventional group-fairness metrics with controlled counterfactual experiments, candidate-level explanations, mitigation simulations, and an appeals workflow.
+ 
+@@ -28,20 +28,28 @@ Each experiment produces a `PASS`, `WARN`, or `FAIL`. Together they form a 0–1
+ 
+ On the shipped fixtures the privilege-keyword injection verdict is labelled
+ **fixture-limited** (in the API payload, next to the badge in the Chaos Lab, and
+-in `docs/CONTINUOUS-FAIRNESS.md`): those résumés cannot clear the decision
++in `docs/engineering/CONTINUOUS-FAIRNESS.md`): those résumés cannot clear the decision
+ threshold at the fixtures' prestige weight, so the PASS records how much
+ headroom exists rather than general resistance to résumé gaming. The label
+ changes no verdict and no resilience point.
+ 
+ ## Demonstration results
+ 
+-The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and three transparent reference models:
++The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and **three selectable model variants**. `legacy` and `fair` are hand-authored scoring fixtures; `trained` is fitted with scikit-learn at build time and loaded from a pinned artifact at runtime (no scikit-learn runtime dependency).
+ 
+-| Reference model | Purpose | Fairness risk score | Chaos resilience |
++| Model (API/CLI ID) | Purpose | Fairness risk score | Chaos resilience |
+ |---|---|---:|---:|
+-| **LegacyCorp Screen v1** | Intentionally biased test fixture | **32 / F** | **30 / 100** |
+-| **MeritFirst v2** | Merit-based control fixture | **84 / B** | **100 / 100** |
+-| **TalentFit v3** | Trained-on-merit fixture with a biased proxy feature | **66 / C** | **100 / 100** |
++| **LegacyCorp Screen v1** (`legacy`) | Intentionally biased test fixture | **32 / F** | **30 / 100** |
++| **MeritFirst v2** (`fair`) | Merit-based control fixture | **84 / B** | **100 / 100** |
++| **TalentFit v3 (trained)** (`trained`) | Fitted merit features with proxy signals retained | **66 / C** | **100 / 100** |
++
++All three appear in the dashboard's model selector. With the app running locally, audit each variant by its ID:
++
++```bash
++curl 'http://localhost:8000/api/audit?model=legacy&dataset=demo'
++curl 'http://localhost:8000/api/audit?model=fair&dataset=demo'
++curl 'http://localhost:8000/api/audit?model=trained&dataset=demo'
++```
+ 
+ The LegacyCorp fixture produces:
+ 
+@@ -129,7 +137,7 @@ than left for a reader to infer:
+ 
+ ## Architecture
+ 
+-[View the architecture diagram](docs/ARCHITECTURE.svg).
++[View the architecture diagram](docs/engineering/ARCHITECTURE.svg).
+ 
+ ```text
+ Browser (vanilla HTML/CSS/JS)
+@@ -149,34 +157,42 @@ Browser (vanilla HTML/CSS/JS)
+        NumPy + Pandas
+ ```
+ 
+-### Source layout
++### Repository layout
+ 
+ ```text
+-backend.py                 # stable Render/uvicorn compatibility entry point
+-chaoshire/
+-├── app.py                 # FastAPI routes and OpenAPI organization
+-├── chaos.py               # controlled counterfactual experiments
+-├── config.py              # thresholds and deterministic demo settings
+-├── data.py                # synthetic fixture generation
+-├── metrics.py             # fairness metrics and risk-score formula
+-├── models.py              # feature transformations and scoring models
+-├── schemas.py             # validated API request contracts
+-├── services.py            # product workflows and orchestration
+-├── repository.py          # SQLite aggregate audit-history repository
+-├── quality.py             # model comparison and fairness release policies
+-├── reporting.py           # self-contained HTML audit reports
+-├── pdf_reporting.py       # dependency-free native PDF summaries
+-├── agent.py               # deterministic evidence-grounded review agent
+-├── adapters.py            # pluggable decision-source contract
+-├── evidence.py            # canonical SHA-256 evidence bundles
+-├── platform.py            # security, access control, and operations
+-├── demo.py                # stable guided portfolio walkthrough
+-├── cli.py                 # gate, review, evidence, and report commands
+-└── state.py               # explicit temporary raw-upload state
+-tests/                     # API, metrics, workflows, statistics, gates, and persistence
++backend.py                 # stable uvicorn backend:app compatibility entry point
++chaoshire/                 # importable application; existing module paths stay stable
++├── app.py, schemas.py     # HTTP routes and request contracts
++├── services.py, demo.py   # workflows and guided demonstration
++├── metrics.py, chaos.py   # fairness calculations and experiments
++├── models.py, data.py     # synthetic reference models and fixtures
++├── repository*.py         # SQLite and optional PostgreSQL persistence
++├── artifacts/             # pinned trained-model fixture
++└── web/                   # packaged browser shell (served at /)
++    ├── index.html
++    └── static/            # stylesheet and PWA icons
++tests/
++├── api/                   # endpoints, uploads, and access controls
++├── core/                  # metrics, models, and fairness workflows
++├── infrastructure/        # repositories, connectors, and build checks
++├── web/                   # HTML/CSS, CSP, and escaping
++└── browser/               # opt-in Playwright suite
++docs/
++├── engineering/           # architecture, methodology, integration
++├── operations/            # persistence, monitoring, releases
++├── portfolio/             # case study, evidence, and screenshots
++└── planning/              # roadmap and historical task log
++scripts/                   # CI checks, icon/screenshot generators, live probes
++examples/                  # runnable decision-adapter example
++.github/workflows/         # quality, browser, fairness, security, release CI
+ ```
+ 
+-`backend.py` remains intentionally small so existing deployments can continue using `uvicorn backend:app`. Persistence, authentication, and configurable schema mapping are tracked for later releases.
++See the [documentation index](docs/README.md) for individual files and maintenance
++commands. `backend.py`, dependency manifests, `Dockerfile`, `render.yaml`, and the
++standard community files remain at the root for existing deployment and tooling
++conventions. The Python modules remain at their public `chaoshire.*` import paths;
++the web assets are resolved relative to the package rather than the working
++directory.
+ 
+ ## Quick start
+ 
+@@ -204,16 +220,25 @@ docker build -t chaoshire .
+ docker run --rm -p 8000:8000 chaoshire
+ ```
+ 
+-Aggregate audit history defaults to `data/chaoshire.db`. Override it with `CHAOSHIRE_DB_PATH`; see [Persistence & privacy](docs/PERSISTENCE.md). Render's free filesystem is ephemeral, so the public demo's history is not durable across redeploys.
++Aggregate audit history defaults to `data/chaoshire.db`. Override it with `CHAOSHIRE_DB_PATH`; see [Persistence & privacy](docs/operations/PERSISTENCE.md). Render's free filesystem is ephemeral, so the public demo's history is not durable across redeploys.
++
++The website has privacy and terms pages, SEO and social-sharing metadata, a small-screen layout, and one primary action: **Start the 3-minute demo**. It uses no tracking cookies. Anonymous, first-party page-view counts are sent only after an explicit analytics opt-in and are available only to a server-side operator; they reset on restart. No operator key is embedded in the browser. The hand-managed live deployment may lag this source revision until the owner deploys it; see [website readiness and page-speed checks](docs/operations/WEBSITE-READINESS.md) for verification, limitations, and deployment steps.
+ 
+ ### Run tests
+ 
+ ```bash
+ python -m pip install -r requirements-dev.txt
+-python -m pytest -q
++python -m pytest -q               # API, core, infrastructure, and web tests
+ ```
+ 
+-GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.24.0 baseline contains **270 tests with 94.7% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
++The optional Playwright suite lives in `tests/browser/`; its install and run
++commands are in the [documentation index](docs/README.md). GitHub Actions runs
++linting, type checking, the trained-model drift check and the default test suite
++on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
++quality gate requires at least 90% package coverage; the **current source
++baseline**, measured locally, contains **281 tests with 94.8% package coverage**
++(the configured source set excludes the synthetic fixture module
++`chaoshire/data.py`). The tagged release and live site may lag this revision.
+ 
+ `chaoshire/build_info.py` is the single source of truth for every number the
+ landing page and this README quote. Version, model count, experiment count and
+@@ -221,8 +246,8 @@ fixture size are derived from the running package at import time, so they cannot
+ drift. The test count and coverage figure cannot be derived that way, so
+ `scripts/check_build_info.py` re-derives both from a real pytest run and fails
+ the build if `chaoshire/build_info.py` disagrees. `GET /api/meta` serves the
+-result as `build`, and `index.html` renders that payload instead of hardcoding a
+-version string — the failure mode that once left the landing page advertising
++result as `build`, and `chaoshire/web/index.html` renders that payload instead
++of hardcoding a version string — the failure mode that once left the landing page advertising
+ v0.21.0 while the package said v0.22.0.
+ 
+ ### Audit scikit-learn predictions
+@@ -234,7 +259,7 @@ python -m pip install -r requirements-examples.txt
+ python -m examples.sklearn_decision_adapter
+ ```
+ 
+-See the [scikit-learn integration guide](docs/SCIKIT-LEARN-INTEGRATION.md) for the data contract, adaptation steps, and responsible-use limits.
++See the [scikit-learn integration guide](docs/engineering/SCIKIT-LEARN-INTEGRATION.md) for the data contract, adaptation steps, and responsible-use limits.
+ 
+ ### Continuous fairness commands
+ 
+@@ -249,12 +274,17 @@ python -m chaoshire report --model legacy --output chaoshire-report.html
+ # native PDF summary
+ python -m chaoshire report --model legacy --format pdf --output chaoshire-report.pdf
+ 
+-# transparent agent review and tamper-evident evidence bundle
++# deterministic fairness review and tamper-evident evidence bundle
+ python -m chaoshire review --model legacy
+ python -m chaoshire evidence --model legacy --output chaoshire-evidence.json
+ ```
+ 
+-See [Continuous fairness engineering](docs/CONTINUOUS-FAIRNESS.md) for the test contract, experiment fingerprints, evidence format, comparison API, and CI policy.
++The gate example compares `legacy` with `fair`; it is not the full model list.
++Use `--candidate trained` to evaluate the third variant (it may be blocked by
++the example thresholds). The `report`, `review`, and `evidence` commands accept
++`--model legacy`, `--model fair`, or `--model trained`.
++
++See [Continuous fairness engineering](docs/engineering/CONTINUOUS-FAIRNESS.md) for the test contract, experiment fingerprints, evidence format, comparison API, and CI policy.
+ 
+ ## Audit your own decisions
+ 
+@@ -287,7 +317,7 @@ The original schema remains backward-compatible. Download a compatible synthetic
+ 2. Open **Chaos Lab** and run the suite; explain the 16.9% gender-swap flip rate.
+ 3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
+ 4. Apply both mitigations and compare **32/F with 80/B**. Note the panel explaining why per-group threshold "calibration" is *not* one of them, with the statute cited.
+-5. Switch to **MeritFirst v2** (**84/B**, resilience 100/100) to demonstrate that the same tests can certify a cleaner model.
++5. Switch to **MeritFirst v2** (**84/B**, resilience 100/100) to show a cleaner synthetic fixture under the same tests; these results are not a certification.
+ 6. Switch to **TalentFit v3** (**66/C**, resilience 100/100, disparate impact 0.78): it passes every counterfactual ChaosHire can throw at it and still fails the four-fifths rule. This is the step that shows why resilience alone is not a fairness result.
+ 7. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
+ 
+@@ -315,11 +345,12 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
+ - [x] Named SQLite-backed aggregate audit history
+ - [x] Model-version comparison and regression gates for CI/CD
+ - [x] Self-contained HTML and native PDF report export
+-- [x] Evidence-grounded fairness review agent and verified evidence bundles
++- [x] Deterministic evidence-grounded fairness review and verified evidence bundles
+ - [x] Pluggable decision-source adapters
+ - [x] Optional API-key protection, platform safeguards, metrics, PWA, and guided demo
+-- [ ] User accounts, role-based access, and durable managed storage
+-- [ ] Remote REST scoring connector and SHAP explanations
++- [x] Authenticated remote REST connector and SHAP-compatible explanations
++- [x] Optional PostgreSQL repository adapter (SQLite remains the default)
++- [ ] User accounts, role-based access, and a configured durable deployment
+ 
+ ## Responsible use
+ 
+diff --git a/SECURITY.md b/SECURITY.md
+index 3856e3d..3bad24d 100644
+--- a/SECURITY.md
++++ b/SECURITY.md
+@@ -45,23 +45,23 @@ on** (the public demo). Private deployments set
+ for the current request so the left-most-XFF rule and the instance-wide
+ `write:_instance` backstop can be proved against the live proxy, not just read
+ as a config flag. `scripts/probe_xff.py` automates that probe.
+-`tests/test_write_access.py` covers all of the above.
++`tests/api/test_write_access.py` covers all of the above.
+ 
+ ## Content security
+ 
+ - Responses carry a per-request **nonce-based Content-Security-Policy**:
+-  `default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'
+-  'nonce-…'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';
+-  base-uri 'self'; form-action 'self'`. There is no `script-src 'unsafe-inline'`
+-  and the nonce is regenerated per request, so a leaked page cannot be replayed.
+-- `index.html` contains exactly one `<script>` tag, carries no inline event
++  `default-src 'self'; style-src 'self'; script-src 'self' 'nonce-…';
++  img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';
++  base-uri 'self'; form-action 'self'`. There is no `unsafe-inline` in script- or
++  style-src. The nonce is regenerated per request so a leaked page cannot be replayed.
++- `chaoshire/web/index.html` contains exactly one `<script>` tag, carries no inline event
+   handlers, and builds no HTML by unescaped string concatenation. Its `esc()`
+   helper escapes `& < > " '` and the backtick. Every interpolation into an
+   attribute that can break out (`href`, `src`, `value`, `title`, `alt`,
+   `placeholder`, `id`, `for`, `name`, `data-*`) goes through `esc()` or
+   `encodeURIComponent()`; the remaining `class`/`style`/`aria-*` interpolations
+   are a frozen, reviewed presentational allowlist.
+-  `tests/test_html_escaping.py` asserts the invariant mechanically and includes a
++  `tests/web/test_html_escaping.py` asserts the invariant mechanically and includes a
+   regression test that uploads a hostile group value containing
+   `" onerror="…` and confirms it renders as inert text.
+ - Server-rendered HTML and PDF reports escape through `html.escape(quote=True)`
+@@ -72,13 +72,21 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
+   exceptions routinely embed the request URL, proxy configuration or a credential
+   fragment, and pandas parser messages can quote buffer contents, so the full text
+   is written to the server log instead, where an operator can still read it.
+-  `tests/test_security_connectors.py` asserts that a connector exception carrying
++  `tests/infrastructure/test_security_connectors.py` asserts that a connector exception carrying
+   `https://operator:sk-live-SUPERSECRET@…?token=abc123` produces a body containing
+   none of those fragments while the log contains all of them.
+-- `style-src 'unsafe-inline'` is still permitted. Inline `style` attributes are
+-  used for layout; CSS injection is not script execution, and removing it would
+-  require moving the whole stylesheet out of line for no security gain. This is a
+-  deliberate, documented trade-off rather than an oversight.
++- Styles live in a same-origin, content-versioned stylesheet; dynamic values use
++  DOM CSSOM properties rather than static inline `style` attributes. The CSP
++  forbids `style-src 'unsafe-inline'`.
++- The operator API key and optional connector/webhook credentials remain in
++  server environment variables. They are never rendered into the frontend;
++  a regression test seeds a canary key and checks the public assets and meta API.
++- On Render, HTTPS is required (or explicitly enabled with
++  `CHAOSHIRE_FORCE_HTTPS=1`) and a secure response carries HSTS. The redirect
++  goes to a configured canonical HTTPS origin, never an untrusted Host header.
++  Trust `X-Forwarded-Proto` only behind a proxy that overwrites the header;
++  the public Render service is hand-managed, so verify its environment and
++  redirects independently of `render.yaml` before claiming a live rollout.
+ 
+ ## Fairness-specific controls
+ 
+@@ -91,7 +99,7 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
+   contrast, reachable only with `threshold_contrast_acknowledged: true`, reported
+   under its own `research_contrast` key, never merged into a mitigation result,
+   and accompanied by the statute, its text and a "not legal advice" notice in
+-  every response that mentions it. `tests/test_threshold_contrast.py`.
++  every response that mentions it. `tests/core/test_threshold_contrast.py`.
+ - **The fairness risk score is measured, not padded.**
+   `total = measured / available × 100`. Earlier versions added an unconditional
+   15 "transparency" points that were never measured and capped a perfect result
+@@ -99,7 +107,7 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
+   present) and 60 (not), and that switch is disclosed through `basis`,
+   `available_points`, `unmeasured_components` and `comparable_with_full_basis`
+   rather than hidden behind two identical-looking numbers.
+-  `tests/test_certificate_scale.py`.
++  `tests/core/test_certificate_scale.py`.
+ 
+ ## Static analysis
+ 
+@@ -148,7 +156,7 @@ recorded here because it is a deliberate design decision rather than an oversigh
+   The CLI still writes the whole report to
+   `reports/generated/protected-contrast.json` (`--out` overrides the path) and
+   prints only a static acknowledgement, which is the better channel for a
+-  machine-readable report regardless of the scanner; `tests/test_trained_model.py`
++  machine-readable report regardless of the scanner; `tests/core/test_trained_model.py`
+   enforces both halves. **Re-review this dismissal — and never rely on it — before
+   any deployment that handles real candidate data.**
+ 
+diff --git a/chaoshire/app.py b/chaoshire/app.py
+index fd0edd0..db29d23 100644
+--- a/chaoshire/app.py
++++ b/chaoshire/app.py
+@@ -7,7 +7,10 @@ from pathlib import Path
+ from typing import Annotated, Any
+ 
+ from fastapi import Depends, FastAPI, HTTPException, Query, Request
++from fastapi.exception_handlers import http_exception_handler
++from fastapi.middleware.gzip import GZipMiddleware
+ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
++from starlette.exceptions import HTTPException as StarletteHTTPException
+ 
+ from . import __version__
+ from .adapters import adapter_catalog, find_remote_adapter, remote_adapters_from_env
+@@ -40,6 +43,7 @@ from .platform import (
+     anonymous_writes_allowed,
+     audit_history_durable,
+     blueprint_drift,
++    client_key,
+     configured_api_key,
+     describe_client,
+     disclose_write_posture,
+@@ -66,6 +70,7 @@ from .schemas import (
+     FairnessGateRequest,
+     MitigationRequest,
+     ShapBatchRequest,
++    SitePageView,
+     UploadRequest,
+ )
+ from .services import (
+@@ -79,17 +84,20 @@ from .services import (
+     upload_decisions,
+     uploaded_audit,
+ )
++from .site import SITE_ANALYTICS, css_version, public_origin, site_html
+ 
+ #: Upstream failure detail is logged, never echoed into a response body.
+ logger = logging.getLogger(__name__)
+ 
+-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+-STATIC_DIR = Path(__file__).resolve().parent / "static"
++WEB_DIR = Path(__file__).resolve().parent / "web"
++STATIC_DIR = WEB_DIR / "static"
+ STATIC_CSS = STATIC_DIR / "chaoshire.css"
+-ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
++ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon-32.png")
++FAVICON = STATIC_DIR / "icons" / "favicon.ico"
++SOCIAL_PREVIEW = STATIC_DIR / "social-preview.png"
+ # Constant lookup table: request strings select an entry but never become part
+ # of a filesystem path, which keeps the icon route free of path-injection taint.
+-ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / name for name in ICON_FILES}
++ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / "icons" / name for name in ICON_FILES}
+ DATASETS = ("demo", "uploaded")
+ 
+ 
+@@ -182,9 +190,27 @@ app = FastAPI(
+     ),
+     lifespan=lifespan,
+ )
++# Compress the 55 KB HTML shell and JSON on mobile networks; tiny assets remain uncompressed.
++app.add_middleware(GZipMiddleware, minimum_size=10_000)
+ app.middleware("http")(platform_middleware)
+ 
+ 
++@app.exception_handler(StarletteHTTPException)
++async def browser_not_found(request: Request, error: StarletteHTTPException) -> Response:
++    """Friendly HTML for browser navigation; preserve JSON errors for API clients."""
++    if (
++        error.status_code == 404
++        and "text/html" in request.headers.get("accept", "")
++        and not request.url.path.startswith("/api/")
++    ):
++        return HTMLResponse(
++            site_html("404.html"),
++            status_code=404,
++            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"},
++        )
++    return await http_exception_handler(request, error)
++
++
+ @app.get("/api/health", tags=["system"])
+ def health() -> dict[str, str]:
+     return {"status": "ok", "service": "ChaosHire"}
+@@ -236,6 +262,12 @@ def operator_whoami(request: Request) -> dict:
+     return describe_client(request)
+ 
+ 
++@app.get("/api/ops/analytics", tags=["system"], dependencies=[Depends(require_operator)])
++def operator_analytics() -> dict[str, object]:
++    """Anonymous aggregate page counts; only an operator can read them."""
++    return SITE_ANALYTICS.snapshot()
++
++
+ @app.get("/manifest.webmanifest", include_in_schema=False)
+ def web_manifest() -> JSONResponse:
+     return JSONResponse(
+@@ -275,12 +307,14 @@ def web_manifest() -> JSONResponse:
+ 
+ 
+ @app.get("/static/chaoshire.css", include_in_schema=False)
+-def static_css() -> Response:
+-    """External stylesheet — served with a long cache so the CSP can drop 'unsafe-inline'."""
++def static_css(request: Request) -> Response:
++    """Cache the content-hashed CSS indefinitely, but revalidate unversioned URLs."""
++    version = request.query_params.get("v")
++    cache = "public, max-age=31536000, immutable" if version == css_version() else "no-cache"
+     return Response(
+         STATIC_CSS.read_bytes(),
+         media_type="text/css",
+-        headers={"Cache-Control": "public, max-age=86400"},
++        headers={"Cache-Control": cache},
+     )
+ 
+ 
+@@ -296,16 +330,35 @@ def app_icon(name: str) -> Response:
+     )
+ 
+ 
++@app.get("/favicon.ico", include_in_schema=False)
++def favicon() -> Response:
++    return Response(
++        FAVICON.read_bytes(),
++        media_type="image/x-icon",
++        headers={"Cache-Control": "public, max-age=86400"},
++    )
++
++
++@app.get("/social-preview.png", include_in_schema=False)
++def social_preview() -> Response:
++    return Response(
++        SOCIAL_PREVIEW.read_bytes(),
++        media_type="image/png",
++        headers={"Cache-Control": "public, max-age=86400"},
++    )
++
++
+ @app.get("/service-worker.js", include_in_schema=False)
+ def service_worker() -> Response:
+     # The cache name is derived from the package version so a release cannot ship
+     # a service worker that keeps serving the previous version's precached shell.
+     script = """const CACHE='__CACHE_NAME__';
+-self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/static/chaoshire.css','/icons/icon-192.png','/icons/icon-512.png'])),self.skipWaiting()])));
++const PAGES=['/','/privacy','/terms','/manifest.webmanifest','/static/chaoshire.css?v=__CSS_VERSION__','/icons/icon-192.png','/icons/icon-512.png','/icons/favicon-32.png'];
++self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(PAGES)),self.skipWaiting()])));
+ self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))),self.clients.claim()])));
+-self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request.url).pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))});""".replace(
+-        "__CACHE_NAME__", SERVICE_WORKER_CACHE
+-    )
++self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{if(r.ok&&PAGES.includes(u.pathname+u.search)){const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x))}return r}).catch(()=>caches.match(e.request)))});""".replace(
++        "__CACHE_NAME__", f"{SERVICE_WORKER_CACHE}-{css_version()}"
++    ).replace("__CSS_VERSION__", css_version())
+     return Response(
+         script,
+         media_type="application/javascript",
+@@ -315,13 +368,11 @@ self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request
+ 
+ @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+ def home(request: Request) -> HTMLResponse:
+-    html = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+-    nonce = getattr(request.state, "csp_nonce", "")
+-    if nonce:
+-        # The nonce-based CSP forbids 'unsafe-inline', so the single inline
+-        # script must carry the per-request nonce.
+-        html = html.replace("<script>", f'<script nonce="{nonce}">', 1)
+-    return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
++    # The per-request nonce allows the one inline application script under CSP.
++    return HTMLResponse(
++        content=site_html("index.html", request.state.csp_nonce),
++        headers={"Cache-Control": "no-cache"},
++    )
+ 
+ 
+ @app.head("/", include_in_schema=False)
+@@ -330,6 +381,54 @@ def home_head() -> Response:
+     return Response(status_code=200, headers={"Cache-Control": "no-cache"})
+ 
+ 
++@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
++def privacy_page() -> HTMLResponse:
++    return HTMLResponse(site_html("privacy.html"), headers={"Cache-Control": "no-cache"})
++
++
++@app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
++def terms_page() -> HTMLResponse:
++    return HTMLResponse(site_html("terms.html"), headers={"Cache-Control": "no-cache"})
++
++
++@app.head("/privacy", include_in_schema=False)
++@app.head("/terms", include_in_schema=False)
++def legal_head() -> Response:
++    return Response(status_code=200, headers={"Cache-Control": "no-cache"})
++
++
++@app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
++def robots_txt() -> PlainTextResponse:
++    return PlainTextResponse(
++        "User-agent: *\nDisallow: /api/\nDisallow: /docs\nDisallow: /openapi.json\n"
++        f"Sitemap: {public_origin()}/sitemap.xml\n",
++        headers={"Cache-Control": "public, max-age=3600"},
++    )
++
++
++@app.get("/sitemap.xml", include_in_schema=False)
++def sitemap_xml() -> Response:
++    origin = public_origin()
++    urls = "".join(f"<url><loc>{origin}{path}</loc></url>" for path in ("/", "/privacy", "/terms"))
++    return Response(
++        '<?xml version="1.0" encoding="UTF-8"?>\n'
++        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
++        f"{urls}</urlset>",
++        media_type="application/xml",
++        headers={"Cache-Control": "public, max-age=3600"},
++    )
++
++
++@app.post("/api/analytics/view", status_code=204, include_in_schema=False)
++def record_site_view(event: SitePageView, request: Request) -> Response:
++    """Count only consented, allowlisted page sections (no visitor payloads)."""
++    bucket = f"analytics:{client_key(request)}"
++    if not LIMITER.allow(bucket, 30):
++        raise HTTPException(status_code=429, detail="Analytics request rate limit exceeded.")
++    SITE_ANALYTICS.record(event.page)
++    return Response(status_code=204, headers={"Cache-Control": "no-store"})
++
++
+ @app.get("/api/meta", tags=["system"])
+ def meta() -> dict:
+     return {
+diff --git a/chaoshire/build_info.py b/chaoshire/build_info.py
+index e8a4f24..82e7bd8 100644
+--- a/chaoshire/build_info.py
++++ b/chaoshire/build_info.py
+@@ -21,10 +21,10 @@ from .models import MODEL_META
+ VERSION = __version__
+ 
+ #: Verified by ``scripts/check_build_info.py`` against a real pytest run.
+-AUTOMATED_TESTS = 270
++AUTOMATED_TESTS = 281
+ 
+ #: Verified by ``scripts/check_build_info.py`` against a real coverage report.
+-PACKAGE_COVERAGE = "94.7%"
++PACKAGE_COVERAGE = "94.8%"
+ 
+ #: Derived: cannot drift.
+ SERVICE_WORKER_CACHE = f"chaoshire-v{VERSION.replace('.', '')}"
+diff --git a/chaoshire/chaos.py b/chaoshire/chaos.py
+index 337a0a3..491c74a 100644
+--- a/chaoshire/chaos.py
++++ b/chaoshire/chaos.py
+@@ -254,7 +254,7 @@ def age_stress_experiment(coefficients: Coefficients, _limit: int) -> Observatio
+ 
+ 
+ #: The privilege-injection fixture deliberately cannot be gamed by the shipped
+-#: reference models (see docs/CONTINUOUS-FAIRNESS.md), so its verdict must carry
++#: reference models (see docs/engineering/CONTINUOUS-FAIRNESS.md), so its verdict must carry
+ #: this scope note wherever it is rendered. The label changes no verdict and no
+ #: resilience point — it states what the PASS can and cannot falsify.
+ INJECTION_FIXTURE_LIMIT = (
+@@ -263,7 +263,7 @@ INJECTION_FIXTURE_LIMIT = (
+     "prestige weight (the exact headroom is in the detail line). PASS means "
+     "'this fixture cannot be gamed this way', not 'the model is résumé-gaming "
+     "resistant'; a prestige-heavy variant of the fixture is regression-proven "
+-    "to FAIL (tests/test_verification_fixes.py)."
++    "to FAIL (tests/api/test_verification_fixes.py)."
+ )
+ 
+ CHAOS_TESTS = [
+diff --git a/chaoshire/platform.py b/chaoshire/platform.py
+index 862c9ad..b679af2 100644
+--- a/chaoshire/platform.py
++++ b/chaoshire/platform.py
+@@ -38,7 +38,9 @@ from typing import Any
+ from uuid import uuid4
+ 
+ from fastapi import Header, HTTPException, Request
+-from fastapi.responses import JSONResponse
++from fastapi.responses import JSONResponse, RedirectResponse
++
++from .site import public_origin
+ 
+ # A zero value disables the corresponding limiter. The defaults are non-zero so
+ # a deployment that forgets to configure anything is still bounded.
+@@ -56,7 +58,7 @@ ANONYMOUS_UPLOADS_PUBLISHED = False
+ # reviewer learns that scaling replicas silently doubles the budget.
+ LIMITER_SCOPE = "process-local-memory"
+ 
+-# Committed contract with ``render.yaml``. ``tests/test_write_access.py``
++# Committed contract with ``render.yaml``. ``tests/api/test_write_access.py``
+ # parses the Blueprint and fails if these diverge. Live drift (dashboard env
+ # vs this file) is reported at boot and on ``GET /api/ops/posture``.
+ BLUEPRINT_CONTRACT: dict[str, str] = {
+@@ -69,6 +71,9 @@ BLUEPRINT_CONTRACT: dict[str, str] = {
+     "CHAOSHIRE_DB_PATH": "/app/data/chaoshire.db",
+     "CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE": "2",
+     "CHAOSHIRE_AUDIT_HISTORY_DURABLE": "0",
++    "CHAOSHIRE_FORCE_HTTPS": "1",
++    "CHAOSHIRE_TRUST_FORWARDED_PROTO": "1",
++    "CHAOSHIRE_PUBLIC_ORIGIN": "https://chaoshire.onrender.com",
+ }
+ 
+ # Keys that describe budgets, key presence, and bucketing. Public ``/api/meta``
+@@ -108,6 +113,27 @@ def _bool_env(name: str, default: bool) -> bool:
+     return raw.lower() in TRUTHY
+ 
+ 
++def running_on_render() -> bool:
++    return bool(os.getenv("RENDER_SERVICE_ID") or os.getenv("RENDER_EXTERNAL_URL"))
++
++
++def force_https() -> bool:
++    """Require TLS on Render; leave local HTTP usable unless explicitly enabled."""
++    return _bool_env("CHAOSHIRE_FORCE_HTTPS", running_on_render())
++
++
++def trusted_forwarded_proto() -> bool:
++    """Only trust proxy scheme headers behind an operator-declared TLS terminator."""
++    return _bool_env("CHAOSHIRE_TRUST_FORWARDED_PROTO", running_on_render())
++
++
++def is_secure_request(request: Request) -> bool:
++    if request.url.scheme == "https":
++        return True
++    forwarded = request.headers.get("x-forwarded-proto", "").split(",", maxsplit=1)[0]
++    return trusted_forwarded_proto() and forwarded.strip().lower() == "https"
++
++
+ def configured_api_key() -> str | None:
+     """Return the trimmed ``CHAOSHIRE_API_KEY``, or ``None`` when unset."""
+     return (os.getenv("CHAOSHIRE_API_KEY") or "").strip() or None
+@@ -489,6 +515,17 @@ def require_operator(
+ 
+ async def platform_middleware(request: Request, call_next):
+     request_id = request.headers.get("x-request-id") or uuid4().hex[:16]
++    # Health probes run inside the Render network and need not be redirected.
++    health_probes = {"/api/health", "/api/live", "/api/ready"}
++    if force_https() and not is_secure_request(request) and request.url.path not in health_probes:
++        target = public_origin() + request.url.path
++        if request.url.query:
++            target += "?" + request.url.query
++        return RedirectResponse(
++            target,
++            status_code=308,
++            headers={"Cache-Control": "no-store", "X-Request-ID": request_id},
++        )
+     # A fresh nonce per request; the nonce-based CSP below forbids 'unsafe-inline'.
+     request.state.csp_nonce = token_urlsafe(16)
+     content_length = request.headers.get("content-length")
+@@ -525,6 +562,9 @@ async def platform_middleware(request: Request, call_next):
+     response.headers["X-Frame-Options"] = "DENY"
+     response.headers["Referrer-Policy"] = "no-referrer"
+     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
++    if is_secure_request(request):
++        # Do not include subdomains: Render controls other *.onrender.com hosts.
++        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+     response.headers["Content-Security-Policy"] = (
+         "default-src 'self'; style-src 'self'; "
+         f"script-src 'self' 'nonce-{request.state.csp_nonce}'; "
+diff --git a/chaoshire/schemas.py b/chaoshire/schemas.py
+index 5a91fdf..4afd604 100644
+--- a/chaoshire/schemas.py
++++ b/chaoshire/schemas.py
+@@ -2,12 +2,42 @@
+ 
+ from typing import Literal
+ 
+-from pydantic import BaseModel, Field, model_validator
++from pydantic import BaseModel, Field, field_validator, model_validator
++
++from .site import ANALYTICS_PAGES
+ 
+ 
+ class AppealRequest(BaseModel):
+     candidate_id: str = Field(min_length=1, max_length=100)
+     message: str = Field(min_length=1, max_length=5000)
++    website: str = Field(default="", max_length=200, exclude=True)
++
++    @field_validator("message")
++    @classmethod
++    def nonblank_message(cls, message: str) -> str:
++        if not message.strip():
++            raise ValueError("An appeal message is required.")
++        return message
++
++    @field_validator("website")
++    @classmethod
++    def reject_honeypot(cls, website: str) -> str:
++        if website.strip():
++            raise ValueError("Invalid form submission.")
++        return website
++
++
++class SitePageView(BaseModel):
++    """Only page-section names are accepted, never a URL or visitor identity."""
++
++    page: str = Field(min_length=1, max_length=20)
++
++    @field_validator("page")
++    @classmethod
++    def known_page(cls, page: str) -> str:
++        if page not in ANALYTICS_PAGES:
++            raise ValueError("Unknown site section.")
++        return page
+ 
+ 
+ # Must stay in sync with ``chaoshire.services.MITIGATION_STRATEGIES``.
+diff --git a/chaoshire/site.py b/chaoshire/site.py
+new file mode 100644
+index 0000000..a949514
+--- /dev/null
++++ b/chaoshire/site.py
+@@ -0,0 +1,115 @@
++"""Public site metadata and small, first-party, consent-based traffic counters.
++
++No visitor identifiers, IP addresses, user agents, referrers, or event payloads
++are stored here. Counters are process-local and expire after 30 UTC days.
++"""
++
++from __future__ import annotations
++
++import os
++import re
++import threading
++from collections import Counter
++from datetime import UTC, datetime, timedelta
++from hashlib import sha256
++from html import escape
++from pathlib import Path
++from urllib.parse import urlsplit
++
++DEFAULT_PUBLIC_ORIGIN = "https://chaoshire.onrender.com"
++WEB_DIR = Path(__file__).resolve().parent / "web"
++
++
++def css_version() -> str:
++    """Cache-bust the stylesheet when its content changes without a new release tag."""
++    return sha256((WEB_DIR / "static" / "chaoshire.css").read_bytes()).hexdigest()[:12]
++
++
++ANALYTICS_PAGES = frozenset(
++    {
++        "welcome",
++        "overview",
++        "chaos",
++        "filtered",
++        "mitigations",
++        "appeals",
++        "upload",
++        "history",
++        "compare",
++        "agent",
++        "demo",
++    }
++)
++
++
++def public_origin() -> str:
++    """Return an operator-configured HTTPS origin, never the untrusted Host header."""
++    origin = (os.getenv("CHAOSHIRE_PUBLIC_ORIGIN") or DEFAULT_PUBLIC_ORIGIN).strip().rstrip("/")
++    try:
++        parts = urlsplit(origin)
++        if (
++            parts.scheme == "https"
++            and parts.hostname
++            and parts.port != 0
++            and not parts.username
++            and not parts.password
++            and not parts.path
++            and not parts.query
++            and not parts.fragment
++            and re.fullmatch(r"[A-Za-z0-9.:[\]-]+", parts.netloc)
++            and not any(char in origin for char in "\r\n\t\\")
++        ):
++            return origin
++    except ValueError:  # invalid IPv6 literal or port
++        pass
++    return DEFAULT_PUBLIC_ORIGIN
++
++
++def site_html(filename: str, nonce: str = "") -> str:
++    """Fill safe server-owned SEO values into one of the packaged HTML pages."""
++    if filename not in {"index.html", "privacy.html", "terms.html", "404.html"}:
++        raise ValueError("Unknown site page")
++    html = (WEB_DIR / filename).read_text(encoding="utf-8")
++    html = html.replace("__PUBLIC_ORIGIN__", escape(public_origin(), quote=True))
++    html = html.replace("__CSS_VERSION__", css_version())
++    if nonce:
++        html = html.replace("<script>", f'<script nonce="{nonce}">', 1)
++    return html
++
++
++class SiteAnalytics:
++    """Bounded per-page, per-day counts; no visitor records or persistent state."""
++
++    def __init__(self) -> None:
++        self._lock = threading.Lock()
++        self._days: dict[str, Counter[str]] = {}
++
++    def record(self, page: str) -> None:
++        if page not in ANALYTICS_PAGES:
++            raise ValueError("Unknown analytics page")
++        now = datetime.now(UTC).date()
++        cutoff = (now - timedelta(days=29)).isoformat()
++        with self._lock:
++            self._days = {day: counts for day, counts in self._days.items() if day >= cutoff}
++            self._days.setdefault(now.isoformat(), Counter())[page] += 1
++
++    def snapshot(self) -> dict[str, object]:
++        cutoff = (datetime.now(UTC).date() - timedelta(days=29)).isoformat()
++        with self._lock:
++            self._days = {day: counts for day, counts in self._days.items() if day >= cutoff}
++            return {
++                "retention_days": 30,
++                "storage": "process-local aggregate counts (reset on restart)",
++                "views": {
++                    day: dict(sorted(counts.items())) for day, counts in sorted(self._days.items())
++                },
++                "total_views": sum(sum(counts.values()) for counts in self._days.values()),
++            }
++
++    def reset(self) -> None:
++        """Clear counters between isolated test cases."""
++        with self._lock:
++            self._days.clear()
++
++
++SITE_ANALYTICS = SiteAnalytics()
+diff --git a/chaoshire/web/404.html b/chaoshire/web/404.html
+new file mode 100644
+index 0000000..e40e482
+--- /dev/null
++++ b/chaoshire/web/404.html
+@@ -0,0 +1,25 @@
++<!doctype html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<meta name="theme-color" content="#0b1220">
++<meta name="robots" content="noindex, nofollow">
++<title>Page not found | ChaosHire</title>
++<meta name="description" content="This ChaosHire page could not be found. Return to the demo or explore its documentation.">
++<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
++<link rel="stylesheet" href="/static/chaoshire.css?v=__CSS_VERSION__">
++</head>
++<body>
++<a class="skip" href="#main">Skip to main content</a>
++<header><div><a class="brand-link" href="/">Chaos<span>Hire</span></a><div class="tag">Chaos Simulator for Fair Hiring</div></div></header>
++<main id="main" class="legal-page not-found" tabindex="-1">
++<p class="kicker">Error 404</p>
++<h1>That page is not here.</h1>
++<p>The link may have changed. The public demo, documentation, and policies are still available.</p>
++<a class="btn btn-link-first" href="/">Return to ChaosHire</a>
++<p><a href="/docs">Explore the API docs</a> · <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms &amp; Conditions</a></p>
++</main>
++<footer><a href="/">Home</a> · Portfolio prototype; synthetic data only.</footer>
++</body>
++</html>
+diff --git a/index.html b/chaoshire/web/index.html
+similarity index 81%
+rename from index.html
+rename to chaoshire/web/index.html
+index f535933..c1741bb 100644
+--- a/index.html
++++ b/chaoshire/web/index.html
+@@ -4,11 +4,28 @@
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <meta name="theme-color" content="#0b1220">
++<title>ChaosHire | Stress-test hiring AI fairly</title>
++<meta name="description" content="Audit synthetic hiring models for group fairness, test counterfactual decisions, and explore evidence before unfair outcomes reach candidates.">
++<link rel="canonical" href="__PUBLIC_ORIGIN__/">
++<meta property="og:type" content="website">
++<meta property="og:site_name" content="ChaosHire">
++<meta property="og:url" content="__PUBLIC_ORIGIN__/">
++<meta property="og:title" content="ChaosHire | Stress-test hiring AI fairly">
++<meta property="og:description" content="A synthetic fairness-auditing demo with group metrics, controlled experiments, and human-review evidence.">
++<meta property="og:image" content="__PUBLIC_ORIGIN__/social-preview.png">
++<meta property="og:image:width" content="1200">
++<meta property="og:image:height" content="630">
++<meta property="og:image:alt" content="ChaosHire: stress-test hiring AI before unfair decisions reach candidates.">
++<meta name="twitter:card" content="summary_large_image">
++<meta name="twitter:title" content="ChaosHire | Stress-test hiring AI fairly">
++<meta name="twitter:description" content="Explore a synthetic hiring AI fairness audit, counterfactual tests, and accountable review.">
++<meta name="twitter:image" content="__PUBLIC_ORIGIN__/social-preview.png">
++<meta name="twitter:image:alt" content="ChaosHire: stress-test hiring AI before unfair decisions reach candidates.">
+ <link rel="manifest" href="/manifest.webmanifest">
++<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+ <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+ <link rel="apple-touch-icon" href="/icons/icon-192.png">
+-<link rel="stylesheet" href="/static/chaoshire.css">
+-<title>ChaosHire — Chaos Simulator for Fair Hiring</title>
++<link rel="stylesheet" href="/static/chaoshire.css?v=__CSS_VERSION__">
+ </head>
+ <body>
+ <a class="skip" href="#main">Skip to main content</a>
+@@ -17,16 +34,21 @@
+     <h1>Chaos<span>Hire</span></h1>
+     <div class="tag">Chaos Simulator for Fair Hiring · break your hiring AI before it breaks someone's career</div>
+   </div>
+-  <div class="modelsel" id="modelsel" aria-label="Audit model selector"></div>
++  <div class="modelsel" id="modelsel" role="group" aria-label="Audit model selector"></div>
+ </header>
+ <nav id="tabs" aria-label="Product sections"></nav>
++<section class="consent-banner" id="consent-banner" aria-label="Optional analytics preference" hidden>
++  <div><b>Your privacy choice</b><p>We use no tracking cookies. May we count anonymous page views on this site? This is optional; the demo works either way. <a href="/privacy">Read the Privacy Policy</a>.</p></div>
++  <div class="consent-actions"><button type="button" class="btn ghost" id="reject-analytics">Reject optional</button><button type="button" class="btn" id="allow-analytics">Allow analytics</button></div>
++</section>
+ <main id="main" tabindex="-1">
++  <h2 id="active-tab-heading" class="tab-heading hidden" aria-live="polite"></h2>
+   <section id="tab-welcome">
+     <div class="hero">
+-      <div><span class="chip info">OPEN-SOURCE RESPONSIBLE AI</span><h2 class="hero-title">Stress-test hiring AI <span>before unfair decisions reach candidates.</span></h2><p>ChaosHire combines statistical fairness audits with controlled counterfactual experiments, candidate-level evidence, and automated release gates.</p><div class="hero-actions"><button class="btn" id="startdemo">Start the 3-minute demo</button><button class="btn ghost" id="exploredashboard">Explore dashboard</button></div><div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="/docs" target="_blank">API documentation ↗</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release ↗</a></div></div>
+-      <aside class="hero-panel" aria-live="polite"><div class="dim">DETERMINISTIC DEMONSTRATION</div><div id="home-score" class="hero-score">32 / F</div><div id="home-model">LegacyCorp fairness risk score</div><hr class="hero-divider"><div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i></i></div><b id="home-gender">169</b></div><div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i></i></div><b id="home-community">111</b></div><div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i></i></div><b id="home-resilience">30</b></div><p class="dim hero-footnote">All people, employers, and findings are synthetic.</p></aside>
++      <div><span class="chip info">OPEN-SOURCE RESPONSIBLE AI</span><h2 class="hero-title">Stress-test hiring AI <span>before unfair decisions reach candidates.</span></h2><p>ChaosHire combines statistical fairness audits with controlled counterfactual experiments, candidate-level evidence, and automated release gates.</p><div class="hero-actions"><button type="button" class="btn" id="startdemo">Start the 3-minute demo</button></div><div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="/docs" target="_blank">API documentation ↗</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release ↗</a></div></div>
++      <div class="hero-panel" role="group" aria-label="Synthetic model risk summary" aria-live="polite"><div class="dim">DETERMINISTIC DEMONSTRATION</div><div id="home-score" class="hero-score">32 / F</div><div id="home-model">LegacyCorp fairness risk score</div><hr class="hero-divider"><div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i></i></div><b id="home-gender">169</b></div><div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i></i></div><b id="home-community">111</b></div><div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i></i></div><b id="home-resilience">30</b></div><p class="dim hero-footnote">All people, employers, and findings are synthetic.</p></div>
+     </div>
+-    <div class="proof" id="proof"><div class="card"><b id="proof-tests">—</b><span class="dim">automated tests (CI-verified)</span></div><div class="card"><b id="proof-coverage">—</b><span class="dim">package coverage (CI-verified)</span></div><div class="card"><b id="proof-experiments">—</b><span class="dim">Chaos experiments</span></div><div class="card"><b id="proof-version">—</b><span class="dim">verified public release</span></div></div>
++    <div class="proof" id="proof"><div class="card"><b id="proof-tests">—</b><span class="dim">automated tests (verified baseline)</span></div><div class="card"><b id="proof-coverage">—</b><span class="dim">package coverage (verified baseline)</span></div><div class="card"><b id="proof-experiments">—</b><span class="dim">Chaos experiments</span></div><div class="card"><b id="proof-version">—</b><span class="dim">package version</span></div></div>
+     <div class="kicker">From measurement to accountable release</div><div class="grid g4"><article class="card feature-card"><h3>Measure disparities</h3><p class="dim">Selection rates, confidence intervals, significance indicators, and intersectional analysis.</p></article><article class="card feature-card"><h3>Break decisions safely</h3><p class="dim">Identity swaps and demographic stress tests reveal decision sensitivity.</p></article><article class="card feature-card"><h3>Inspect human impact</h3><p class="dim">Before/after evidence, explanations, appeals, and qualified candidates missed.</p></article><article class="card feature-card"><h3>Block regressions</h3><p class="dim">Model comparisons and CI/CD policy prevent a weaker release from shipping.</p></article></div>
+     <div class="card card-mt-lg"><b>Responsible boundary:</b> ChaosHire supports investigation and human review. It does not make hiring decisions, prove unlawful discrimination, or provide legal certification.</div>
+   </section>
+@@ -41,7 +63,7 @@
+   <section id="tab-agent" class="hidden" aria-live="polite"></section>
+   <section id="tab-demo" class="hidden" aria-live="polite"></section>
+ </main>
+-<footer>Portfolio prototype · 1,000 synthetic candidates with hidden ground-truth "qualified" labels · do not upload real applicant data.</footer>
++<footer><div>Portfolio prototype · 1,000 synthetic candidates with hidden ground-truth "qualified" labels · do not upload real applicant data.</div><div class="footer-links"><a href="/privacy">Privacy Policy</a><a href="/terms">Terms &amp; Conditions</a><button type="button" class="text-button" id="privacy-settings">Privacy settings</button></div></footer>
+ <script>
+ let META=null, MODEL='legacy', LAST_UPLOAD=null;
+ const $=s=>document.querySelector(s);
+@@ -82,21 +104,52 @@ function applyDataStyles(root){
+ const TABS=[['welcome','Home'],['overview','Fairness Dashboard'],['chaos','⚡ Chaos Lab'],['filtered','Who Got Filtered Out'],
+   ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model'],['history','Audit History'],['compare','Release Gate'],['agent','Fairness Review'],['demo','Guided Demo']];
+ $('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${esc(id)}" class="${i===0?'on':''}" aria-current="${i===0?'page':'false'}">${esc(l)}</button>`).join('');
++// No third-party analytics or cookies. Persist only the user's choice locally;
++// send an allowlisted section name to our own API after an explicit opt-in.
++const CONSENT_KEY='chaoshire-analytics-consent-v1';
++let analyticsConsent='';
++try{analyticsConsent=localStorage.getItem(CONSENT_KEY)||'';}catch(_){}
++function trackPage(page){
++  if(analyticsConsent!=='yes')return;
++  fetch('/api/analytics/view',{method:'POST',headers:{'Content-Type':'application/json'},
++    body:JSON.stringify({page}),credentials:'omit',keepalive:true}).catch(()=>{});
++}
++function chooseAnalytics(choice){
++  analyticsConsent=choice;
++  try{localStorage.setItem(CONSENT_KEY,choice);}catch(_){}
++  $('#consent-banner').hidden=true;
++  if(choice==='yes')trackPage(document.querySelector('#tabs button.on')?.dataset.t||'welcome');
++}
++$('#allow-analytics').addEventListener('click',()=>chooseAnalytics('yes'));
++$('#reject-analytics').addEventListener('click',()=>chooseAnalytics('no'));
++$('#privacy-settings').addEventListener('click',()=>{
++  analyticsConsent='';
++  try{localStorage.removeItem(CONSENT_KEY);}catch(_){}
++  $('#consent-banner').hidden=false;
++  $('#consent-banner').scrollIntoView({block:'center'});
++  $('#reject-analytics').focus();
++});
++$('#consent-banner').hidden=analyticsConsent==='yes'||analyticsConsent==='no';
++if(analyticsConsent==='yes')trackPage('welcome');
+ function showTab(id){
+   document.querySelectorAll('nav button').forEach(x=>{const on=x.dataset.t===id;x.classList.toggle('on',on);x.setAttribute('aria-current',on?'page':'false');});
+   TABS.forEach(([tab])=>$('#tab-'+tab).classList.toggle('hidden',tab!==id));
++  const heading=$('#active-tab-heading');
++  heading.textContent=TABS.find(([tab])=>tab===id)?.[1]||'';
++  heading.classList.toggle('hidden',id==='welcome');
+   if(id==='filtered')loadFiltered();
+   if(id==='history')loadHistory();
+   if(id==='compare')loadComparison();
+   if(id==='agent')loadAgent();
+   if(id==='demo')loadDemo();
++  trackPage(id);
+   $('#main').focus({preventScroll:true});
+ }
+ $('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.t);});
+-$('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')showTab('demo');if(e.target.id==='exploredashboard')showTab('overview');});
++$('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')showTab('demo');});
+ 
+-// Deterministic fixture results, mirrored by tests/test_metrics.py and
+-// tests/test_trained_model.py. If these drift, the tests fail first.
++// Deterministic fixture results, mirrored by tests/core/test_metrics.py and
++// tests/core/test_trained_model.py. If these drift, the tests fail first.
+ const HOME_MODELS={
+   legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30},
+   fair:{name:'MeritFirst',score:'84 / B',grade:'B',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100},
+@@ -302,20 +355,22 @@ $('#tab-mitigations').addEventListener('click',async e=>{
+ $('#tab-appeals').innerHTML=`<div class="grid g2">
+  <div class="card"><h3>Candidate-facing portal</h3>
+   <div class="dim" data-style="margin-bottom:6px">What a rejected applicant sees — decision, score, plain-language reasons, and a way to appeal. Transparency = trust.</div>
+-  <label>Application ID <span class="dim">(try <span id="sid"></span>)</span></label>
+-  <div class="appeal-lookup"><input id="cid" placeholder="C-1000"><button class="btn nowrap" id="lookup">Look up</button></div>
+-  <div id="cout" class="row-mt"></div></div>
++  <label for="cid">Application ID <span class="dim">(try <span id="sid"></span>)</span></label>
++  <div class="appeal-lookup"><input id="cid" placeholder="C-1000" maxlength="100" required><button type="button" class="btn nowrap" id="lookup">Look up</button></div>
++  <div id="cout" class="row-mt" role="status"></div></div>
+  <div class="card"><h3>File an appeal</h3>
+-  <label>Application ID</label><input id="acid" placeholder="C-1000">
+-  <label>Why should this decision be reviewed?</label><textarea id="amsg" placeholder="Tell us what the model couldn't see…"></textarea>
+-  <button class="btn btn-mt" id="sendappeal">Submit appeal</button><div id="aout" class="row-mt"></div></div></div>
++  <label for="acid">Application ID</label><input id="acid" placeholder="C-1000" maxlength="100" required>
++  <label for="amsg">Why should this decision be reviewed?</label><textarea id="amsg" maxlength="5000" required placeholder="Tell us what the model couldn't see…"></textarea>
++  <div class="honeypot" aria-hidden="true"><label for="appeal-website">Leave this blank</label><input id="appeal-website" name="website" autocomplete="off" tabindex="-1"></div>
++  <button type="button" class="btn btn-mt" id="sendappeal">Submit appeal</button><div id="aout" class="row-mt" role="status"></div></div></div>
+  <div class="kicker">HR review queue</div><div class="card" id="queue"><span class="dim">No appeals yet — submit one from the candidate portal above.</span></div>
+  <div class="row-mt"><button class="btn ghost" id="refreshq">Refresh queue</button></div>`;
+ $('#tab-appeals').addEventListener('click',async e=>{
+   if(e.target.id==='lookup'){
+     const cid=$('#cid').value.trim();
+-    const r=await jget('/api/candidate/'+encodeURIComponent(cid));
+     const o=$('#cout');
++    if(!cid){o.innerHTML='<div class="err" role="alert">Enter an application ID to look up.</div>';$('#cid').focus();return;}
++    const r=await jget('/api/candidate/'+encodeURIComponent(cid));
+     if(r.error){o.innerHTML=`<div class="err">${esc(r.error)}</div>`;return;}
+     o.innerHTML=`<div class="card" data-style="background:var(--card2)"><div class="flex-row-center">
+       <b>${esc(r.name)} <span class="dim">(${esc(r.candidate_id)})</span></b>
+@@ -329,11 +384,15 @@ $('#tab-appeals').addEventListener('click',async e=>{
+   }
+   if(e.target.id==='toappeal'){$('#acid').value=$('#cid').value.trim();$('#amsg').focus();}
+   if(e.target.id==='sendappeal'){
+-    const r=await jpost('/api/appeals',{candidate_id:$('#acid').value.trim(),message:$('#amsg').value.trim()||'(no message)'});
++    const application=$('#acid'),message=$('#amsg'),output=$('#aout');
++    if(!application.value.trim()){output.innerHTML='<div class="err" role="alert">Enter an application ID.</div>';application.focus();return;}
++    if(!message.value.trim()){output.innerHTML='<div class="err" role="alert">Explain why this decision needs review.</div>';message.focus();return;}
++    if(!application.reportValidity()||!message.reportValidity())return;
++    const r=await jpost('/api/appeals',{candidate_id:application.value.trim(),message:message.value.trim(),website:$('#appeal-website').value});
+     const appealProblem=problemOf(r);
+-    $('#aout').innerHTML=appealProblem?`<div class="err">${esc(appealProblem)}</div>`:
++    output.innerHTML=appealProblem?`<div class="err" role="alert">${esc(appealProblem)}</div>`:
+       `<div class="chip ok">Appeal #${esc(r.appeal_id)} filed</div> <span class="chip ${String(r.priority).startsWith('HIGH')?'warn':'info'}">${esc(r.priority)}</span>`;
+-    loadQueue();
++    if(!appealProblem)loadQueue();
+   }
+   if(e.target.id==='refreshq')loadQueue();
+ });
+@@ -351,22 +410,22 @@ async function loadQueue(){
+ $('#tab-upload').innerHTML=`<div class="grid g2">
+  <div class="card"><h3>Bring your own model's output</h3>
+   <div class="dim row-mt-md">Upload a CSV of decisions, then tell ChaosHire how to interpret its columns. The model itself never leaves your system.</div>
+-  <pre id="schema"></pre>
++  <pre id="schema" tabindex="0"></pre>
+   <div class="err upload-privacy">Privacy: raw CSV rows stay in temporary memory and only aggregate metrics are ever stored. <b>Unauthenticated uploads are not published</b> — your audit is returned to you and then discarded, so nothing you type here becomes visible to other visitors. An operator holding this deployment's <code>X-API-Key</code> publishes to the shared history. Use synthetic data only.</div>
+-  <label>Audit name</label><input id="auditname" maxlength="100" value="Screening model review" placeholder="e.g. Q3 graduate hiring audit">
+-  <label>CSV file</label><input type="file" id="csvfile" accept=".csv,text/csv">
++  <label for="auditname">Audit name</label><input id="auditname" required maxlength="100" value="Screening model review" placeholder="e.g. Q3 graduate hiring audit">
++  <label for="csvfile">CSV file <span class="dim">(synthetic data only; max 5 MB)</span></label><input type="file" id="csvfile" required accept=".csv,text/csv">
+   <div id="detected" class="dim" data-style="margin-top:6px">No file selected.</div>
+   <div class="upload-cols">
+-   <div><label>Decision column</label><input id="decisioncol" value="decision" placeholder="e.g. outcome"></div>
+-   <div><label>Favorable values (comma-separated)</label><input id="favvalues" value="1,true,yes,y,accept,accepted"></div>
+-   <div><label>Qualification column (optional)</label><input id="qualcol" value="qualified" placeholder="leave blank if unavailable"></div>
+-   <div><label>Qualified values</label><input id="qualvalues" value="1,true,yes,y"></div>
+-   <div><label>Protected attributes (comma-separated)</label><input id="attrs" value="gender,ethnicity,age_band" placeholder="e.g. gender,region,disability"></div>
+-   <div><label>Minimum reliable group size</label><input id="mingroup" type="number" min="2" max="500" value="30"></div>
++   <div><label for="decisioncol">Decision column</label><input id="decisioncol" required maxlength="100" value="decision" placeholder="e.g. outcome"></div>
++   <div><label for="favvalues">Favorable values (comma-separated)</label><input id="favvalues" required value="1,true,yes,y,accept,accepted"></div>
++   <div><label for="qualcol">Qualification column (optional)</label><input id="qualcol" maxlength="100" value="qualified" placeholder="leave blank if unavailable"></div>
++   <div><label for="qualvalues">Qualified values</label><input id="qualvalues" value="1,true,yes,y"></div>
++   <div><label for="attrs">Protected attributes (comma-separated)</label><input id="attrs" value="gender,ethnicity,age_band" placeholder="e.g. gender,region,disability"></div>
++   <div><label for="mingroup">Minimum reliable group size</label><input id="mingroup" required type="number" min="2" max="500" value="30"></div>
+   </div>
+-  <button class="btn btn-mt-lg" id="upbtn">Validate &amp; audit</button>
++  <button type="button" class="btn btn-mt-lg" id="upbtn">Validate &amp; audit</button>
+   <a class="btn ghost btn-link" href="/api/sample.csv" download="sample.csv">Download sample CSV</a>
+-  <div id="upout" class="row-mt"></div></div>
++  <div id="upout" class="row-mt" role="status"></div></div>
+  <div class="card"><h3>What you get</h3>
+   <div class="dim fs-note" data-style="line-height:1.9">✔ Custom outcome and protected-attribute columns<br>
+   ✔ Configurable favorable values and minimum group size<br>
+@@ -383,11 +442,20 @@ $('#tab-upload').addEventListener('change',async e=>{
+ });
+ $('#tab-upload').addEventListener('click',async e=>{
+   if(e.target.id==='upbtn'){
+-    const f=$('#csvfile').files[0];if(!f){$('#upout').innerHTML='<div class="err">Choose a CSV file first.</div>';return;}
+-    $('#upout').innerHTML='<span class="dim">Validating columns and running audit…</span>';
++    const output=$('#upout'),fileInput=$('#csvfile'),f=fileInput.files[0];
++    if(!f){output.innerHTML='<div class="err" role="alert">Choose a CSV file first.</div>';fileInput.focus();return;}
++    if(!/\.csv$/i.test(f.name)){output.innerHTML='<div class="err" role="alert">Choose a .csv file.</div>';fileInput.focus();return;}
++    if(f.size>5_000_000||f.size===0){output.innerHTML='<div class="err" role="alert">Choose a non-empty CSV no larger than 5 MB.</div>';fileInput.focus();return;}
+     const split=id=>$(id).value.split(',').map(x=>x.trim()).filter(Boolean);
++    for(const id of ['#auditname','#decisioncol','#favvalues','#mingroup']){
++      const input=$(id);if(!input.value.trim()||!input.reportValidity()){
++        output.innerHTML='<div class="err" role="alert">Complete the required audit fields before continuing.</div>';input.focus();return;
++      }
++    }
++    if(!split('#favvalues').length){output.innerHTML='<div class="err" role="alert">Enter at least one favorable value.</div>';$('#favvalues').focus();return;}
++    output.innerHTML='<span class="dim">Validating columns and running audit…</span>';
+     const text=await f.text();
+-    const payload={csv:text,audit_name:$('#auditname').value.trim()||'Untitled CSV audit',decision_column:$('#decisioncol').value.trim(),favorable_values:split('#favvalues'),
++    const payload={csv:text,audit_name:$('#auditname').value.trim(),decision_column:$('#decisioncol').value.trim(),favorable_values:split('#favvalues'),
+       qualification_column:$('#qualcol').value.trim()||null,qualified_values:split('#qualvalues'),
+       protected_attributes:split('#attrs'),minimum_group_size:Number($('#mingroup').value)||30};
+     const r=await jpost('/api/upload',payload);
+@@ -403,8 +471,7 @@ $('#tab-upload').addEventListener('click',async e=>{
+     applyDataStyles($('#upout'));
+   }
+   if(e.target.id==='viewup'){
+-    document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t==='overview'));
+-    TABS.forEach(([id])=>$('#tab-'+id).classList.toggle('hidden',id!=='overview'));
++    showTab('overview');
+     loadOverview('uploaded');
+   }
+ });
+diff --git a/chaoshire/web/privacy.html b/chaoshire/web/privacy.html
+new file mode 100644
+index 0000000..3ea0a54
+--- /dev/null
++++ b/chaoshire/web/privacy.html
+@@ -0,0 +1,37 @@
++<!doctype html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<meta name="theme-color" content="#0b1220">
++<title>Privacy Policy | ChaosHire</title>
++<meta name="description" content="How the ChaosHire synthetic hiring-audit demo handles uploads, appeals, optional analytics, and browser storage.">
++<link rel="canonical" href="__PUBLIC_ORIGIN__/privacy">
++<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
++<link rel="stylesheet" href="/static/chaoshire.css?v=__CSS_VERSION__">
++</head>
++<body>
++<a class="skip" href="#main">Skip to main content</a>
++<header><div><a class="brand-link" href="/">Chaos<span>Hire</span></a><div class="tag">Chaos Simulator for Fair Hiring</div></div></header>
++<main id="main" class="legal-page" tabindex="-1">
++<p class="kicker">About this demonstration</p>
++<h1>Privacy Policy</h1>
++<p class="dim">Effective 24 September 2026 · Applies to this public prototype, not to a real employer's hiring system.</p>
++<p><strong>Do not submit real applicant or employee information.</strong> ChaosHire is a demonstration using synthetic data. The public site has no user accounts or identity verification.</p>
++<h2>What the site processes</h2>
++<ul>
++<li><strong>Audits:</strong> Built-in fixtures are synthetic. A visitor can upload a CSV of decisions; its raw rows and candidate IDs remain in process memory while an audit is computed. Anonymous uploads are returned to the uploader and discarded, not added to public history. An operator authenticated with a server-side key can publish <em>aggregate</em> results and an audit name to a shared SQLite history visible to visitors; raw CSV rows are not written to that database.</li>
++<li><strong>Appeals:</strong> Messages and application IDs are kept in a capped in-memory queue and may be displayed in a public review queue after basic redaction. That redaction can miss unusual identifiers. The queue is evicted or cleared on restart. Do not include real names, contact details, or sensitive data.</li>
++<li><strong>Operational logs and rate limits:</strong> Requests may be logged by the hosting provider and the server. In-memory IP-based rate-limit buckets protect the public API; bucket keys may remain until the process restarts. Retention of hosting-provider access logs is outside this app's control.</li>
++<li><strong>Optional analytics:</strong> Only after you choose “Allow analytics” does the browser send a page-section name to this site's own API. The app stores daily aggregate view counts for up to 30 UTC days in process memory; they reset on restart. It does not store an analytics identifier, referrer, IP address, or user agent with those counts. Only a server-side operator can read the counts.</li>
++</ul>
++<h2>Cookies, storage, and your choice</h2>
++<p>ChaosHire does not set tracking or session cookies or load third-party analytics. The browser stores your optional analytics choice in <code>localStorage</code> so the consent banner does not reappear. You can change it using “Privacy settings” in the site footer, or remove this site's storage in your browser. The optional service worker may cache public pages and assets for offline use; clearing this site's browser data removes those copies. Declining analytics does not limit the demo.</p>
++<h2>Retention, sharing, and safety</h2>
++<p>Anonymous audit rows are not persisted. Operator-published aggregate history is stored in the configured SQLite or PostgreSQL repository; on the Render free-tier demo, storage is ephemeral and may be lost on redeploy. Appeal messages and analytics counts are process-local. The hosting provider necessarily handles network traffic; ChaosHire does not sell visitor data or send browser analytics to an advertising network. There is no guarantee that a submitted message is private: avoid personal information.</p>
++<h2>Questions and changes</h2>
++<p>For a privacy concern, check the <a href="https://github.com/dommetipavan26-tech/chaoshire/security">repository's Security page</a> for the maintainer's current private contact instructions. If no private channel is available, do not include personal information in a public issue; the site operator must provide an appropriate contact route before handling personal data. The project may update this notice as the demo changes; the effective date above will change when it does. See the <a href="/terms">Terms &amp; Conditions</a> and the <a href="https://github.com/dommetipavan26-tech/chaoshire/blob/main/docs/operations/PERSISTENCE.md">technical persistence notes</a>.</p>
++</main>
++<footer><a href="/">Home</a> · <a aria-current="page" href="/privacy">Privacy Policy</a> · <a href="/terms">Terms &amp; Conditions</a> · Portfolio prototype; synthetic data only.</footer>
++</body>
++</html>
+diff --git a/chaoshire/static/chaoshire.css b/chaoshire/web/static/chaoshire.css
+similarity index 78%
+rename from chaoshire/static/chaoshire.css
+rename to chaoshire/web/static/chaoshire.css
+index 72a5cf4..f2a86e7 100644
+--- a/chaoshire/static/chaoshire.css
++++ b/chaoshire/web/static/chaoshire.css
+@@ -17,9 +17,10 @@ h1 span{color:var(--blue)}
+ .mbtn{background:var(--card);border:1px solid var(--line);color:var(--dim);padding:9px 14px;border-radius:10px;cursor:pointer;font-size:13px}
+ .mbtn.on{border-color:var(--blue);color:var(--txt);background:var(--card2)}
+ nav{display:flex;gap:4px;padding:10px 28px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+-nav button{background:none;border:none;color:var(--dim);padding:10px 14px;border-radius:10px;cursor:pointer;font-size:14px}
++nav button{background:var(--bg);border:none;color:var(--dim);padding:10px 14px;border-radius:10px;cursor:pointer;font-size:14px}
+ nav button.on{background:var(--card2);color:var(--txt)}
+ main{padding:26px 28px;max-width:1180px;margin:0 auto}
++.tab-heading{font-size:22px;margin:4px 0 18px}
+ .grid{display:grid;gap:14px}
+ .g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+ .g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+@@ -60,14 +61,14 @@ footer{padding:24px 28px;color:var(--dim);font-size:12px;border-top:1px solid va
+ .reason-badge{font-size:11px;padding:2px 8px;border-radius:999px}
+ .skip{position:absolute;left:-9999px;top:8px;background:var(--blue);color:#062033;padding:10px;z-index:10;border-radius:8px}
+ .skip:focus{left:8px}
+-button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
++button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible,pre:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
+ [aria-busy="true"]{opacity:.72}
+ .hero{padding:42px 0 24px;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:22px;align-items:center}
+ .hero h2{font-size:clamp(34px,5vw,62px);line-height:1.04;letter-spacing:-1.8px;max-width:760px}
+ .hero h2 span{color:var(--blue)}
+ .hero p{font-size:17px;color:var(--dim);max-width:680px;margin-top:18px}
+ .hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+-.hero-panel{background:linear-gradient(145deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:20px;padding:22px}
++.hero-panel{background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:22px}
+ .proof{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0 28px}
+ .proof .card{text-align:center}.proof b{display:block;font-size:26px;color:var(--blue)}
+ .feature-card{min-height:150px}.feature-card h3{color:var(--txt);font-size:16px}
+@@ -86,7 +87,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
+ .card-mt-lg{margin-top:18px}
+ .err-mb{margin-bottom:14px}
+ .err-warn{margin-bottom:14px;color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
+-.mbtn-blurb{font-size:11px}
++.mbtn-blurb{font-size:12px}
+ .stat-rose{color:var(--rose)}
+ .stat-amber{color:var(--amber)}
+ .grade-ring-inner{width:96px;height:96px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center}
+@@ -163,5 +164,26 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
+ .review-title{margin-top:9px}
+ 
+ @media(max-width:760px){.hero{grid-template-columns:1fr;padding-top:28px}.proof{grid-template-columns:repeat(2,1fr)}}
+-@media(max-width:600px){header,nav,main,footer{padding-left:14px;padding-right:14px}.g2{grid-template-columns:1fr}.modelsel{width:100%;overflow:auto}.mbtn{min-width:210px}nav{flex-wrap:nowrap;overflow-x:auto}nav button{white-space:nowrap;min-height:44px}.card{padding:14px}.stat-num{font-size:24px}.btn{min-height:44px}table{min-width:620px}.hero h2{font-size:38px;letter-spacing:-1px}.proof{grid-template-columns:1fr 1fr}.hero-panel{padding:16px}}
++@media(max-width:600px){header,nav,main,footer{padding-left:14px;padding-right:14px}.g2{grid-template-columns:1fr}.modelsel{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.mbtn{min-width:0;min-height:44px;padding:10px 8px;overflow-wrap:anywhere}.mbtn:last-child{grid-column:1/-1}nav{flex-wrap:nowrap;overflow-x:auto}nav button{white-space:nowrap;min-height:44px}.card{padding:14px}.stat-num{font-size:24px}.btn{min-height:44px}table{min-width:620px}.hero h2{font-size:38px;letter-spacing:-1px}.proof{grid-template-columns:1fr 1fr}.hero-panel{padding:16px}}
++/* Public pages, consent preferences, and validated demo forms. */
++[hidden]{display:none!important}
++.brand-link{color:var(--txt);font-size:22px;font-weight:700;letter-spacing:.3px;text-decoration:none}
++.brand-link span{color:var(--blue)}
++.footer-links{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:10px}
++.text-button{border:0;background:none;color:var(--blue);cursor:pointer;padding:8px 0;font:inherit;text-decoration:underline;min-height:44px}
++.text-button:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
++.consent-banner{width:calc(100% - 56px);max-width:1124px;margin:16px auto 0;background:var(--card2);border:2px solid var(--blue);border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:24px;justify-content:space-between}
++.consent-banner p{font-size:14px;color:var(--txt);max-width:650px;margin-top:5px}
++.consent-actions{display:flex;gap:10px;flex-wrap:wrap;flex-shrink:0}
++.consent-actions .btn{min-height:44px}
++.legal-page{max-width:850px;padding-top:32px;padding-bottom:72px;line-height:1.7}
++.legal-page h1{font-size:clamp(36px,5vw,56px);line-height:1.15;margin:14px 0}
++.legal-page h2{font-size:22px;margin:28px 0 8px}
++.legal-page p,.legal-page li{margin:12px 0}
++.legal-page ul{padding-left:24px}
++.legal-page code{color:var(--blue)}
++.not-found{min-height:60vh}
++.honeypot{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
++@media(max-width:760px){.consent-banner{align-items:stretch;flex-direction:column;gap:12px}}
++@media(max-width:600px){.consent-banner{width:calc(100% - 28px);margin:12px auto 0;padding:14px}.consent-actions{width:100%}.consent-actions .btn{flex:1}.legal-page{padding-top:24px}}
+ @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+diff --git a/chaoshire/web/static/icons/favicon-32.png b/chaoshire/web/static/icons/favicon-32.png
+new file mode 100644
+index 0000000..c190bd2
+Binary files /dev/null and b/chaoshire/web/static/icons/favicon-32.png differ
+diff --git a/chaoshire/web/static/icons/favicon.ico b/chaoshire/web/static/icons/favicon.ico
+new file mode 100644
+index 0000000..a95ff4f
+Binary files /dev/null and b/chaoshire/web/static/icons/favicon.ico differ
+diff --git a/chaoshire/static/icon-192.png b/chaoshire/web/static/icons/icon-192.png
+similarity index 100%
+rename from chaoshire/static/icon-192.png
+rename to chaoshire/web/static/icons/icon-192.png
+diff --git a/chaoshire/static/icon-512.png b/chaoshire/web/static/icons/icon-512.png
+similarity index 100%
+rename from chaoshire/static/icon-512.png
+rename to chaoshire/web/static/icons/icon-512.png
+diff --git a/chaoshire/static/icon-maskable-512.png b/chaoshire/web/static/icons/icon-maskable-512.png
+similarity index 100%
+rename from chaoshire/static/icon-maskable-512.png
+rename to chaoshire/web/static/icons/icon-maskable-512.png
+diff --git a/chaoshire/web/static/social-preview.png b/chaoshire/web/static/social-preview.png
+new file mode 100644
+index 0000000..9465dd2
+Binary files /dev/null and b/chaoshire/web/static/social-preview.png differ
+diff --git a/chaoshire/web/terms.html b/chaoshire/web/terms.html
+new file mode 100644
+index 0000000..a64d908
+--- /dev/null
++++ b/chaoshire/web/terms.html
+@@ -0,0 +1,33 @@
++<!doctype html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<meta name="theme-color" content="#0b1220">
++<title>Terms &amp; Conditions | ChaosHire</title>
++<meta name="description" content="Terms for using the ChaosHire synthetic hiring-audit prototype, including permitted data and responsible-use limits.">
++<link rel="canonical" href="__PUBLIC_ORIGIN__/terms">
++<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
++<link rel="stylesheet" href="/static/chaoshire.css?v=__CSS_VERSION__">
++</head>
++<body>
++<a class="skip" href="#main">Skip to main content</a>
++<header><div><a class="brand-link" href="/">Chaos<span>Hire</span></a><div class="tag">Chaos Simulator for Fair Hiring</div></div></header>
++<main id="main" class="legal-page" tabindex="-1">
++<p class="kicker">Use this demonstration responsibly</p>
++<h1>Terms &amp; Conditions</h1>
++<p class="dim">Effective 24 September 2026 · Please review these terms before using the public demo.</p>
++<h2>Purpose and permitted use</h2>
++<p>ChaosHire is an open-source educational prototype for investigating fairness risks in automated hiring decisions. You may explore the built-in synthetic fixtures and upload <strong>synthetic or properly anonymized</strong> decision data you have the right to use. Do not submit real applicant, employee, or other sensitive personal information to the public demo.</p>
++<h2>What the service does not do</h2>
++<p>The scores, counterfactual experiments, mitigation simulations, and release gates are research and engineering aids, not legal advice, an employment decision, a discrimination finding, or a fairness certification. Do not use this public service to make or automatically enforce real hiring decisions. Human review, valid ground truth, and applicable legal advice are required for any production assessment.</p>
++<h2>Shared features and safety</h2>
++<p>An appeal may appear in a public review queue after imperfect automated redaction. An operator-authenticated upload can publish aggregate results and its name to a public history; an anonymous upload is computed and returned to its uploader without publication. You are responsible for avoiding identifying information and for using the service lawfully. Do not attack, flood, impersonate users, bypass rate limits, or attempt to access another party's data.</p>
++<h2>Availability, code, and changes</h2>
++<p>The free demo may sleep, restart, lose ephemeral history, or change without notice. It is provided “as is”, without a promise of accuracy, fitness for a particular purpose, or uninterrupted access. The source code has its own <a href="https://github.com/dommetipavan26-tech/chaoshire/blob/main/LICENSE">license</a>; these site terms do not replace the source license. The maintainer may update the demo or these terms, with an updated effective date.</p>
++<h2>Privacy and contact</h2>
++<p>Read the <a href="/privacy">Privacy Policy</a> for data handling, browser storage, and optional analytics. For safety or privacy questions, consult the <a href="https://github.com/dommetipavan26-tech/chaoshire/security">repository's Security page</a> for private contact instructions; never put personal information in a public issue.</p>
++</main>
++<footer><a href="/">Home</a> · <a href="/privacy">Privacy Policy</a> · <a aria-current="page" href="/terms">Terms &amp; Conditions</a> · Portfolio prototype; synthetic data only.</footer>
++</body>
++</html>
+diff --git a/docs/ARCHITECTURE.svg b/docs/ARCHITECTURE.svg
+deleted file mode 100644
+index 4573302..0000000
+--- a/docs/ARCHITECTURE.svg
++++ /dev/null
+@@ -1 +0,0 @@
+-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="t d"><title id="t">ChaosHire architecture</title><desc id="d">Browser, FastAPI, fairness services, evidence outputs, storage, and delivery controls.</desc><style>text{font-family:system-ui,sans-serif;fill:#e5ecf8}.h{font-size:28px;font-weight:700}.s{font-size:16px}.b{fill:#121c30;stroke:#38bdf8;stroke-width:2}.g{fill:#16233c;stroke:#34d399;stroke-width:2}.a{stroke:#8fa1c2;stroke-width:3;marker-end:url(#m)}</style><defs><marker id="m" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#8fa1c2"/></marker></defs><rect width="1200" height="720" fill="#0b1220"/><text x="60" y="60" class="h">ChaosHire v0.20.0 · evidence-first fairness engineering</text><rect x="60" y="110" rx="18" width="250" height="120" class="b"/><text x="90" y="155" class="h">Browser / PWA</text><text x="90" y="190" class="s">Dashboard · guided demo</text><rect x="470" y="110" rx="18" width="260" height="120" class="b"/><text x="520" y="155" class="h">FastAPI</text><text x="500" y="190" class="s">Validation · security · routes</text><line x1="310" y1="170" x2="465" y2="170" class="a"/><rect x="890" y="110" rx="18" width="250" height="120" class="g"/><text x="920" y="155" class="h">Operations</text><text x="920" y="190" class="s">Health · metrics · CI/CD</text><line x1="730" y1="170" x2="885" y2="170" class="a"/><rect x="90" y="330" rx="18" width="280" height="150" class="b"/><text x="120" y="375" class="h">Audit engine</text><text x="120" y="410" class="s">Metrics · confidence</text><text x="120" y="440" class="s">Intersections · adapters</text><rect x="460" y="330" rx="18" width="280" height="150" class="b"/><text x="500" y="375" class="h">Chaos Lab</text><text x="500" y="410" class="s">Counterfactual tests</text><text x="500" y="440" class="s">Candidate-level evidence</text><rect x="830" y="330" rx="18" width="280" height="150" class="b"/><text x="865" y="375" class="h">Review agent</text><text x="865" y="410" class="s">Risk prioritization</text><text x="865" y="440" class="s">Human action plan</text><line x1="600" y1="230" x2="230" y2="325" class="a"/><line x1="600" y1="230" x2="600" y2="325" class="a"/><line x1="600" y1="230" x2="970" y2="325" class="a"/><rect x="90" y="570" rx="18" width="280" height="100" class="g"/><text x="120" y="615" class="h">SQLite aggregates</text><text x="120" y="645" class="s">No raw-row history</text><rect x="460" y="570" rx="18" width="280" height="100" class="g"/><text x="500" y="615" class="h">Evidence</text><text x="500" y="645" class="s">SHA-256 · HTML · PDF</text><rect x="830" y="570" rx="18" width="280" height="100" class="g"/><text x="865" y="615" class="h">Release gate</text><text x="865" y="645" class="s">PASS / BLOCK in CI</text><line x1="230" y1="480" x2="230" y2="565" class="a"/><line x1="600" y1="480" x2="600" y2="565" class="a"/><line x1="970" y1="480" x2="970" y2="565" class="a"/></svg>
+\ No newline at end of file
+diff --git a/docs/README.md b/docs/README.md
+new file mode 100644
+index 0000000..e115f9e
+--- /dev/null
++++ b/docs/README.md
+@@ -0,0 +1,59 @@
++# ChaosHire documentation
++
++Start with the [project overview](../README.md). Paths in the guides' command examples
++are relative to the **repository root**.
++
++## Engineering
++
++- [Architecture diagram](engineering/ARCHITECTURE.svg) — browser, API, audits, evidence, and delivery.
++- [Methodology](engineering/METHODOLOGY.md) — metrics, assumptions, and responsible-use limits.
++- [Continuous fairness](engineering/CONTINUOUS-FAIRNESS.md) — experiments and release-gate policy.
++- [scikit-learn integration](engineering/SCIKIT-LEARN-INTEGRATION.md) — decision-adapter example.
++
++## Operations
++
++- [Persistence and privacy](operations/PERSISTENCE.md) — what is stored and for how long.
++- [Monitoring](operations/MONITORING.md) — deployment posture and operational checks.
++- [Release checklist](operations/RELEASE-CHECKLIST.md) — automated gates and owner actions.
++- [Website readiness](operations/WEBSITE-READINESS.md) — privacy, HTTPS, SEO, accessibility, and page-speed checks.
++- [Security policy](../SECURITY.md) — root-level file so GitHub also discovers it.
++
++## Portfolio
++
++- [Case study](portfolio/PORTFOLIO-CASE-STUDY.md)
++- [Evidence and demo script](portfolio/PORTFOLIO-EVIDENCE.md)
++- [Platform engineering](portfolio/PORTFOLIO-PLATFORM.md)
++- [Screenshots](portfolio/assets/) — regenerated by [`scripts/capture_portfolio.py`](../scripts/capture_portfolio.py).
++
++## Planning and history
++
++- [Roadmap](planning/PROJECT-ROADMAP.md)
++- [Task log](planning/TODO.md) — historical entries may mention paths from earlier releases.
++- [Changelog](../CHANGELOG.md) — historical release notes; old paths in past entries are intentional.
++
++## Where code and tests live
++
++- `chaoshire/*.py` retains its public import paths (for example, `chaoshire.metrics`);
++  `backend.py` retains the `uvicorn backend:app` entry point.
++- `chaoshire/web/` contains `index.html` and `static/`. Both ship **inside the
++  Python package**. The routes for `/`, `/static/chaoshire.css`, and `/icons/...`
++  have not changed. Docker copies this directory along with the rest of
++  `chaoshire/`.
++- `chaoshire/artifacts/` contains the pinned trained-model fixture, not generated
++  reports. `examples/` holds the runnable adapter example. In `scripts/`,
++  [`check_build_info.py`](../scripts/check_build_info.py) checks CI facts,
++  [`generate_icons.py`](../scripts/generate_icons.py) writes PWA icons to
++  `chaoshire/web/static/icons/`, and
++  [`probe_xff.py`](../scripts/probe_xff.py) tests proxy rate limiting. Keep root
++  dependency manifests and deployment configuration in place for Docker,
++  Render, pip, and Dependabot.
++- `tests/api/`, `tests/core/`, `tests/infrastructure/`, and `tests/web/` run with
++  `python -m pytest -q`. `tests/browser/` is opt-in because it requires Playwright:
++
++  ```bash
++  python -m pip install -r requirements-browser.txt -r requirements-examples.txt
++  python -m playwright install chromium
++  python -m pytest tests/browser -q
++  ```
++
++See [contributing](../CONTRIBUTING.md) for the default lint and test commands.
+diff --git a/docs/RELEASE-CHECKLIST.md b/docs/RELEASE-CHECKLIST.md
+deleted file mode 100644
+index c92d00e..0000000
+--- a/docs/RELEASE-CHECKLIST.md
++++ /dev/null
+@@ -1,43 +0,0 @@
+-# Release checklist
+-
+-Template used for every tagged ChaosHire release (v0.20.0, v0.20.1, v0.21.0,
+-v0.22.0 and v0.23.0 all followed it). Substitute the target version for `vX.Y.Z`.
+-
+-Counts and percentages are deliberately *not* written into this checklist. They
+-live in `chaoshire/build_info.py`, which `scripts/check_build_info.py` verifies
+-against a real pytest run in CI, so a stale number here cannot outlive the release
+-it described.
+-
+-## Automated
+-
+-- [x] Ruff format and Ruff check pass
+-- [x] Mypy passes (`python -m mypy`)
+-- [x] Every collected test passes
+-- [x] Coverage exceeds the 90% gate
+-- [x] `python scripts/check_build_info.py --coverage-json coverage.json` reports no drift
+-- [x] `python -m chaoshire train --check` confirms the pinned TalentFit v3 digest
+-- [x] Frontend JavaScript parses
+-- [x] Fairness gate returns PASS for LegacyCorp to MeritFirst
+-- [x] Render reports the tagged API version
+-- [x] Quality, fairness-gate, security, and browser workflows pass
+-- [x] Local dependency audit reports no known vulnerabilities
+-- [x] Workflow, Render, and Dependabot YAML parse successfully
+-
+-## Owner actions
+-
+-- [x] Confirm the Security checks workflow passes after pushing the release-preparation commit
+-- [ ] Add the UptimeRobot `/api/ready` monitor and alert contact
+-- [x] `render.yaml` generates `CHAOSHIRE_API_KEY` at deploy time and sets non-zero read/write rate limits
+-- [ ] Confirm the generated key is stored somewhere the owner can retrieve it, and that `CHAOSHIRE_TRUST_FORWARDED_FOR=1` is active behind the Render proxy
+-- [ ] Test overview, Chaos, agent, guided demo, PDF, and evidence download on one Android or iPhone
+-- [ ] Create and push tag `vX.Y.Z`; the Release workflow publishes source, reports, evidence, checksums, and release notes
+-- [ ] Add the live URL and repository to résumé and LinkedIn
+-
+-## Tag command
+-
+-```bash
+-git tag -a vX.Y.Z -m "ChaosHire vX.Y.Z portfolio release"
+-git push origin vX.Y.Z
+-```
+-
+-Do not create the tag until all workflows for the release-preparation commit are green.
+diff --git a/docs/assets/dashboard-desktop.png b/docs/assets/dashboard-desktop.png
+deleted file mode 100644
+index 1c66efc..0000000
+Binary files a/docs/assets/dashboard-desktop.png and /dev/null differ
+diff --git a/docs/assets/landing-desktop.png b/docs/assets/landing-desktop.png
+deleted file mode 100644
+index f6c64c8..0000000
+Binary files a/docs/assets/landing-desktop.png and /dev/null differ
+diff --git a/docs/assets/landing-mobile.png b/docs/assets/landing-mobile.png
+deleted file mode 100644
+index 514178a..0000000
+Binary files a/docs/assets/landing-mobile.png and /dev/null differ
+diff --git a/docs/engineering/ARCHITECTURE.svg b/docs/engineering/ARCHITECTURE.svg
+new file mode 100644
+index 0000000..1ba7d32
+--- /dev/null
++++ b/docs/engineering/ARCHITECTURE.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="t d"><title id="t">ChaosHire architecture</title><desc id="d">Browser, FastAPI, fairness services, evidence outputs, storage, and delivery controls.</desc><style>text{font-family:system-ui,sans-serif;fill:#e5ecf8}.h{font-size:28px;font-weight:700}.s{font-size:16px}.b{fill:#121c30;stroke:#38bdf8;stroke-width:2}.g{fill:#16233c;stroke:#34d399;stroke-width:2}.a{stroke:#8fa1c2;stroke-width:3;marker-end:url(#m)}</style><defs><marker id="m" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#8fa1c2"/></marker></defs><rect width="1200" height="720" fill="#0b1220"/><text x="60" y="60" class="h">ChaosHire · evidence-first fairness engineering</text><rect x="60" y="110" rx="18" width="250" height="120" class="b"/><text x="90" y="155" class="h">Browser / PWA</text><text x="90" y="190" class="s">Dashboard · guided demo</text><rect x="470" y="110" rx="18" width="260" height="120" class="b"/><text x="520" y="155" class="h">FastAPI</text><text x="500" y="190" class="s">Validation · security · routes</text><line x1="310" y1="170" x2="465" y2="170" class="a"/><rect x="890" y="110" rx="18" width="250" height="120" class="g"/><text x="920" y="155" class="h">Operations</text><text x="920" y="190" class="s">Health · metrics · CI/CD</text><line x1="730" y1="170" x2="885" y2="170" class="a"/><rect x="90" y="330" rx="18" width="280" height="150" class="b"/><text x="120" y="375" class="h">Audit engine</text><text x="120" y="410" class="s">Metrics · confidence</text><text x="120" y="440" class="s">Intersections · adapters</text><rect x="460" y="330" rx="18" width="280" height="150" class="b"/><text x="500" y="375" class="h">Chaos Lab</text><text x="500" y="410" class="s">Counterfactual tests</text><text x="500" y="440" class="s">Candidate-level evidence</text><rect x="830" y="330" rx="18" width="280" height="150" class="b"/><text x="865" y="375" class="h">Fairness review</text><text x="865" y="410" class="s">Risk prioritization</text><text x="865" y="440" class="s">Human action plan</text><line x1="600" y1="230" x2="230" y2="325" class="a"/><line x1="600" y1="230" x2="600" y2="325" class="a"/><line x1="600" y1="230" x2="970" y2="325" class="a"/><rect x="90" y="570" rx="18" width="280" height="100" class="g"/><text x="120" y="615" class="h">SQLite aggregates</text><text x="120" y="645" class="s">No raw-row history</text><rect x="460" y="570" rx="18" width="280" height="100" class="g"/><text x="500" y="615" class="h">Evidence</text><text x="500" y="645" class="s">SHA-256 · HTML · PDF</text><rect x="830" y="570" rx="18" width="280" height="100" class="g"/><text x="865" y="615" class="h">Release gate</text><text x="865" y="645" class="s">PASS / BLOCK in CI</text><line x1="230" y1="480" x2="230" y2="565" class="a"/><line x1="600" y1="480" x2="600" y2="565" class="a"/><line x1="970" y1="480" x2="970" y2="565" class="a"/></svg>
+\ No newline at end of file
+diff --git a/docs/CONTINUOUS-FAIRNESS.md b/docs/engineering/CONTINUOUS-FAIRNESS.md
+similarity index 79%
+rename from docs/CONTINUOUS-FAIRNESS.md
+rename to docs/engineering/CONTINUOUS-FAIRNESS.md
+index 4020aa8..47eab6b 100644
+--- a/docs/CONTINUOUS-FAIRNESS.md
++++ b/docs/engineering/CONTINUOUS-FAIRNESS.md
+@@ -25,14 +25,14 @@ The same model, policy, and results produce the same ID. Changing policy or mode
+ ## Known limit of the privilege-injection fixture
+ 
+ The Privilege-Keyword Injection experiment submits deliberately weak,
+-prestige-heavy synthetic résumés. Against the shipped fixtures those résumés
+-score at most 0.4043 against the 0.5 decision threshold, so the experiment
+-currently PASSES for both reference models: LegacyCorp's prestige weight (0.09)
+-is roughly three times smaller than the ~0.27 required to accept the strongest
+-injected résumé. The experiment's detail string therefore reports the score
+-headroom and the required prestige weight, and the regression suite verifies
+-that a prestige-heavy variant of the fixture (prestige weight 0.35) FAILS while
+-the merit-only fixture PASSES. Because the fixture bounds what this test can
++prestige-heavy synthetic résumés. It currently PASSES for **all three** bundled
++variants: the highest injected score is 0.4043 for `legacy`, 0.1997 for `fair`
++and 0.0498 for `trained`, all below the 0.5 decision threshold. LegacyCorp's
++prestige weight (0.09) would need to reach at least 0.19 on this fixture before
++the experiment could fail; the merit-only fixture applies no prestige weight.
++The experiment's detail string reports each variant's score headroom and
++required prestige weight. The regression suite verifies that a prestige-heavy
++variant (prestige weight 0.35) FAILS while the merit-only fixture PASSES. Because the fixture bounds what this test can
+ falsify, the verdict ships with a `fixture_limit` scope note in every
+ `/api/chaos` payload and a visible **fixture-limited** label next to the badge
+ in the Chaos Lab UI — a green PASS means "this fixture cannot be gamed this
+@@ -53,7 +53,7 @@ Evidence explains *which decisions changed*; it does not itself determine whethe
+ GET /api/compare?baseline=legacy&candidate=fair
+ ```
+ 
+-The response compares fairness risk score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs.
++The response compares fairness risk score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs. The same endpoint also accepts `candidate=trained`; the CI example above intentionally compares `legacy` with `fair`.
+ 
+ ## Fairness release gate
+ 
+diff --git a/docs/METHODOLOGY.md b/docs/engineering/METHODOLOGY.md
+similarity index 100%
+rename from docs/METHODOLOGY.md
+rename to docs/engineering/METHODOLOGY.md
+diff --git a/docs/SCIKIT-LEARN-INTEGRATION.md b/docs/engineering/SCIKIT-LEARN-INTEGRATION.md
+similarity index 100%
+rename from docs/SCIKIT-LEARN-INTEGRATION.md
+rename to docs/engineering/SCIKIT-LEARN-INTEGRATION.md
+diff --git a/docs/MONITORING.md b/docs/operations/MONITORING.md
+similarity index 76%
+rename from docs/MONITORING.md
+rename to docs/operations/MONITORING.md
+index 0972df5..7fb7261 100644
+--- a/docs/MONITORING.md
++++ b/docs/operations/MONITORING.md
+@@ -26,6 +26,39 @@ the dashboard.
+ | `CHAOSHIRE_DB_PATH` | `/app/data/chaoshire.db` | Where the aggregate-history SQLite file lives | `GET /api/ready` → `{"status": "ready", "database": "available"}` |
+ | `CHAOSHIRE_MAX_BODY_BYTES` | `5500000` | Rejects over-long request bodies | A POST with a larger `Content-Length` gets `413` |
+ 
++### Website HTTPS and privacy checks (owner action)
++
++The existing Render service is hand-managed: **changing `render.yaml` does not
++update its dashboard settings**. The new Blueprint declares
++`CHAOSHIRE_PUBLIC_ORIGIN=https://chaoshire.onrender.com`,
++`CHAOSHIRE_FORCE_HTTPS=1`, and `CHAOSHIRE_TRUST_FORWARDED_PROTO=1`. The app also
++auto-enforces HTTPS when Render's own `RENDER_SERVICE_ID` or
++`RENDER_EXTERNAL_URL` is present, while permitting plain HTTP on localhost.
++Only trust `X-Forwarded-Proto` behind a TLS proxy that overwrites the header;
++check this on the live service before declaring the rollout complete:
++
++```bash
++curl -I http://chaoshire.onrender.com/privacy     # expect HTTPS redirect
++curl -I https://chaoshire.onrender.com/privacy    # expect HSTS header
++curl -s -o /dev/null -w '%{http_code}\n' https://chaoshire.onrender.com/api/ready  # GET, expect 200
++```
++
++The privacy and terms pages, robots/sitemap, and social-preview image must also
++be inspected on the deployed URL. The first-party, cookie-free analytics API
++records a page-section view **only after browser consent**, and the aggregate
++report is operator-only; send the key from a server-side shell, never from the
++browser:
++
++```bash
++curl -H "X-API-Key: $CHAOSHIRE_API_KEY" \
++  https://chaoshire.onrender.com/api/ops/analytics
++```
++
++Counts reset on process restart and do not store IPs. See
++[website readiness](WEBSITE-READINESS.md) for local speed and accessibility
++checks. Privacy/terms wording requires the owner's legal review; do not use the
++public prototype with real candidate information.
++
+ On the public demo, `GET /api/meta` still discloses the posture. Private
+ deployments set `CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0` and read the same facts
+ from authenticated `GET /api/ops/posture`. The service logs a key=value summary
+@@ -59,15 +92,15 @@ file — is the source of truth for its environment.
+ Render's free filesystem is wiped on redeploy, instance replacement, and
+ platform maintenance, so the SQLite audit history (`GET /api/audits`) is
+ **ephemeral**: it survives a process restart on the same instance and nothing
+-more. `docs/PERSISTENCE.md` defines what is stored; this section is about how
+-long it lasts. Three postures are on the table:
++more. `docs/operations/PERSISTENCE.md` defines what is stored; this section is
++about how long it lasts. Three postures are on the table:
+ 
+ 1. **Stay ephemeral.** Accept that the history is demo scratch space, keep the
+    "not durable cloud storage" wording, and do nothing. Cheapest, and honest.
+-2. **External managed store.** Point the repository at a managed database
+-   (Render Postgres or an equivalent) through the planned repository adapter so
+-   history survives redeploys. Costs money and adds a second service with its
+-   own cold starts.
++2. **External managed store.** Configure the shipped optional PostgreSQL
++   repository adapter (`CHAOSHIRE_DB_BACKEND=postgres`) with a managed database
++   (Render Postgres or an equivalent) so aggregate history survives redeploys.
++   Costs money and adds a second service with its own operational requirements.
+ 3. **Ship, don't store.** Export the history periodically (for example
+    `GET /api/audit/export` to object storage) instead of making the running
+    service own durability.
+diff --git a/docs/PERSISTENCE.md b/docs/operations/PERSISTENCE.md
+similarity index 66%
+rename from docs/PERSISTENCE.md
+rename to docs/operations/PERSISTENCE.md
+index 88c78c2..0532ab6 100644
+--- a/docs/PERSISTENCE.md
++++ b/docs/operations/PERSISTENCE.md
+@@ -30,7 +30,13 @@ ChaosHire deliberately does not write the following upload contents to SQLite:
+ 
+ The raw parsed DataFrame remains in process memory only so the current session can render and export its aggregate audit. A restart clears those rows.
+ 
+-The public demonstration has no authentication. Audit names, aggregate metrics, and configurations returned by the history API are visible to every visitor. Use synthetic data and non-sensitive audit names only.
++The public demonstration has no visitor authentication. Audit names, aggregate metrics, and configurations returned by the history API are visible to every visitor. Use synthetic data and non-sensitive audit names only.
++
++## Site preferences and anonymous analytics
++
++The browser uses `localStorage` to remember an explicit analytics Allow or Reject choice. No tracking cookies or third-party analytics scripts are loaded. Only after Allow does the browser send an allowlisted page-section name to `POST /api/analytics/view`; it sends no visitor ID, name, candidate ID, or referrer. Daily aggregate counters are held in process memory for at most 30 UTC days, reset on restart, and can be read only through operator-authenticated `GET /api/ops/analytics`. Separate short-term rate-limit buckets do keep client IP identifiers in memory until a process restart; they are not copied into the analytics counters. Hosting-provider access logs may have their own retention.
++
++See the [Privacy Policy source](../../chaoshire/web/privacy.html) for the visitor-facing notice (served at `/privacy` after deployment), and [website readiness](WEBSITE-READINESS.md) for release checks.
+ 
+ ## Database configuration
+ 
+diff --git a/docs/operations/RELEASE-CHECKLIST.md b/docs/operations/RELEASE-CHECKLIST.md
+new file mode 100644
+index 0000000..104f3b9
+--- /dev/null
++++ b/docs/operations/RELEASE-CHECKLIST.md
+@@ -0,0 +1,51 @@
++# Release checklist
++
++Template used for every tagged ChaosHire release (v0.20.0, v0.20.1, v0.21.0,
++v0.22.0 and v0.23.0 all followed it). Substitute the target version for `vX.Y.Z`.
++
++This is a **blank template for a future release**, not an attestation that any
++check has passed for the next tag. Tick items only after verifying the exact
++release commit and deployment.
++
++Counts and percentages are deliberately *not* written into this checklist. They
++live in `chaoshire/build_info.py`, which `scripts/check_build_info.py` verifies
++against a real pytest run in CI, so a stale number here cannot outlive the release
++it described.
++
++## Automated
++
++- [ ] Ruff format and Ruff check pass
++- [ ] Mypy passes (`python -m mypy`)
++- [ ] Every collected test passes
++- [ ] Coverage exceeds the 90% gate
++- [ ] `python scripts/check_build_info.py --coverage-json coverage.json` reports no drift
++- [ ] `python -m chaoshire train --check` confirms the pinned TalentFit v3 digest
++- [ ] Frontend JavaScript parses
++- [ ] Fairness gate returns PASS for LegacyCorp to MeritFirst
++- [ ] Render reports the tagged API version
++- [ ] Quality, fairness-gate, security, and browser workflows pass
++- [ ] Local dependency audit reports no known vulnerabilities
++- [ ] Workflow, Render, and Dependabot YAML parse successfully
++
++## Owner actions
++
++- [ ] Confirm the Security checks workflow passes after pushing the release-preparation commit
++- [ ] Add the UptimeRobot `/api/ready` monitor and alert contact
++- [ ] Verify `render.yaml` generates `CHAOSHIRE_API_KEY` at deploy time and sets non-zero read/write rate limits
++- [ ] Confirm the generated key is stored somewhere the owner can retrieve it, and that `CHAOSHIRE_TRUST_FORWARDED_FOR=1` is active behind the Render proxy
++- [ ] Review Privacy Policy and Terms & Conditions with the site operator/legal adviser; confirm the contact path and actual retention
++- [ ] On the hand-managed Render service, verify HTTP→HTTPS redirect, secure-response HSTS, and `/api/ready` (see `WEBSITE-READINESS.md`)
++- [ ] Check the social preview, sitemap, robots, internal/external links, consent choice, and private analytics summary on the deployed host
++- [ ] Re-run the real-browser mobile/contrast and page-speed checks; a local timing is not a production Lighthouse score
++- [ ] Test overview, Chaos, fairness review, guided demo, PDF, and evidence download on one Android or iPhone
++- [ ] Create and push tag `vX.Y.Z`; the Release workflow publishes source, reports, evidence, checksums, and release notes
++- [ ] Add the live URL and repository to résumé and LinkedIn
++
++## Tag command
++
++```bash
++git tag -a vX.Y.Z -m "ChaosHire vX.Y.Z portfolio release"
++git push origin vX.Y.Z
++```
++
++Do not create the tag until all workflows for the release-preparation commit are green.
+diff --git a/docs/operations/WEBSITE-READINESS.md b/docs/operations/WEBSITE-READINESS.md
+new file mode 100644
+index 0000000..d29b7e7
+--- /dev/null
++++ b/docs/operations/WEBSITE-READINESS.md
+@@ -0,0 +1,53 @@
++# Website readiness and page-speed check
++
++This document audits the public-facing ChaosHire **synthetic prototype**. It is not a production privacy certification or a Lighthouse field-data report. The Render service is hand-managed, so a code or Blueprint change does **not** prove a setting has reached the live service.
++
++## What is implemented
++
++| Checklist area | Status in this codebase |
++|---|---|
++| Privacy Policy and Terms & Conditions | Separate `/privacy` and `/terms` pages, linked from the site footer. The owner must review the contact method, actual deployment retention, and legal wording before publication. |
++| Secrets and HTTPS | Operator, connector, and webhook credentials remain in server environment variables; a canary test checks public HTML/CSS/API metadata for leaks. On Render (or with `CHAOSHIRE_FORCE_HTTPS=1`) public HTTP redirects to a configured HTTPS origin, and secure responses carry HSTS. Health probes are exempt from redirects. Never trust forwarded scheme headers outside a proxy that overwrites them. |
++| Consent and analytics | Accessible, optional, cookie-free consent banner. No page-view request occurs before Allow. The choice is stored in localStorage and can be changed in the footer. Only allowlisted section names reach the first-party API; daily counts are operator-only, process-local, and expire within 30 UTC days or on restart. No visitor IDs are stored with those counts. |
++| Search and sharing | Distinct page titles/descriptions, canonical HTTPS URLs, Open Graph/Twitter preview with alt text, 1200×630 PNG, `/favicon.ico` + PNG favicon, `/sitemap.xml`, and `/robots.txt` (excludes API/docs). |
++| Accessible and mobile UI | One primary action (**Start the 3-minute demo**); mobile shows all three model choices without horizontal page overflow. Form labels, inline error messages, keyboard access, reduced-motion styles, and legible colours are checked in a real browser. API errors remain JSON; browser navigation gets a useful HTML 404. |
++| Links and forms | Internal site and current Markdown relative links checked by tests. Appeals and CSV upload forms validate required fields and sizes before posting; server-side schemas remain authoritative. Public appeals also have a honeypot and existing per-client/instance rate limits. This is not a CAPTCHA or a defence against determined bots. |
++
++## Local speed and accessibility measurements
++
++Measured **24 September 2026** with headless Chromium against a locally running Uvicorn app. Five uncached visits per width, each in a fresh browser context with service workers blocked; median timings:
++
++| Viewport | TTFB | Load event | First contentful paint | Observed largest contentful paint | HTML on wire / decoded | Other resources on wire |
++|---|---:|---:|---:|---:|---:|---:|
++| 1440px | 5 ms | 31 ms | 76 ms | 76 ms | 17,239 / 55,867 bytes | 10,270 bytes |
++| 390px | 5 ms | 28 ms | 56 ms | 56 ms | 17,239 / 55,867 bytes | 10,270 bytes |
++
++`GZipMiddleware` compresses the HTML shell and CSS; the assets figure includes loaded CSS/API resources but **not** the main HTML response. The 320px browser regression also reports no document-wide horizontal overflow and verifies the consent banner cannot cover the CTA when scrolled into view. These sandbox timings are **not** Render cold-start times, a mobile-network benchmark, Indian field Core Web Vitals, or a Lighthouse score. INP and CLS were not measured. Measure the deployed host separately.
++
++Axe-core **4.10.3** checked Home, Dashboard, Upload, Appeals, Privacy, Terms, and the 404 page at **1440/390/320px**: **0 violations across 21 audits**. Eight audits marked some colour-contrast elements *inconclusive* because they were partly clipped by the viewport, not as passes. The automated WCAG AA palette test separately checks all text tokens on all site backgrounds (lowest pair, rose on the lighter card: **5.82:1**; muted text there: **6.0:1**) and the primary button (**7.77:1**). Manual review remains necessary for clipped text, keyboard/screen-reader behaviour, and real devices.
++
++Reproduce with a running app and `requirements-browser.txt` + Playwright Chromium installed:
++
++```bash
++python scripts/check_page_speed.py --base-url http://127.0.0.1:8000 --runs 5
++curl -fLsS https://registry.npmjs.org/axe-core/-/axe-core-4.10.3.tgz \
++  | tar -xzO package/axe.min.js > /tmp/chaoshire-axe.min.js
++python scripts/check_accessibility.py --axe-path /tmp/chaoshire-axe.min.js
++python -m pytest tests/browser -q   # browser suite is opt-in, not in the default test count
++```
++
++For custom Chromium binaries, pass `--chromium-executable PATH` to both scripts. JSON evidence is saved in ignored `reports/generated/page-speed.json` and `reports/generated/accessibility.json`. The default suite verifies mobile contrast tokens, form behaviour, SEO routes, relative links, and consent gating; external links and the hand-managed live service require the owner checks below.
++
++## Live verification snapshot — 24 September 2026
++
++The source changes **have not reached** the existing Render deployment. The live `/api/ready` returned `{"status":"ready","database":"available"}`, but live `/api/meta` still advertised **270 tests / 94.7% coverage** versus **281 / 94.8%** in this checkout. Requests to the live `/privacy`, `/terms`, `/robots.txt`, `/sitemap.xml`, and `/social-preview.png` returned `{"detail":"Not Found"}`; the home page still showed the older CTA and proof figures. Locally, all five new routes return 200 with the expected content types.
++
++Direct `curl` requests to the public HTTPS host failed a TLS handshake **from this sandbox**; an independent web fetcher could reach the live API. That sandbox-specific error does **not** establish a live TLS fault, but it prevents independent verification here of HTTP→HTTPS redirects, HSTS response headers, and production timing. The owner must check these from another network after deploying. No live analytics consent, external links, or legal contact channel was verified. The local suite passed **281 tests / 94.8% coverage**, the opt-in browser suite passed **4 tests**, and 21 local axe audits reported no violations (8 had clipped elements needing manual contrast review). A repeat five-run local speed sample measured 33 ms desktop / 30 ms 390px load events; these are not production figures.
++
++## Owner checks before the live rollout
++
++1. Review privacy/terms wording and a contact path for the entity operating the service. Do not accept real applicant data on the public demo.
++2. On the **existing hand-managed Render service**, confirm the generated API key remains server-side; verify `RENDER_SERVICE_ID`/`RENDER_EXTERNAL_URL`, `CHAOSHIRE_PUBLIC_ORIGIN`, HTTPS enforcement, and proxy-header behaviour. `render.yaml` alone does not update that service. Test `curl -I http://chaoshire.onrender.com/privacy` for a HTTPS redirect and `curl -I https://chaoshire.onrender.com/privacy` for HSTS; `/api/ready` must still return 200.
++3. Verify the deployed robots/sitemap and preview image, and inspect link previews in the target social networks. Check external URLs manually; the repository tests only validate same-site links and files.
++4. With consent rejected, inspect browser Network to confirm **no** `/api/analytics/view` call. With consent allowed, confirm a page-section count is visible to an operator via authenticated `GET /api/ops/analytics`. Keep `X-API-Key` out of the browser and published documentation.
++5. Repeat a real-device audit for contrast, touch targets, horizontal scrolling, keyboard navigation, and page load across a cold Render instance. Use an independent legal/security review before handling personal data or making production hiring decisions.
+diff --git a/PROJECT-ROADMAP.md b/docs/planning/PROJECT-ROADMAP.md
+similarity index 95%
+rename from PROJECT-ROADMAP.md
+rename to docs/planning/PROJECT-ROADMAP.md
+index 5d38716..ca4af2f 100644
+--- a/PROJECT-ROADMAP.md
++++ b/docs/planning/PROJECT-ROADMAP.md
+@@ -13,7 +13,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
+ - [x] Professional README, license, changelog, security and contribution guidance
+ - [x] Split the monolithic backend into data, models, metrics, chaos, and API modules
+ - [x] Add linting and coverage reporting (Ruff + 90% CI coverage gate)
+-- [ ] Add automated formatting and static type checking
++- [x] Add automated formatting and static type checking (Ruff and mypy in CI)
+ - [x] Tagged GitHub releases (v0.20.0, v0.20.1, v0.21.0, v0.23.0, v0.23.3; v0.22.0, v0.23.1, v0.23.2 and v0.23.4 tags pending owner)
+ 
+ ## Phase 2 — Real audit workflow
+@@ -56,7 +56,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
+ - [x] Installable PWA icons, manifest metadata, and offline icon caching
+ - [ ] User accounts and auditor/reviewer roles
+ - [x] Structured external log shipping (`CHAOSHIRE_LOG_WEBHOOK_URL`, HMAC-signed JSON events)
+-- [x] Architecture diagram (`docs/ARCHITECTURE.svg`)
++- [x] Architecture diagram (`docs/engineering/ARCHITECTURE.svg`)
+ - [ ] Short demonstration video
+ 
+ ## Definition of portfolio-ready
+diff --git a/TODO.md b/docs/planning/TODO.md
+similarity index 100%
+rename from TODO.md
+rename to docs/planning/TODO.md
+diff --git a/docs/PORTFOLIO-CASE-STUDY.md b/docs/portfolio/PORTFOLIO-CASE-STUDY.md
+similarity index 96%
+rename from docs/PORTFOLIO-CASE-STUDY.md
+rename to docs/portfolio/PORTFOLIO-CASE-STUDY.md
+index e3480e0..975e795 100644
+--- a/docs/PORTFOLIO-CASE-STUDY.md
++++ b/docs/portfolio/PORTFOLIO-CASE-STUDY.md
+@@ -19,7 +19,7 @@ ChaosHire combines group metrics, uncertainty estimates, pairwise intersectional
+ - Configurable CSV schema, Wilson confidence intervals, two-proportion indicators, and intersectional analysis.
+ - SHA-256 tamper-evident evidence, offline HTML and native PDF reports.
+ - API-key write protection with a generated deployment secret, separate read and write rate limits, bounded appeal queue, nonce-based Content-Security-Policy, request IDs, readiness checks, operational metrics, CodeQL, dependency audit, Dependabot, and automated releases.
+-- 270 automated tests, 94.7% package coverage, and fairness policy enforcement in GitHub Actions. The figures are derived by `scripts/check_build_info.py` from a real test run, so the documents cannot outlive the code they describe.
++- 281 automated tests, 94.8% package coverage, and fairness policy enforcement in GitHub Actions. The figures are derived by `scripts/check_build_info.py` from a real test run, so the documents cannot outlive the code they describe.
+ 
+ ## Measurable demonstration
+ 
+@@ -42,5 +42,5 @@ All built-in records and employers are synthetic. The platform supports investig
+ 
+ - Built and deployed a FastAPI fairness-auditing platform for hiring models, combining disparate-impact, equal-opportunity, confidence intervals, intersectional analysis, and controlled counterfactual stress tests.
+ - Designed deterministic candidate-level evidence and SHA-256 experiment bundles, plus a CI/CD release gate that blocks fairness regressions with meaningful exit codes.
+-- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 270 tests at 94.7% coverage with a CI job that fails when any quoted figure stops matching a real test run.
++- Implemented configurable decision-CSV ingestion, privacy-conscious aggregate persistence, native PDF/offline HTML reports, security controls, and 281 tests at 94.8% coverage with a CI job that fails when any quoted figure stops matching a real test run.
+ - Removed per-group threshold "calibration" from the one-click mitigation set after identifying it as prohibited by 42 U.S.C. § 2000e-2(l), and reframed it as an acknowledgement-gated research contrast that cites the statute in every response.
+diff --git a/docs/PORTFOLIO-EVIDENCE.md b/docs/portfolio/PORTFOLIO-EVIDENCE.md
+similarity index 79%
+rename from docs/PORTFOLIO-EVIDENCE.md
+rename to docs/portfolio/PORTFOLIO-EVIDENCE.md
+index e39c12a..74e8400 100644
+--- a/docs/PORTFOLIO-EVIDENCE.md
++++ b/docs/portfolio/PORTFOLIO-EVIDENCE.md
+@@ -2,7 +2,7 @@
+ 
+ ## 20-second recruiter summary
+ 
+-ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. Its deterministic public demo has 270 tests and 94.7% package coverage, both re-derived from a real test run by a CI job that fails on drift.
++ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. The current repository baseline has 281 tests and 94.8% package coverage, measured from a real local run and guarded by a CI job that fails on drift. The hand-managed public Render deployment may lag until the owner deploys this revision.
+ 
+ ## Three-minute live-demo script
+ 
+@@ -56,12 +56,12 @@ Open **Release Gate** and compare LegacyCorp with MeritFirst.
+ 
+ ### One line
+ 
+-Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **270 tests and 94.7% coverage**.
++Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **281 tests and 94.8% coverage**.
+ 
+ ### Two bullets
+ 
+ - Engineered a deterministic hiring-AI audit platform with group/intersectional metrics, Wilson confidence intervals, counterfactual identity swaps, mitigation simulations, appeals, tamper-evident evidence, and automated model-release policy.
+-- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, scikit-learn adapter example, browser/mobile automation, **270 tests**, and **94.7% package coverage**.
++- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, and scikit-learn adapter example; the current repository baseline adds browser/mobile automation, **281 tests**, and **94.8% package coverage**. Verify the live revision before citing these figures for the deployed site.
+ 
+ ## Evidence checklist
+ 
+@@ -69,9 +69,9 @@ Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits
+ - API docs: <https://chaoshire.onrender.com/docs>
+ - Source: <https://github.com/dommetipavan26-tech/chaoshire>
+ - Latest release: <https://github.com/dommetipavan26-tech/chaoshire/releases/latest>
+-- Desktop landing screenshot: `docs/assets/landing-desktop.png`
+-- Mobile landing screenshot: `docs/assets/landing-mobile.png`
+-- Dashboard screenshot: `docs/assets/dashboard-desktop.png`
+-- scikit-learn integration: `docs/SCIKIT-LEARN-INTEGRATION.md`
++- Desktop landing screenshot: `docs/portfolio/assets/landing-desktop.png`
++- Mobile landing screenshot: `docs/portfolio/assets/landing-mobile.png`
++- Dashboard screenshot: `docs/portfolio/assets/dashboard-desktop.png`
++- scikit-learn integration: `docs/engineering/SCIKIT-LEARN-INTEGRATION.md`
+ 
+ All screenshots and claims must be refreshed after production deployment. Do not present synthetic outcomes as findings about a real employer.
+\ No newline at end of file
+diff --git a/docs/PORTFOLIO-PLATFORM.md b/docs/portfolio/PORTFOLIO-PLATFORM.md
+similarity index 91%
+rename from docs/PORTFOLIO-PLATFORM.md
+rename to docs/portfolio/PORTFOLIO-PLATFORM.md
+index eacc7ec..6532f81 100644
+--- a/docs/PORTFOLIO-PLATFORM.md
++++ b/docs/portfolio/PORTFOLIO-PLATFORM.md
+@@ -47,7 +47,7 @@ Metrics reset whenever the process restarts and contain no candidate data.
+ 
+ ## Tamper-evident evidence
+ 
+-`GET /api/evidence` combines aggregate audit evidence, Chaos results, and the agent review in `chaoshire.evidence.v1`. A SHA-256 digest covers canonical JSON. `POST /api/evidence/verify` detects any later modification. This proves integrity relative to the downloaded bundle; it is not a third-party digital signature.
++`GET /api/evidence` combines aggregate audit evidence, Chaos results, and the deterministic fairness review in `chaoshire.evidence.v1`. A SHA-256 digest covers canonical JSON. `POST /api/evidence/verify` detects any later modification. This proves integrity relative to the downloaded bundle; it is not a third-party digital signature.
+ 
+ CLI equivalent:
+ 
+@@ -69,7 +69,7 @@ The dashboard has a skip link, visible keyboard focus, reduced-motion handling,
+ 
+ ## Guided demonstration
+ 
+-`GET /api/demo` returns a stable six-step, three-minute portfolio story covering baseline risk, controlled Chaos, candidate C-1046, agent review, mitigation/comparison, and the release decision. The dashboard exposes the same story in the Guided Demo tab.
++`GET /api/demo` returns a stable six-step, three-minute portfolio story covering baseline risk, controlled Chaos, candidate C-1046, fairness review, mitigation/comparison, and the release decision. The dashboard exposes the same story in the Guided Demo tab.
+ 
+ ## Deployment environment
+ 
+@@ -87,4 +87,4 @@ CHAOSHIRE_MAX_BODY_BYTES=5500000
+ CHAOSHIRE_REMOTE_MODELS=[{"model_id":"acme-v4","url":"https://models.example/decisions","api_key_env":"ACME_KEY"}]
+ ```
+ 
+-SQLite remains the default. Render free-tier files are ephemeral, so durable multi-instance deployments still require a managed database adapter.
++SQLite remains the default. Render free-tier files are ephemeral; use the optional PostgreSQL repository adapter with a managed database for durable aggregate history. Multi-instance deployments also need shared state and rate limiting, which are not provided by the process-local demo.
+diff --git a/docs/portfolio/assets/dashboard-desktop.png b/docs/portfolio/assets/dashboard-desktop.png
+new file mode 100644
+index 0000000..86c4240
+Binary files /dev/null and b/docs/portfolio/assets/dashboard-desktop.png differ
+diff --git a/docs/portfolio/assets/landing-desktop.png b/docs/portfolio/assets/landing-desktop.png
+new file mode 100644
+index 0000000..56decba
+Binary files /dev/null and b/docs/portfolio/assets/landing-desktop.png differ
+diff --git a/docs/portfolio/assets/landing-mobile.png b/docs/portfolio/assets/landing-mobile.png
+new file mode 100644
+index 0000000..109d527
+Binary files /dev/null and b/docs/portfolio/assets/landing-mobile.png differ
+diff --git a/pyproject.toml b/pyproject.toml
+index bf202cc..5859d20 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,5 +1,6 @@
+ [tool.pytest.ini_options]
+-testpaths = ["tests"]
++# The Playwright suite is opt-in: its browser dependency is not part of requirements-dev.txt.
++testpaths = ["tests/api", "tests/core", "tests/infrastructure", "tests/web"]
+ addopts = "--strict-markers"
+ filterwarnings = [
+   "ignore:Using `httpx` with `starlette.testclient` is deprecated.*",
+diff --git a/render.yaml b/render.yaml
+index a85539c..f7d4e83 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -11,6 +11,15 @@ services:
+       - key: CHAOSHIRE_MAX_BODY_BYTES
+         value: "5500000"
+ 
++      # TLS is terminated by Render. Only trust its forwarded scheme header
++      # behind that proxy; redirect public HTTP to the canonical HTTPS origin.
++      - key: CHAOSHIRE_PUBLIC_ORIGIN
++        value: "https://chaoshire.onrender.com"
++      - key: CHAOSHIRE_FORCE_HTTPS
++        value: "1"
++      - key: CHAOSHIRE_TRUST_FORWARDED_PROTO
++        value: "1"
++
+       # --- write access -----------------------------------------------------
+       # A real secret is generated at deploy time, not left unset. Holding it
+       # makes an upload "published": it is written to the persistent audit
+diff --git a/requirements-dev.txt b/requirements-dev.txt
+index ba58e43..afc161b 100644
+--- a/requirements-dev.txt
++++ b/requirements-dev.txt
+@@ -1,8 +1,8 @@
+ -r requirements.txt
+ pytest>=8.0
+ pytest-cov>=5.0
+-httpx>=0.27
++httpx>=0.28.1
+ ruff>=0.16.8
+-mypy>=1.11
++mypy>=2.3.1
+ # Retraining reproducibility test + `chaoshire train` (runtime never needs it)
+-scikit-learn>=1.5,<2
++scikit-learn>=1.9.1,<2
+diff --git a/requirements-examples.txt b/requirements-examples.txt
+index 62d2aa2..3fb21d4 100644
+--- a/requirements-examples.txt
++++ b/requirements-examples.txt
+@@ -1,2 +1,2 @@
+ -r requirements.txt
+-scikit-learn>=1.5,<2
++scikit-learn>=1.9.1,<2
+diff --git a/requirements.txt b/requirements.txt
+index 2c053b9..6d5c181 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,6 +1,6 @@
+ fastapi>=0.141.1
+-uvicorn>=0.29
++uvicorn>=0.53.0
+ numpy>=1.26
+-pandas>=2.0
++pandas>=3.0.6
+ pydantic>=2.0
+-httpx>=0.27
++httpx>=0.28.1
+diff --git a/scripts/capture_portfolio.py b/scripts/capture_portfolio.py
+index 7ec8302..94d692c 100644
+--- a/scripts/capture_portfolio.py
++++ b/scripts/capture_portfolio.py
+@@ -5,28 +5,61 @@ from __future__ import annotations
+ import argparse
+ from pathlib import Path
+ 
+-from playwright.sync_api import sync_playwright
++from playwright.sync_api import Page, expect, sync_playwright
++
++
++def wait_for_landing(page: Page, base_url: str) -> None:
++    """Fail rather than save a screenshot before the live model data has rendered."""
++    response = page.request.get(f"{base_url.rstrip('/')}/api/meta")
++    if not response.ok:
++        raise RuntimeError(f"Could not load model metadata: HTTP {response.status}")
++    meta = response.json()
++    models = meta["models"]
++    expected_ids = [model["id"] for model in models]
++    if not {"legacy", "fair", "trained"}.issubset(expected_ids):
++        raise RuntimeError(f"Expected all three reference models, got {expected_ids}")
++
++    selector = page.locator("#modelsel button[data-m]")
++    expect(selector).to_have_count(len(expected_ids))
++    actual_ids = selector.evaluate_all("buttons => buttons.map(button => button.dataset.m)")
++    if actual_ids != expected_ids:
++        raise RuntimeError(
++            f"Model selector does not match /api/meta: {actual_ids} != {expected_ids}"
++        )
++    for model in models:
++        expect(page.locator(f'#modelsel button[data-m="{model["id"]}"]')).to_contain_text(
++            model["title"]
++        )
++
++    build = meta["build"]
++    expect(page.locator("#proof-version")).to_have_text(f"v{build['version']}")
++    expect(page.locator("#proof-tests")).to_have_text(str(build["automated_tests"]))
++    expect(page.locator("#proof-coverage")).to_have_text(build["package_coverage"])
+ 
+ 
+ def main() -> None:
+     parser = argparse.ArgumentParser()
+     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+-    parser.add_argument("--output", default="docs/assets")
++    parser.add_argument("--output", default="docs/portfolio/assets")
++    parser.add_argument("--chromium-executable", type=Path, help="Use a locally installed Chromium")
+     args = parser.parse_args()
+     output = Path(args.output)
+     output.mkdir(parents=True, exist_ok=True)
+ 
+     with sync_playwright() as playwright:
+-        browser = playwright.chromium.launch()
++        browser = playwright.chromium.launch(executable_path=args.chromium_executable)
+         desktop = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+         desktop.goto(args.base_url, wait_until="networkidle")
++        wait_for_landing(desktop, args.base_url)
+         desktop.screenshot(path=output / "landing-desktop.png", full_page=True)
+-        desktop.get_by_role("button", name="Explore dashboard").click()
+-        desktop.get_by_text("Fairness Risk Score", exact=True).wait_for()
++        desktop.get_by_role("button", name="Fairness Dashboard").click()
++        expect(desktop.locator("#tab-overview")).to_contain_text("Fairness Risk Score")
++        expect(desktop.locator("#tab-overview .grade-ring b")).to_have_text("32")
+         desktop.screenshot(path=output / "dashboard-desktop.png", full_page=True)
+ 
+         mobile = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=1)
+         mobile.goto(args.base_url, wait_until="networkidle")
++        wait_for_landing(mobile, args.base_url)
+         mobile.screenshot(path=output / "landing-mobile.png", full_page=True)
+         browser.close()
+ 
+diff --git a/scripts/check_accessibility.py b/scripts/check_accessibility.py
+new file mode 100644
+index 0000000..9c3d9e0
+--- /dev/null
++++ b/scripts/check_accessibility.py
+@@ -0,0 +1,82 @@
++"""Audit rendered pages with locally supplied axe-core and Playwright Chromium.
++
++Download axe-core separately (not served to visitors or checked into Git), then:
++  python scripts/check_accessibility.py --axe-path /tmp/axe.min.js
++
++Axe catches many contrast, name, label, and semantic problems. Manual keyboard,
++screen-reader, and physical-device checks are still required.
++"""
++
++from __future__ import annotations
++
++import argparse
++import json
++from pathlib import Path
++
++from playwright.sync_api import sync_playwright
++
++TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]
++PAGES = {
++    "Home": ("/", None),
++    "Dashboard": ("/", "Fairness Dashboard"),
++    "Upload": ("/", "Upload Your Model"),
++    "Appeals": ("/", "Appeals Portal"),
++    "Privacy": ("/privacy", None),
++    "Terms": ("/terms", None),
++    "404": ("/page-that-does-not-exist", None),
++}
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
++    parser.add_argument("--axe-path", type=Path, required=True)
++    parser.add_argument("--chromium-executable", type=Path)
++    parser.add_argument("--output", type=Path, default=Path("reports/generated/accessibility.json"))
++    args = parser.parse_args()
++    source = args.axe_path.read_text(encoding="utf-8")
++    checks: list[dict[str, object]] = []
++    with sync_playwright() as playwright:
++        browser = playwright.chromium.launch(executable_path=args.chromium_executable)
++        for width in (1440, 390, 320):
++            context = browser.new_context(
++                viewport={"width": width, "height": 900}, service_workers="block"
++            )
++            for name, (route, tab) in PAGES.items():
++                page = context.new_page()
++                page.goto(f"{args.base_url.rstrip('/')}{route}", wait_until="networkidle")
++                if tab:
++                    page.get_by_role("button", name=tab).click()
++                # Script tags are correctly blocked by the site's CSP. DevTools
++                # evaluation runs the local audit without weakening that policy.
++                page.evaluate(source)
++                result = page.evaluate(
++                    """async tags => {
++                        const audit=await axe.run(document,{runOnly:{type:'tag',values:tags}});
++                        return {violations:audit.violations.map(v=>({id:v.id,impact:v.impact,
++                          targets:v.nodes.map(n=>n.target)})),
++                          incomplete:audit.incomplete.map(v=>({id:v.id,
++                            targets:v.nodes.map(n=>n.target)}))};
++                    }""",
++                    TAGS,
++                )
++                checks.append({"width": width, "page": name, **result})
++                page.close()
++            context.close()
++        browser.close()
++    args.output.parent.mkdir(parents=True, exist_ok=True)
++    args.output.write_text(json.dumps(checks, indent=2) + "\n", encoding="utf-8")
++    violations = [check for check in checks if check["violations"]]
++    for check in checks:
++        print(f"{check['width']}px {check['page']}: {len(check['violations'])} violations")
++    unresolved = [check for check in checks if check["incomplete"]]
++    print(
++        f"Saved {args.output} ({len(checks)} audits, {len(violations)} failing pages, "
++        f"{len(unresolved)} pages with untestable elements for manual review)"
++    )
++    if violations:
++        raise SystemExit(1)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/scripts/check_page_speed.py b/scripts/check_page_speed.py
+new file mode 100644
+index 0000000..4d9912a
+--- /dev/null
++++ b/scripts/check_page_speed.py
+@@ -0,0 +1,92 @@
++"""Measure real-browser local load timings without inventing a Lighthouse score.
++
++Run against a *running* app after installing requirements-browser.txt:
++    python scripts/check_page_speed.py --base-url http://127.0.0.1:8000
++
++Use --chromium-executable for a system/browser binary when the Playwright
++browser download is unavailable. Results are local lab measurements, not
++field Core Web Vitals or a promise about Render cold starts or other regions.
++"""
++
++from __future__ import annotations
++
++import argparse
++import json
++from pathlib import Path
++from statistics import median
++
++from playwright.sync_api import sync_playwright
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
++    parser.add_argument("--runs", type=int, default=3)
++    parser.add_argument("--output", type=Path, default=Path("reports/generated/page-speed.json"))
++    parser.add_argument("--chromium-executable", type=Path)
++    args = parser.parse_args()
++    if args.runs < 1:
++        parser.error("--runs must be positive")
++    viewports: dict[str, dict[str, object]] = {}
++    report: dict[str, object] = {
++        "source": "local Chromium navigation, fresh context per run, service workers blocked",
++        "url": args.base_url,
++        "runs_per_viewport": args.runs,
++        "units": "milliseconds (timing); bytes (resource sizes)",
++        "viewports": viewports,
++    }
++    with sync_playwright() as playwright:
++        browser = playwright.chromium.launch(executable_path=args.chromium_executable)
++        for width in (1440, 390):
++            samples: list[dict[str, int]] = []
++            for _ in range(args.runs):
++                context = browser.new_context(
++                    viewport={"width": width, "height": 900}, service_workers="block"
++                )
++                page = context.new_page()
++                page.add_init_script(
++                    "window.__lcp=0;new PerformanceObserver(l=>{for(const e of l.getEntries())"
++                    "window.__lcp=e.startTime}).observe({type:'largest-contentful-paint',buffered:true})"
++                )
++                response = page.goto(args.base_url, wait_until="networkidle", timeout=30000)
++                if response is None or not response.ok:
++                    raise RuntimeError(
++                        f"Landing page failed: {response.status if response else 'no response'}"
++                    )
++                page.wait_for_function(
++                    "() => document.querySelectorAll('#modelsel button').length >= 3 && "
++                    "document.querySelector('#proof-tests')?.textContent !== '—' && "
++                    "document.querySelector('#tab-overview .grade-ring b')"
++                )
++                sample = page.evaluate(
++                    """() => {
++                      const n=performance.getEntriesByType('navigation')[0];
++                      const fcp=performance.getEntriesByType('paint').find(e=>e.name==='first-contentful-paint');
++                      const bytes=performance.getEntriesByType('resource').reduce((sum,e)=>sum+e.encodedBodySize,0);
++                      return {ttfb_ms:Math.round(n.responseStart),load_ms:Math.round(n.loadEventEnd),
++                        fcp_ms:Math.round(fcp?.startTime||0),lcp_ms:Math.round(window.__lcp),
++                        html_wire_bytes:n.encodedBodySize,assets_wire_bytes:bytes,
++                        scroll_width:document.documentElement.scrollWidth};
++                    }"""
++                )
++                sample["html_bytes"] = len(response.body())
++                if sample["scroll_width"] > width:
++                    raise RuntimeError(
++                        f"Horizontal overflow at {width}px: {sample['scroll_width']}px"
++                    )
++                samples.append(sample)
++                context.close()
++            viewports[str(width)] = {
++                "samples": samples,
++                "median": {key: median(sample[key] for sample in samples) for key in samples[0]},
++            }
++        browser.close()
++    args.output.parent.mkdir(parents=True, exist_ok=True)
++    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
++    print(f"Saved {args.output}")
++    for width, data in viewports.items():
++        print(f"{width}px median: {data['median']}")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/scripts/generate_icons.py b/scripts/generate_icons.py
+index e2f3bf0..8701353 100644
+--- a/scripts/generate_icons.py
++++ b/scripts/generate_icons.py
+@@ -1,6 +1,6 @@
+ """Generate the deterministic ChaosHire PWA icon set.
+ 
+-The icons are committed to ``chaoshire/static`` so the application, Docker image,
++The icons are committed to ``chaoshire/web/static/icons`` so the application, Docker image,
+ and Render deployment stay dependency-free at runtime. Regenerate them with:
+ 
+     python -m pip install pillow
+@@ -22,7 +22,7 @@ EDGE = (31, 44, 72, 255)  # #1f2c48
+ BAR_BOTTOM = (56, 189, 248, 255)  # #38bdf8
+ BAR_TOP = (167, 139, 250, 255)  # #a78bfa
+ ACCENT = (251, 113, 133, 255)  # #fb7185 — the "chaos" slash
+-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "chaoshire" / "static"
++OUTPUT_DIR = Path(__file__).resolve().parent.parent / "chaoshire" / "web" / "static" / "icons"
+ 
+ 
+ def _mix(first: tuple[int, int, int, int], second: tuple[int, int, int, int], ratio: float):
+@@ -94,6 +94,14 @@ def main() -> None:
+         draw_icon(size, maskable).save(path, format="PNG", optimize=True)
+         print(f"Wrote {path} ({path.stat().st_size} bytes)")
+ 
++    source = draw_icon(192)
++    small = output / "favicon-32.png"
++    source.resize((32, 32), Image.Resampling.LANCZOS).save(small, format="PNG", optimize=True)
++    browser_icon = output / "favicon.ico"
++    source.save(browser_icon, format="ICO", sizes=[(16, 16), (32, 32), (48, 48)])
++    for path in (small, browser_icon):
++        print(f"Wrote {path} ({path.stat().st_size} bytes)")
++
+ 
+ if __name__ == "__main__":
+     main()
+diff --git a/scripts/generate_social_preview.py b/scripts/generate_social_preview.py
+new file mode 100644
+index 0000000..314b5db
+--- /dev/null
++++ b/scripts/generate_social_preview.py
+@@ -0,0 +1,77 @@
++"""Draw the lightweight 1200×630 social sharing card without external assets.
++
++Install Pillow (`python -m pip install pillow`) and run
++`python -m scripts.generate_social_preview` after changing the brand copy.
++The generated PNG is committed because crawlers cannot run a Python generator.
++"""
++
++from __future__ import annotations
++
++from pathlib import Path
++
++from PIL import Image, ImageDraw, ImageFont
++
++OUTPUT = (
++    Path(__file__).resolve().parent.parent / "chaoshire" / "web" / "static" / "social-preview.png"
++)
++NAVY = (11, 18, 32)
++CARD = (22, 35, 60)
++BLUE = (56, 189, 248)
++LIGHT = (229, 236, 248)
++MUTED = (173, 190, 217)
++
++
++def font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
++    name = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
++    try:
++        return ImageFont.truetype(name, size)
++    except OSError:
++        return ImageFont.load_default(size=size)
++
++
++def main() -> None:
++    image = Image.new("RGB", (1200, 630), NAVY)
++    draw = ImageDraw.Draw(image)
++    draw.rounded_rectangle(
++        (35, 35, 1165, 595), radius=36, fill=CARD, outline=(48, 67, 101), width=2
++    )
++    draw.ellipse((870, 40, 1170, 340), fill=(29, 58, 89))
++    draw.ellipse((920, 360, 1090, 530), fill=(23, 69, 88))
++
++    # The existing app icon anchors the card; all illustrations are vector shapes.
++    icon_path = OUTPUT.parent / "icons" / "icon-192.png"
++    with Image.open(icon_path) as source:
++        icon = source.convert("RGBA").resize((80, 80), Image.Resampling.LANCZOS)
++    image.paste(icon, (85, 77), icon)
++    draw.text((180, 84), "Chaos", font=font(44, bold=True), fill=LIGHT)
++    draw.text((327, 84), "Hire", font=font(44, bold=True), fill=BLUE)
++    draw.text((87, 207), "SYNTHETIC FAIRNESS AUDIT", font=font(19, bold=True), fill=BLUE)
++    draw.text((82, 260), "Stress-test hiring AI", font=font(58, bold=True), fill=LIGHT)
++    draw.text((82, 335), "before unfair decisions.", font=font(51, bold=True), fill=BLUE)
++    draw.text(
++        (86, 466),
++        "Measure disparity  ·  Probe decisions  ·  Review evidence",
++        font=font(22),
++        fill=MUTED,
++    )
++    draw.text(
++        (86, 541), "Educational prototype — not a hiring decision tool", font=font(18), fill=MUTED
++    )
++
++    draw.rounded_rectangle(
++        (865, 220, 1105, 420), radius=22, fill=(17, 29, 49), outline=(66, 94, 132), width=2
++    )
++    for index, (height, color) in enumerate(
++        ((68, (56, 189, 248)), (111, (167, 139, 250)), (146, (52, 211, 153)))
++    ):
++        left = 905 + index * 68
++        draw.rounded_rectangle((left, 380 - height, left + 38, 380), radius=12, fill=color)
++    draw.line(((891, 398), (1078, 398)), fill=(74, 99, 132), width=3)
++
++    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
++    image.save(OUTPUT, "PNG", optimize=True)
++    print(f"Wrote {OUTPUT} ({OUTPUT.stat().st_size} bytes)")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tests/test_api.py b/tests/api/test_api.py
+similarity index 100%
+rename from tests/test_api.py
+rename to tests/api/test_api.py
+diff --git a/tests/test_appeals_redaction.py b/tests/api/test_appeals_redaction.py
+similarity index 100%
+rename from tests/test_appeals_redaction.py
+rename to tests/api/test_appeals_redaction.py
+diff --git a/tests/test_configurable_upload.py b/tests/api/test_configurable_upload.py
+similarity index 100%
+rename from tests/test_configurable_upload.py
+rename to tests/api/test_configurable_upload.py
+diff --git a/tests/test_shap_adapter.py b/tests/api/test_shap_adapter.py
+similarity index 100%
+rename from tests/test_shap_adapter.py
+rename to tests/api/test_shap_adapter.py
+diff --git a/tests/test_status_contract.py b/tests/api/test_status_contract.py
+similarity index 100%
+rename from tests/test_status_contract.py
+rename to tests/api/test_status_contract.py
+diff --git a/tests/test_verification_fixes.py b/tests/api/test_verification_fixes.py
+similarity index 100%
+rename from tests/test_verification_fixes.py
+rename to tests/api/test_verification_fixes.py
+diff --git a/tests/test_write_access.py b/tests/api/test_write_access.py
+similarity index 99%
+rename from tests/test_write_access.py
+rename to tests/api/test_write_access.py
+index 4f2cd1e..bfcf11b 100644
+--- a/tests/test_write_access.py
++++ b/tests/api/test_write_access.py
+@@ -479,7 +479,7 @@ def test_blueprint_contract_matches_render_yaml():
+ 
+     from chaoshire.platform import BLUEPRINT_CONTRACT
+ 
+-    text = (Path(__file__).resolve().parent.parent / "render.yaml").read_text(encoding="utf-8")
++    text = (Path(__file__).resolve().parents[2] / "render.yaml").read_text(encoding="utf-8")
+     for name, expected in BLUEPRINT_CONTRACT.items():
+         match = re.search(
+             rf"- key:\s*{re.escape(name)}\n\s+value:\s*\"([^\"]+)\"",
+diff --git a/tests/browser/conftest.py b/tests/browser/conftest.py
+new file mode 100644
+index 0000000..b32b006
+--- /dev/null
++++ b/tests/browser/conftest.py
+@@ -0,0 +1,14 @@
++"""The real-browser suite uses the app's default demo configuration.
++
++The API/core tests share an autouse fixture that sets an operator key and
++turns rate limits off. Browser tests spawn their own server and should not
++inherit those environment changes when the suites live under the same tree.
++"""
++
++import pytest
++
++
++@pytest.fixture(autouse=True)
++def isolated_state():
++    """Override the parent fixture; browser tests manage their own server state."""
++    yield
+diff --git a/browser_tests/test_landing.py b/tests/browser/test_landing.py
+similarity index 72%
+rename from browser_tests/test_landing.py
+rename to tests/browser/test_landing.py
+index f26f6c9..fa23e76 100644
+--- a/browser_tests/test_landing.py
++++ b/tests/browser/test_landing.py
+@@ -46,6 +46,7 @@ def running_app():
+         env = {**os.environ, "CHAOSHIRE_DB_PATH": f"{temp_dir}/browser.db"}
+         process = subprocess.Popen(
+             [sys.executable, "-m", "uvicorn", "backend:app", "--port", str(port)],
++            cwd=Path(__file__).resolve().parents[2],
+             env=env,
+             stdout=subprocess.DEVNULL,
+             stderr=subprocess.DEVNULL,
+@@ -93,7 +94,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
+ 
+         expect(page.get_by_text("does not make hiring decisions", exact=False)).to_be_visible()
+         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+-        expect(page.locator("#modelsel")).to_be_visible()
++        expect(page.get_by_role("group", name="Audit model selector")).to_be_visible()
+         # Three reference models, including the one we actually trained.
+         assert len(models) == 3
+         expect(page.locator("#modelsel .mbtn")).to_have_count(len(models))
+@@ -117,7 +118,8 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
+         expect(page.locator("#home-community")).to_have_text("111")
+         expect(page.locator("#home-resilience")).to_have_text("30")
+ 
+-        page.get_by_role("button", name="Explore dashboard").click()
++        page.get_by_role("button", name="Fairness Dashboard").click()
++        expect(page.get_by_role("heading", name="Fairness Dashboard", level=2)).to_be_visible()
+         page.get_by_role("button", name=models["fair"]["title"]).click()
+         expect(page.locator("#tab-overview .grade-ring b", has_text="84")).to_be_visible()
+         expect(page.locator("#tab-overview")).to_be_visible()
+@@ -138,7 +140,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
+         home = page.get_by_role("button", name="Home")
+         home.focus()
+         page.keyboard.press("Enter")
+-        page.get_by_role("button", name="Explore dashboard").click()
++        page.get_by_role("button", name="Fairness Dashboard").click()
+         # Scoped to the overview tab and matched as a substring: the score line now
+         # reads "Fairness Risk Score · 71.3 of 85 measurable points, normalised to
+         # 100", so there is no element whose entire text is the bare label. Asserting
+@@ -243,3 +245,77 @@ def test_uploaded_group_values_cannot_escape_the_attribute_context() -> None:
+         assert "<b>pwned</b>" in page.locator("#tab-overview").inner_text()
+         csv_path.unlink(missing_ok=True)
+         browser.close()
++
++
++def test_mobile_consent_and_form_validation() -> None:
++    """No analytics before opt-in; mobile choices and form errors stay accessible."""
++    with running_app() as url, sync_playwright() as playwright:
++        browser = playwright.chromium.launch()
++        page = browser.new_page(viewport={"width": 320, "height": 700})
++        tracking: list[str] = []
++        submissions: list[str] = []
++        page.on(
++            "request",
++            lambda request: (
++                tracking.append(request.url)
++                if request.url.endswith("/api/analytics/view")
++                else submissions.append(request.url)
++                if request.url.endswith(("/api/appeals", "/api/upload"))
++                else None
++            ),
++        )
++        page.goto(url, wait_until="networkidle")
++
++        expect(page.locator("#consent-banner")).to_be_visible()
++        assert not tracking
++        trained = page.locator('#modelsel button[data-m="trained"]').bounding_box()
++        assert trained is not None
++        assert trained["x"] >= 0 and trained["x"] + trained["width"] <= 320
++        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
++        expect(page.locator("#startdemo")).to_be_visible()
++        page.locator("#startdemo").scroll_into_view_if_needed()
++        assert page.locator("#startdemo").evaluate(
++            "button => {const r=button.getBoundingClientRect();"
++            "return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2) === button}"
++        )  # The banner must never overlay the CTA, even on a 320px phone.
++        page.get_by_role("button", name="Reject optional").click()
++        expect(page.locator("#consent-banner")).to_be_hidden()
++        assert page.evaluate("localStorage.getItem('chaoshire-analytics-consent-v1')") == "no"
++        page.reload(wait_until="networkidle")
++        expect(page.locator("#consent-banner")).to_be_hidden()
++        assert not tracking
++
++        page.get_by_role("button", name="Privacy settings").click()
++        expect(page.locator("#consent-banner")).to_be_visible()
++        with page.expect_response(
++            lambda response: response.url.endswith("/api/analytics/view")
++        ) as event:
++            page.get_by_role("button", name="Allow analytics").click()
++        assert event.value.status == 204
++        assert page.evaluate("localStorage.getItem('chaoshire-analytics-consent-v1')") == "yes"
++        expect(page.locator("#consent-banner")).to_be_hidden()
++
++        page.get_by_role("button", name="Appeals Portal").click()
++        page.get_by_role("button", name="Submit appeal").click()
++        expect(page.locator("#aout")).to_contain_text("Enter an application ID")
++        page.locator("#acid").fill("C-1046")
++        page.locator("#amsg").fill("   ")
++        page.get_by_role("button", name="Submit appeal").click()
++        expect(page.locator("#aout")).to_contain_text("Explain why this decision needs review")
++        assert not submissions
++        page.locator("#amsg").fill("Please review the synthetic decision")
++        page.locator("#appeal-website").evaluate("node => node.value = 'https://bot.example'")
++        with page.expect_response(lambda response: response.url.endswith("/api/appeals")) as event:
++            page.get_by_role("button", name="Submit appeal").click()
++        assert event.value.status == 422
++
++        page.get_by_role("button", name="Upload Your Model").click()
++        page.get_by_role("button", name="Validate & audit").click()
++        expect(page.locator("#upout")).to_contain_text("Choose a CSV file first")
++        page.locator("#csvfile").set_input_files(
++            {"name": "not-csv.txt", "mimeType": "text/plain", "buffer": b"decision\n1"}
++        )
++        page.get_by_role("button", name="Validate & audit").click()
++        expect(page.locator("#upout")).to_contain_text("Choose a .csv file")
++        assert not any(url.endswith("/api/upload") for url in submissions)
++        browser.close()
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 3b86e0c..6923445 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -5,10 +5,10 @@ Tests run as an **authenticated operator**: ``isolated_state`` configures
+ That keeps the publish path (persistent audit history + the shared
+ ``dataset=uploaded`` slot) under test. Tests that need the anonymous path build
+ a plain ``TestClient`` and omit the header — see
+-``tests/test_write_access.py``.
++``tests/api/test_write_access.py``.
+ 
+ The per-minute rate-limit budgets are disabled here so a fast suite does not
+-trip them; the limiters are exercised directly in ``tests/test_write_access.py``.
++trip them; the limiters are exercised directly in ``tests/api/test_write_access.py``.
+ """
+ 
+ from typing import Any
+@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
+ 
+ import backend
+ from chaoshire.platform import LIMITER
++from chaoshire.site import SITE_ANALYTICS
+ from chaoshire.state import APPEALS, UPLOADED, UPLOADED_LOCK, appeals_capacity
+ 
+ TEST_API_KEY = "test-operator-key-not-a-secret"
+@@ -50,8 +51,15 @@ def isolated_state(tmp_path, monkeypatch):
+     monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_FOR", raising=False)
+     monkeypatch.delenv("CHAOSHIRE_MAX_APPEALS", raising=False)
+     monkeypatch.delenv("CHAOSHIRE_REMOTE_MODELS", raising=False)
++    monkeypatch.delenv("CHAOSHIRE_FORCE_HTTPS", raising=False)
++    monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_PROTO", raising=False)
++    monkeypatch.delenv("CHAOSHIRE_PUBLIC_ORIGIN", raising=False)
++    monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
++    monkeypatch.delenv("RENDER_SERVICE_ID", raising=False)
+     LIMITER.reset()
++    SITE_ANALYTICS.reset()
+     _clear_shared_state()
+     yield
+     LIMITER.reset()
++    SITE_ANALYTICS.reset()
+     _clear_shared_state()
+diff --git a/tests/test_certificate_scale.py b/tests/core/test_certificate_scale.py
+similarity index 100%
+rename from tests/test_certificate_scale.py
+rename to tests/core/test_certificate_scale.py
+diff --git a/tests/test_continuous_fairness.py b/tests/core/test_continuous_fairness.py
+similarity index 100%
+rename from tests/test_continuous_fairness.py
+rename to tests/core/test_continuous_fairness.py
+diff --git a/tests/test_metrics.py b/tests/core/test_metrics.py
+similarity index 100%
+rename from tests/test_metrics.py
+rename to tests/core/test_metrics.py
+diff --git a/tests/test_review_honesty.py b/tests/core/test_review_honesty.py
+similarity index 94%
+rename from tests/test_review_honesty.py
+rename to tests/core/test_review_honesty.py
+index 3125ffe..6b5493c 100644
+--- a/tests/test_review_honesty.py
++++ b/tests/core/test_review_honesty.py
+@@ -6,13 +6,13 @@ overclaim at least once:
+ 1. the Chaos Lab story blurbs read as marketing narrative ("Does the model get
+    gamed? Who survives?") instead of describing the experiment;
+ 2. the privilege-injection experiment's PASS badge hid that the fixture itself
+-   bounds what the test can falsify (docs/CONTINUOUS-FAIRNESS.md);
++   bounds what the test can falsify (docs/engineering/CONTINUOUS-FAIRNESS.md);
+ 3. the deterministic rules engine was branded a "Fairness Review Agent";
+ 4. the TalentFit blurb ended on a teaser question instead of the measured
+    result.
+ 
+ A fifth finding, the unredacted `GET /api/appeals` queue, has its own module:
+-`tests/test_appeals_redaction.py`.
++`tests/api/test_appeals_redaction.py`.
+ """
+ 
+ from pathlib import Path
+@@ -25,8 +25,8 @@ from chaoshire.demo import guided_demo
+ from chaoshire.metrics import audit
+ from chaoshire.models import LEGACY, MODEL_META, build_decisions
+ 
+-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+-INDEX_HTML = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
++PROJECT_ROOT = Path(__file__).resolve().parents[2]
++INDEX_HTML = (PROJECT_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
+ 
+ client = operator_client()
+ 
+@@ -112,7 +112,7 @@ def test_the_fairness_review_is_not_marketed_as_an_ai_agent():
+ 
+ def test_the_talentfit_blurb_reports_the_measured_outcome():
+     blurb = MODEL_META["trained"]["blurb"]
+-    # Pinned fixture results (tests/test_trained_model.py): 66/C, DI 0.78, 100/100.
++    # Pinned fixture results (tests/core/test_trained_model.py): 66/C, DI 0.78, 100/100.
+     assert "66/C" in blurb
+     assert "0.78" in blurb
+     assert "100/100" in blurb
+diff --git a/tests/test_statistics.py b/tests/core/test_statistics.py
+similarity index 100%
+rename from tests/test_statistics.py
+rename to tests/core/test_statistics.py
+diff --git a/tests/test_threshold_contrast.py b/tests/core/test_threshold_contrast.py
+similarity index 100%
+rename from tests/test_threshold_contrast.py
+rename to tests/core/test_threshold_contrast.py
+diff --git a/tests/test_trained_model.py b/tests/core/test_trained_model.py
+similarity index 100%
+rename from tests/test_trained_model.py
+rename to tests/core/test_trained_model.py
+diff --git a/tests/test_workflows.py b/tests/core/test_workflows.py
+similarity index 100%
+rename from tests/test_workflows.py
+rename to tests/core/test_workflows.py
+diff --git a/tests/test_build_info.py b/tests/infrastructure/test_build_info.py
+similarity index 87%
+rename from tests/test_build_info.py
+rename to tests/infrastructure/test_build_info.py
+index 727a0d6..9b860c5 100644
+--- a/tests/test_build_info.py
++++ b/tests/infrastructure/test_build_info.py
+@@ -34,7 +34,7 @@ from chaoshire.chaos import CHAOS_TESTS
+ from chaoshire.data import DEMO_DATA
+ from chaoshire.models import MODEL_META
+ 
+-REPO_ROOT = Path(__file__).resolve().parent.parent
++REPO_ROOT = Path(__file__).resolve().parents[2]
+ 
+ client = operator_client()
+ 
+@@ -177,40 +177,38 @@ def test_the_check_script_refuses_to_guess_when_coverage_json_is_missing(tmp_pat
+         checker.main(["--coverage-json", str(tmp_path / "absent.json")])
+ 
+ 
+-#: Living documentation. CHANGELOG.md and TODO.md are excluded on purpose: they
+-#: are historical records, and a v0.22.0 entry that says "98 tests" is correct
+-#: forever even though the suite has moved on.
+-DOCUMENTED_FILES = (
+-    "README.md",
+-    "SECURITY.md",
+-    "CONTRIBUTING.md",
+-    "PROJECT-ROADMAP.md",
+-)
++#: Living documentation. CHANGELOG.md and docs/planning/TODO.md are historical
++#: records: an old entry quoting a past test count is still correct for that release.
++DOCUMENTED_FILES = ("README.md", "SECURITY.md", "CONTRIBUTING.md")
+ 
+ TEST_COUNT_PATTERN = re.compile(r"(\d{2,4}) (?:automated )?tests")
+ COVERAGE_PATTERN = re.compile(r"(\d{2}\.\d)% (?:package )?coverage")
+ 
+ 
+ def _living_documentation() -> list[Path]:
++    docs = REPO_ROOT / "docs"
+     return [
+-        REPO_ROOT / name
+-        for name in (
+-            *DOCUMENTED_FILES,
+-            *(f"docs/{p.name}" for p in (REPO_ROOT / "docs").glob("*.md")),
+-        )
++        *(REPO_ROOT / name for name in DOCUMENTED_FILES),
++        *(p for p in docs.rglob("*.md") if p != docs / "planning" / "TODO.md"),
+     ]
+ 
+ 
+-def test_the_readme_quotes_the_same_numbers():
++def test_the_readme_quotes_the_same_numbers_and_all_model_variants():
+     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+     match = re.search(
+-        r"verified v([\d.]+) baseline contains \*\*(\d+) tests with ([\d.]+%) package coverage\*\*",
++        r"\*\*current source\s+baseline\*\*, measured locally, contains \*\*(\d+) tests with ([\d.]+%) package coverage\*\*",
+         readme,
+     )
+-    assert match, "README no longer states the verified baseline in the expected form"
+-    assert match.group(1) == VERSION
+-    assert int(match.group(2)) == AUTOMATED_TESTS
+-    assert match.group(3) == PACKAGE_COVERAGE
++    assert match, "README no longer states the current source baseline in the expected form"
++    assert int(match.group(1)) == AUTOMATED_TESTS
++    assert match.group(2) == PACKAGE_COVERAGE
++
++    # Keep the published table in sync with /api/meta, including the trained fixture.
++    model_table = re.search(r"\| Model \(API/CLI ID\) \|.*?(?=\n\n)", readme, re.DOTALL)
++    assert model_table, "README needs a table of all selectable models"
++    for model_id, metadata in MODEL_META.items():
++        assert f"| **{metadata['title']}** (`{model_id}`) |" in model_table.group(0)
++    assert model_table.group(0).count("\n| **") == len(MODEL_META)
+ 
+ 
+ def test_no_living_document_quotes_a_stale_test_or_coverage_figure():
+@@ -241,7 +239,7 @@ def test_the_landing_page_reads_the_numbers_instead_of_hardcoding_them():
+     once advertised v0.21.0 while the package said v0.22.0, and a browser test
+     asserted the stale string, so nothing caught it.
+     """
+-    html = (REPO_ROOT / "index.html").read_text(encoding="utf-8")
++    html = (REPO_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
+ 
+     # Every proof card ships an em-dash placeholder and is filled from `build`.
+     proof = re.search(r'<div class="proof" id="proof">(.*?)</div>\s*</div>', html, re.DOTALL)
+diff --git a/tests/test_log_shipping.py b/tests/infrastructure/test_log_shipping.py
+similarity index 100%
+rename from tests/test_log_shipping.py
+rename to tests/infrastructure/test_log_shipping.py
+diff --git a/tests/test_portfolio_platform.py b/tests/infrastructure/test_portfolio_platform.py
+similarity index 98%
+rename from tests/test_portfolio_platform.py
+rename to tests/infrastructure/test_portfolio_platform.py
+index bd2f20a..33aaac0 100644
+--- a/tests/test_portfolio_platform.py
++++ b/tests/infrastructure/test_portfolio_platform.py
+@@ -21,7 +21,7 @@ client = operator_client()
+ 
+ def test_v020_contract_and_operational_endpoints():
+     # Not a literal: build_info.VERSION is the single source of truth and
+-    # tests/test_build_info.py pins it to the package version.
++    # tests/infrastructure/test_build_info.py pins it to the package version.
+     assert __version__ == VERSION
+     assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
+     assert client.get("/api/live").json() == {"status": "alive"}
+@@ -190,7 +190,7 @@ def test_pwa_and_mobile_accessibility_markers():
+     assert css.status_code == 200
+     assert "@media(max-width:600px)" in css.text
+     assert "prefers-reduced-motion" in css.text
+-    assert 'href="/static/chaoshire.css"' in page
++    assert 'href="/static/chaoshire.css?v=' in page
+     # The tab was renamed from "Review Agent" — the reviewer flagged the name as
+     # an AI overclaim for a deterministic rules engine (v0.23.4 red-flag pass).
+     assert "Fairness Review" in page and "Guided Demo" in page
+diff --git a/tests/test_postgres_adapter.py b/tests/infrastructure/test_postgres_adapter.py
+similarity index 100%
+rename from tests/test_postgres_adapter.py
+rename to tests/infrastructure/test_postgres_adapter.py
+diff --git a/tests/test_repository.py b/tests/infrastructure/test_repository.py
+similarity index 100%
+rename from tests/test_repository.py
+rename to tests/infrastructure/test_repository.py
+diff --git a/tests/test_security_connectors.py b/tests/infrastructure/test_security_connectors.py
+similarity index 100%
+rename from tests/test_security_connectors.py
+rename to tests/infrastructure/test_security_connectors.py
+diff --git a/tests/test_external_css.py b/tests/web/test_external_css.py
+similarity index 68%
+rename from tests/test_external_css.py
+rename to tests/web/test_external_css.py
+index 487600d..c0aed88 100644
+--- a/tests/test_external_css.py
++++ b/tests/web/test_external_css.py
+@@ -8,20 +8,21 @@ from fastapi.testclient import TestClient
+ 
+ from chaoshire.app import app
+ 
+-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+-INDEX_HTML = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+-CSS_FILE = PROJECT_ROOT / "chaoshire" / "static" / "chaoshire.css"
++PROJECT_ROOT = Path(__file__).resolve().parents[2]
++WEB_DIR = PROJECT_ROOT / "chaoshire" / "web"
++INDEX_HTML = (WEB_DIR / "index.html").read_text(encoding="utf-8")
++CSS_FILE = WEB_DIR / "static" / "chaoshire.css"
+ CSS_CONTENT = CSS_FILE.read_text(encoding="utf-8")
+ 
+ 
+ def test_no_inline_style_block_in_html():
+-    """The <style> block was extracted to chaoshire/static/chaoshire.css."""
++    """The <style> block was extracted to chaoshire/web/static/chaoshire.css."""
+     assert "<style>" not in INDEX_HTML
+     assert "</style>" not in INDEX_HTML
+ 
+ 
+ def test_html_links_external_stylesheet():
+-    assert 'href="/static/chaoshire.css"' in INDEX_HTML
++    assert 'href="/static/chaoshire.css?v=__CSS_VERSION__"' in INDEX_HTML
+ 
+ 
+ def test_external_css_file_exists():
+@@ -64,12 +65,21 @@ def test_data_style_applied_via_cssom_helper():
+     assert "data-style" in INDEX_HTML
+ 
+ 
+-def test_css_route_serves_stylesheet():
++def test_web_assets_are_packaged_and_served_independent_of_cwd(tmp_path, monkeypatch):
++    monkeypatch.chdir(tmp_path)
+     with TestClient(app) as client:
+-        response = client.get("/static/chaoshire.css")
+-    assert response.status_code == 200
+-    assert response.headers["content-type"].startswith("text/css")
+-    assert "Cache-Control" in response.headers
++        home = client.get("/")
++        css = client.get("/static/chaoshire.css")
++        icon = client.get("/icons/icon-192.png")
++    assert home.status_code == 200
++    assert 'href="/static/chaoshire.css?v=' in home.text
++    assert "__CSS_VERSION__" not in home.text
++    assert css.status_code == 200
++    assert css.headers["content-type"].startswith("text/css")
++    assert css.text == CSS_CONTENT
++    assert "Cache-Control" in css.headers
++    assert icon.status_code == 200
++    assert icon.content == (WEB_DIR / "static" / "icons" / "icon-192.png").read_bytes()
+ 
+ 
+ def test_csp_style_src_has_no_unsafe_inline():
+diff --git a/tests/test_html_escaping.py b/tests/web/test_html_escaping.py
+similarity index 98%
+rename from tests/test_html_escaping.py
+rename to tests/web/test_html_escaping.py
+index f8d3300..4fa1c2c 100644
+--- a/tests/test_html_escaping.py
++++ b/tests/web/test_html_escaping.py
+@@ -29,8 +29,8 @@ from fastapi.testclient import TestClient
+ from chaoshire.app import app
+ from chaoshire.services import upload_decisions
+ 
+-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+-INDEX_HTML = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
++PROJECT_ROOT = Path(__file__).resolve().parents[2]
++INDEX_HTML = (PROJECT_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
+ 
+ NONCE_RE = re.compile(r"script-src 'self' 'nonce-([^']+)'")
+ ATTR_INTERPOLATION = re.compile(r'([a-zA-Z-]+)\s*=\s*"([^"]*\$\{[^"]*)"')
+@@ -175,7 +175,7 @@ def test_csp_is_nonce_based_and_fresh_per_request():
+         csp = response.headers["content-security-policy"]
+         script_src = csp.split("script-src")[1].split(";")[0]
+         assert "'unsafe-inline'" not in script_src
+-        # The external stylesheet (chaoshire/static/chaoshire.css) lets the
++        # The external stylesheet (chaoshire/web/static/chaoshire.css) lets the
+         # CSP drop style-src 'unsafe-inline'; dynamic values are applied via
+         # CSSOM after innerHTML, which is not restricted by style-src.
+         style_src = csp.split("style-src")[1].split(";")[0]
+diff --git a/tests/web/test_site_readiness.py b/tests/web/test_site_readiness.py
+new file mode 100644
+index 0000000..755cc1a
+--- /dev/null
++++ b/tests/web/test_site_readiness.py
+@@ -0,0 +1,239 @@
++"""Public site/SEO, consented analytics, security and anti-spam contracts."""
++
++from __future__ import annotations
++
++import re
++import struct
++from html.parser import HTMLParser
++from pathlib import Path
++from urllib.parse import urlsplit
++from xml.etree import ElementTree
++
++from conftest import TEST_API_KEY
++from fastapi.testclient import TestClient
++
++from chaoshire.app import app
++from chaoshire.site import DEFAULT_PUBLIC_ORIGIN
++from chaoshire.state import APPEALS
++
++
++class _LocalLinks(HTMLParser):
++    def __init__(self) -> None:
++        super().__init__()
++        self.links: set[str] = set()
++        self.ids: set[str] = set()
++
++    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
++        attr = dict(attrs)
++        if attr.get("id"):
++            self.ids.add(str(attr["id"]))
++        link = attr.get("href") if tag in {"a", "link"} else attr.get("src")
++        if link:
++            self.links.add(link)
++
++
++def test_site_pages_have_distinct_titles_descriptions_and_legal_links() -> None:
++    with TestClient(app) as client:
++        for route, title in (
++            ("/", "ChaosHire | Stress-test hiring AI fairly"),
++            ("/privacy", "Privacy Policy | ChaosHire"),
++            ("/terms", "Terms &amp; Conditions | ChaosHire"),
++        ):
++            response = client.get(route)
++            assert response.status_code == 200
++            assert client.head(route).status_code == 200
++            assert f"<title>{title}</title>" in response.text
++            assert '<meta name="description"' in response.text
++            assert (
++                f'href="{DEFAULT_PUBLIC_ORIGIN}{route if route != "/" else "/"}"' in response.text
++            )
++            assert "__PUBLIC_ORIGIN__" not in response.text
++            assert 'href="/privacy"' in response.text
++            assert 'href="/terms"' in response.text
++        assert "anonymous uploads" in client.get("/privacy").text.lower()
++        assert "do not use this public service" in client.get("/terms").text.lower()
++        compressed = client.get("/", headers={"Accept-Encoding": "gzip"})
++        assert compressed.headers["content-encoding"] == "gzip"
++        assert int(compressed.headers["content-length"]) < len(compressed.content)
++
++
++def test_social_card_metadata_and_packaged_images() -> None:
++    with TestClient(app) as client:
++        html = client.get("/").text
++        assert f'content="{DEFAULT_PUBLIC_ORIGIN}/social-preview.png"' in html
++        assert 'property="og:image:alt"' in html
++        assert 'name="twitter:card" content="summary_large_image"' in html
++        preview = client.get("/social-preview.png")
++        assert preview.status_code == 200
++        assert preview.headers["content-type"] == "image/png"
++        assert preview.content.startswith(b"\x89PNG\r\n\x1a\n")
++        assert struct.unpack_from(">II", preview.content, 16) == (1200, 630)
++        favicon = client.get("/favicon.ico")
++        assert favicon.status_code == 200
++        assert favicon.content[:4] == b"\x00\x00\x01\x00"
++        assert client.get("/icons/favicon-32.png").status_code == 200
++        assert 'href="/icons/favicon-32.png"' in html
++
++
++def test_design_token_text_contrast_meets_wcag_aa() -> None:
++    css = (Path(__file__).resolve().parents[2] / "chaoshire/web/static/chaoshire.css").read_text(
++        encoding="utf-8"
++    )
++    colors = dict(re.findall(r"(--[a-z0-9]+):(#[a-fA-F0-9]{6})", css))
++
++    def luminance(color: str) -> float:
++        values = [int(color[i : i + 2], 16) / 255 for i in (1, 3, 5)]
++        linear = [
++            value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
++            for value in values
++        ]
++        return sum(
++            channel * weight
++            for channel, weight in zip(linear, (0.2126, 0.7152, 0.0722), strict=True)
++        )
++
++    def ratio(first: str, second: str) -> float:
++        bright, dark = sorted((luminance(first), luminance(second)), reverse=True)
++        return (bright + 0.05) / (dark + 0.05)
++
++    for foreground in ("--txt", "--dim", "--blue", "--rose", "--amber"):
++        for background in ("--bg", "--card", "--card2"):
++            assert ratio(colors[foreground], colors[background]) >= 4.5, (foreground, background)
++    primary_text = re.search(r"\.btn\{[^}]*color:(#[a-fA-F0-9]{6})", css)
++    assert primary_text is not None
++    assert ratio(primary_text.group(1), colors["--blue"]) >= 4.5
++
++
++def test_robots_and_sitemap_use_canonical_https_not_untrusted_host(monkeypatch) -> None:
++    with TestClient(app) as client:
++        response = client.get("/robots.txt", headers={"Host": "attacker.example"})
++        assert "Disallow: /api/" in response.text
++        assert f"Sitemap: {DEFAULT_PUBLIC_ORIGIN}/sitemap.xml" in response.text
++        sitemap = client.get("/sitemap.xml", headers={"Host": "attacker.example"})
++        assert sitemap.headers["content-type"].startswith("application/xml")
++        tree = ElementTree.fromstring(sitemap.text)
++        ns = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
++        urls = {node.text for node in tree.findall("s:url/s:loc", ns)}
++        assert urls == {f"{DEFAULT_PUBLIC_ORIGIN}{p}" for p in ("/", "/privacy", "/terms")}
++
++        monkeypatch.setenv("CHAOSHIRE_PUBLIC_ORIGIN", "http://attacker.example/evil")
++        assert DEFAULT_PUBLIC_ORIGIN in client.get("/sitemap.xml").text
++        monkeypatch.setenv("CHAOSHIRE_PUBLIC_ORIGIN", "https://demo.example")
++        assert "https://demo.example/privacy" in client.get("/sitemap.xml").text
++        assert 'href="https://demo.example/terms"' in client.get("/terms").text
++
++
++def test_browser_404_is_useful_but_unknown_api_stays_json() -> None:
++    with TestClient(app) as client:
++        missing = client.get("/a-missing-page", headers={"Accept": "text/html"})
++        assert missing.status_code == 404
++        assert missing.headers["content-type"].startswith("text/html")
++        assert missing.headers["x-robots-tag"] == "noindex"
++        assert "That page is not here" in missing.text
++        assert 'href="/"' in missing.text
++        api = client.get("/api/unknown", headers={"Accept": "text/html"})
++        assert api.status_code == 404
++        assert api.json() == {"detail": "Not Found"}
++
++
++def test_internal_static_links_and_anchor_targets_resolve() -> None:
++    with TestClient(app) as client:
++        for route in ("/", "/privacy", "/terms", "/missing-page"):
++            html = client.get(route, headers={"Accept": "text/html"}).text
++            parser = _LocalLinks()
++            parser.feed(html)
++            for href in parser.links:
++                if href.startswith("#"):
++                    assert href[1:] in parser.ids
++                elif href.startswith("/"):
++                    target = urlsplit(href)
++                    response = client.get(target.path, params=target.query or None)
++                    assert response.status_code == 200, (route, href, response.status_code)
++
++    # The documentation was reorganized; don't reintroduce dead relative links
++    # or a README image that exists only on a developer's machine.
++    root = Path(__file__).resolve().parents[2]
++    for document in (root / "README.md", root / "CONTRIBUTING.md", *root.glob("docs/**/*.md")):
++        for target in re.findall(r"\]\(([^)\n]+)\)", document.read_text(encoding="utf-8")):
++            if target.startswith(("https://", "http://", "#", "mailto:")):
++                continue
++            relative = target.split("#", maxsplit=1)[0]
++            if relative:
++                assert (document.parent / relative).exists(), (document, target)
++
++
++def test_operator_key_never_appears_in_browser_assets_or_public_meta(monkeypatch) -> None:
++    secret = "server-only-canary-do-not-publish"
++    monkeypatch.setenv("CHAOSHIRE_API_KEY", secret)
++    with TestClient(app) as client:
++        for path in ("/", "/privacy", "/terms", "/static/chaoshire.css", "/api/meta"):
++            assert secret not in client.get(path).text
++        assert client.get("/api/meta").json()["platform"]["api_key_configured"] is True
++
++
++def test_https_redirect_uses_canonical_origin_and_preserves_health_checks(monkeypatch) -> None:
++    monkeypatch.setenv("CHAOSHIRE_FORCE_HTTPS", "1")
++    monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_PROTO", "0")
++    with TestClient(app, follow_redirects=False, base_url="http://testserver") as client:
++        redirected = client.get("/privacy?section=analytics", headers={"Host": "evil.example"})
++        assert redirected.status_code == 308
++        assert (
++            redirected.headers["location"] == f"{DEFAULT_PUBLIC_ORIGIN}/privacy?section=analytics"
++        )
++        assert client.get("/api/ready").status_code == 200
++        spoofed = client.get("/terms", headers={"X-Forwarded-Proto": "https"})
++        assert spoofed.status_code == 308
++        monkeypatch.setenv("CHAOSHIRE_TRUST_FORWARDED_PROTO", "1")
++        trusted = client.get("/terms", headers={"X-Forwarded-Proto": "https"})
++        assert trusted.status_code == 200
++        assert trusted.headers["strict-transport-security"] == "max-age=31536000"
++        assert "strict-transport-security" not in redirected.headers
++
++
++def test_analytics_are_optional_aggregate_and_operator_only() -> None:
++    with TestClient(app) as client:
++        assert client.get("/api/ops/analytics").status_code == 401
++        zero = client.get("/api/ops/analytics", headers={"X-API-Key": TEST_API_KEY}).json()
++        assert zero["total_views"] == 0
++        response = client.post("/api/analytics/view", json={"page": "welcome"})
++        assert response.status_code == 204
++        assert response.headers["cache-control"] == "no-store"
++        assert "set-cookie" not in response.headers
++        invalid = client.post("/api/analytics/view", json={"page": "?email=someone@example.com"})
++        assert invalid.status_code == 422
++        result = client.get("/api/ops/analytics", headers={"X-API-Key": TEST_API_KEY}).json()
++        assert result["retention_days"] == 30
++        assert result["total_views"] == 1
++        assert sum(day.get("welcome", 0) for day in result["views"].values()) == 1
++        assert not re.search(r"(ip|user.agent|referrer|email)", str(result), re.I)
++
++
++def test_analytics_endpoint_is_throttled_separately_from_demo_writes() -> None:
++    with TestClient(app) as client:
++        codes = [
++            client.post("/api/analytics/view", json={"page": "demo"}).status_code for _ in range(31)
++        ]
++        assert codes[:30] == [204] * 30
++        assert codes[30] == 429
++        operator = client.get("/api/ops/analytics", headers={"X-API-Key": TEST_API_KEY}).json()
++        assert operator["total_views"] == 30
++
++
++def test_appeal_honeypot_and_blank_message_reject_spam() -> None:
++    with TestClient(app) as client:
++        spam = client.post(
++            "/api/appeals",
++            json={
++                "candidate_id": "C-1046",
++                "message": "Please review",
++                "website": "https://bot.example",
++            },
++        )
++        assert spam.status_code == 422
++        assert (
++            client.post(
++                "/api/appeals", json={"candidate_id": "C-1046", "message": "   "}
++            ).status_code
++            == 422
++        )
++        assert len(APPEALS) == 0
