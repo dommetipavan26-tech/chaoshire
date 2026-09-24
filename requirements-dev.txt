@@ -5,4 +5,4 @@ httpx>=0.28.1
 ruff>=0.16.8
 mypy>=1.11
 # Retraining reproducibility test + `chaoshire train` (runtime never needs it)
-scikit-learn>=1.5,<2
+scikit-learn>=1.9.1,<2
