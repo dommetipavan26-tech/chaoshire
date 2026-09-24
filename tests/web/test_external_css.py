@@ -22,7 +22,7 @@ def test_no_inline_style_block_in_html():
 
 
 def test_html_links_external_stylesheet():
-    assert 'href="/static/chaoshire.css"' in INDEX_HTML
+    assert 'href="/static/chaoshire.css?v=__CSS_VERSION__"' in INDEX_HTML
 
 
 def test_external_css_file_exists():
@@ -72,7 +72,8 @@ def test_web_assets_are_packaged_and_served_independent_of_cwd(tmp_path, monkeyp
         css = client.get("/static/chaoshire.css")
         icon = client.get("/icons/icon-192.png")
     assert home.status_code == 200
-    assert 'href="/static/chaoshire.css"' in home.text
+    assert 'href="/static/chaoshire.css?v=' in home.text
+    assert "__CSS_VERSION__" not in home.text
     assert css.status_code == 200
     assert css.headers["content-type"].startswith("text/css")
     assert css.text == CSS_CONTENT

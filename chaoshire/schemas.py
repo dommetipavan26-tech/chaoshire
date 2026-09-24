@@ -2,12 +2,42 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from .site import ANALYTICS_PAGES
 
 
 class AppealRequest(BaseModel):
     candidate_id: str = Field(min_length=1, max_length=100)
     message: str = Field(min_length=1, max_length=5000)
+    website: str = Field(default="", max_length=200, exclude=True)
+
+    @field_validator("message")
+    @classmethod
+    def nonblank_message(cls, message: str) -> str:
+        if not message.strip():
+            raise ValueError("An appeal message is required.")
+        return message
+
+    @field_validator("website")
+    @classmethod
+    def reject_honeypot(cls, website: str) -> str:
+        if website.strip():
+            raise ValueError("Invalid form submission.")
+        return website
+
+
+class SitePageView(BaseModel):
+    """Only page-section names are accepted, never a URL or visitor identity."""
+
+    page: str = Field(min_length=1, max_length=20)
+
+    @field_validator("page")
+    @classmethod
+    def known_page(cls, page: str) -> str:
+        if page not in ANALYTICS_PAGES:
+            raise ValueError("Unknown site section.")
+        return page
 
 
 # Must stay in sync with ``chaoshire.services.MITIGATION_STRATEGIES``.

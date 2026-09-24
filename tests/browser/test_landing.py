@@ -94,7 +94,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
 
         expect(page.get_by_text("does not make hiring decisions", exact=False)).to_be_visible()
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-        expect(page.locator("#modelsel")).to_be_visible()
+        expect(page.get_by_role("group", name="Audit model selector")).to_be_visible()
         # Three reference models, including the one we actually trained.
         assert len(models) == 3
         expect(page.locator("#modelsel .mbtn")).to_have_count(len(models))
@@ -118,7 +118,8 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         expect(page.locator("#home-community")).to_have_text("111")
         expect(page.locator("#home-resilience")).to_have_text("30")
 
-        page.get_by_role("button", name="Explore dashboard").click()
+        page.get_by_role("button", name="Fairness Dashboard").click()
+        expect(page.get_by_role("heading", name="Fairness Dashboard", level=2)).to_be_visible()
         page.get_by_role("button", name=models["fair"]["title"]).click()
         expect(page.locator("#tab-overview .grade-ring b", has_text="84")).to_be_visible()
         expect(page.locator("#tab-overview")).to_be_visible()
@@ -139,7 +140,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         home = page.get_by_role("button", name="Home")
         home.focus()
         page.keyboard.press("Enter")
-        page.get_by_role("button", name="Explore dashboard").click()
+        page.get_by_role("button", name="Fairness Dashboard").click()
         # Scoped to the overview tab and matched as a substring: the score line now
         # reads "Fairness Risk Score · 71.3 of 85 measurable points, normalised to
         # 100", so there is no element whose entire text is the bare label. Asserting
@@ -243,4 +244,78 @@ def test_uploaded_group_values_cannot_escape_the_attribute_context() -> None:
         # The payload survives as inert, visible text instead.
         assert "<b>pwned</b>" in page.locator("#tab-overview").inner_text()
         csv_path.unlink(missing_ok=True)
+        browser.close()
+
+
+def test_mobile_consent_and_form_validation() -> None:
+    """No analytics before opt-in; mobile choices and form errors stay accessible."""
+    with running_app() as url, sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page(viewport={"width": 320, "height": 700})
+        tracking: list[str] = []
+        submissions: list[str] = []
+        page.on(
+            "request",
+            lambda request: (
+                tracking.append(request.url)
+                if request.url.endswith("/api/analytics/view")
+                else submissions.append(request.url)
+                if request.url.endswith(("/api/appeals", "/api/upload"))
+                else None
+            ),
+        )
+        page.goto(url, wait_until="networkidle")
+
+        expect(page.locator("#consent-banner")).to_be_visible()
+        assert not tracking
+        trained = page.locator('#modelsel button[data-m="trained"]').bounding_box()
+        assert trained is not None
+        assert trained["x"] >= 0 and trained["x"] + trained["width"] <= 320
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        expect(page.locator("#startdemo")).to_be_visible()
+        page.locator("#startdemo").scroll_into_view_if_needed()
+        assert page.locator("#startdemo").evaluate(
+            "button => {const r=button.getBoundingClientRect();"
+            "return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2) === button}"
+        )  # The banner must never overlay the CTA, even on a 320px phone.
+        page.get_by_role("button", name="Reject optional").click()
+        expect(page.locator("#consent-banner")).to_be_hidden()
+        assert page.evaluate("localStorage.getItem('chaoshire-analytics-consent-v1')") == "no"
+        page.reload(wait_until="networkidle")
+        expect(page.locator("#consent-banner")).to_be_hidden()
+        assert not tracking
+
+        page.get_by_role("button", name="Privacy settings").click()
+        expect(page.locator("#consent-banner")).to_be_visible()
+        with page.expect_response(
+            lambda response: response.url.endswith("/api/analytics/view")
+        ) as event:
+            page.get_by_role("button", name="Allow analytics").click()
+        assert event.value.status == 204
+        assert page.evaluate("localStorage.getItem('chaoshire-analytics-consent-v1')") == "yes"
+        expect(page.locator("#consent-banner")).to_be_hidden()
+
+        page.get_by_role("button", name="Appeals Portal").click()
+        page.get_by_role("button", name="Submit appeal").click()
+        expect(page.locator("#aout")).to_contain_text("Enter an application ID")
+        page.locator("#acid").fill("C-1046")
+        page.locator("#amsg").fill("   ")
+        page.get_by_role("button", name="Submit appeal").click()
+        expect(page.locator("#aout")).to_contain_text("Explain why this decision needs review")
+        assert not submissions
+        page.locator("#amsg").fill("Please review the synthetic decision")
+        page.locator("#appeal-website").evaluate("node => node.value = 'https://bot.example'")
+        with page.expect_response(lambda response: response.url.endswith("/api/appeals")) as event:
+            page.get_by_role("button", name="Submit appeal").click()
+        assert event.value.status == 422
+
+        page.get_by_role("button", name="Upload Your Model").click()
+        page.get_by_role("button", name="Validate & audit").click()
+        expect(page.locator("#upout")).to_contain_text("Choose a CSV file first")
+        page.locator("#csvfile").set_input_files(
+            {"name": "not-csv.txt", "mimeType": "text/plain", "buffer": b"decision\n1"}
+        )
+        page.get_by_role("button", name="Validate & audit").click()
+        expect(page.locator("#upout")).to_contain_text("Choose a .csv file")
+        assert not any(url.endswith("/api/upload") for url in submissions)
         browser.close()

@@ -190,7 +190,7 @@ def test_pwa_and_mobile_accessibility_markers():
     assert css.status_code == 200
     assert "@media(max-width:600px)" in css.text
     assert "prefers-reduced-motion" in css.text
-    assert 'href="/static/chaoshire.css"' in page
+    assert 'href="/static/chaoshire.css?v=' in page
     # The tab was renamed from "Review Agent" — the reviewer flagged the name as
     # an AI overclaim for a deterministic rules engine (v0.23.4 red-flag pass).
     assert "Fairness Review" in page and "Guided Demo" in page

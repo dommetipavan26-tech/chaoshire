@@ -50,10 +50,10 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
 ## Content security
 
 - Responses carry a per-request **nonce-based Content-Security-Policy**:
-  `default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'
-  'nonce-…'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';
-  base-uri 'self'; form-action 'self'`. There is no `script-src 'unsafe-inline'`
-  and the nonce is regenerated per request, so a leaked page cannot be replayed.
+  `default-src 'self'; style-src 'self'; script-src 'self' 'nonce-…';
+  img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';
+  base-uri 'self'; form-action 'self'`. There is no `unsafe-inline` in script- or
+  style-src. The nonce is regenerated per request so a leaked page cannot be replayed.
 - `chaoshire/web/index.html` contains exactly one `<script>` tag, carries no inline event
   handlers, and builds no HTML by unescaped string concatenation. Its `esc()`
   helper escapes `& < > " '` and the backtick. Every interpolation into an
@@ -75,10 +75,18 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
   `tests/infrastructure/test_security_connectors.py` asserts that a connector exception carrying
   `https://operator:sk-live-SUPERSECRET@…?token=abc123` produces a body containing
   none of those fragments while the log contains all of them.
-- `style-src 'unsafe-inline'` is still permitted. Inline `style` attributes are
-  used for layout; CSS injection is not script execution, and removing it would
-  require moving the whole stylesheet out of line for no security gain. This is a
-  deliberate, documented trade-off rather than an oversight.
+- Styles live in a same-origin, content-versioned stylesheet; dynamic values use
+  DOM CSSOM properties rather than static inline `style` attributes. The CSP
+  forbids `style-src 'unsafe-inline'`.
+- The operator API key and optional connector/webhook credentials remain in
+  server environment variables. They are never rendered into the frontend;
+  a regression test seeds a canary key and checks the public assets and meta API.
+- On Render, HTTPS is required (or explicitly enabled with
+  `CHAOSHIRE_FORCE_HTTPS=1`) and a secure response carries HSTS. The redirect
+  goes to a configured canonical HTTPS origin, never an untrusted Host header.
+  Trust `X-Forwarded-Proto` only behind a proxy that overwrites the header;
+  the public Render service is hand-managed, so verify its environment and
+  redirects independently of `render.yaml` before claiming a live rollout.
 
 ## Fairness-specific controls
 

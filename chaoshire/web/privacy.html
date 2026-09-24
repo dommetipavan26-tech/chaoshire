@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Privacy Policy | ChaosHire</title>
+<meta name="description" content="How the ChaosHire synthetic hiring-audit demo handles uploads, appeals, optional analytics, and browser storage.">
+<link rel="canonical" href="__PUBLIC_ORIGIN__/privacy">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="stylesheet" href="/static/chaoshire.css?v=__CSS_VERSION__">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header><div><a class="brand-link" href="/">Chaos<span>Hire</span></a><div class="tag">Chaos Simulator for Fair Hiring</div></div></header>
+<main id="main" class="legal-page" tabindex="-1">
+<p class="kicker">About this demonstration</p>
+<h1>Privacy Policy</h1>
+<p class="dim">Effective 24 September 2026 · Applies to this public prototype, not to a real employer's hiring system.</p>
+<p><strong>Do not submit real applicant or employee information.</strong> ChaosHire is a demonstration using synthetic data. The public site has no user accounts or identity verification.</p>
+<h2>What the site processes</h2>
+<ul>
+<li><strong>Audits:</strong> Built-in fixtures are synthetic. A visitor can upload a CSV of decisions; its raw rows and candidate IDs remain in process memory while an audit is computed. Anonymous uploads are returned to the uploader and discarded, not added to public history. An operator authenticated with a server-side key can publish <em>aggregate</em> results and an audit name to a shared SQLite history visible to visitors; raw CSV rows are not written to that database.</li>
+<li><strong>Appeals:</strong> Messages and application IDs are kept in a capped in-memory queue and may be displayed in a public review queue after basic redaction. That redaction can miss unusual identifiers. The queue is evicted or cleared on restart. Do not include real names, contact details, or sensitive data.</li>
+<li><strong>Operational logs and rate limits:</strong> Requests may be logged by the hosting provider and the server. In-memory IP-based rate-limit buckets protect the public API; bucket keys may remain until the process restarts. Retention of hosting-provider access logs is outside this app's control.</li>
+<li><strong>Optional analytics:</strong> Only after you choose “Allow analytics” does the browser send a page-section name to this site's own API. The app stores daily aggregate view counts for up to 30 UTC days in process memory; they reset on restart. It does not store an analytics identifier, referrer, IP address, or user agent with those counts. Only a server-side operator can read the counts.</li>
+</ul>
+<h2>Cookies, storage, and your choice</h2>
+<p>ChaosHire does not set tracking or session cookies or load third-party analytics. The browser stores your optional analytics choice in <code>localStorage</code> so the consent banner does not reappear. You can change it using “Privacy settings” in the site footer, or remove this site's storage in your browser. The optional service worker may cache public pages and assets for offline use; clearing this site's browser data removes those copies. Declining analytics does not limit the demo.</p>
+<h2>Retention, sharing, and safety</h2>
+<p>Anonymous audit rows are not persisted. Operator-published aggregate history is stored in the configured SQLite or PostgreSQL repository; on the Render free-tier demo, storage is ephemeral and may be lost on redeploy. Appeal messages and analytics counts are process-local. The hosting provider necessarily handles network traffic; ChaosHire does not sell visitor data or send browser analytics to an advertising network. There is no guarantee that a submitted message is private: avoid personal information.</p>
+<h2>Questions and changes</h2>
+<p>For a privacy concern, check the <a href="https://github.com/dommetipavan26-tech/chaoshire/security">repository's Security page</a> for the maintainer's current private contact instructions. If no private channel is available, do not include personal information in a public issue; the site operator must provide an appropriate contact route before handling personal data. The project may update this notice as the demo changes; the effective date above will change when it does. See the <a href="/terms">Terms &amp; Conditions</a> and the <a href="https://github.com/dommetipavan26-tech/chaoshire/blob/main/docs/operations/PERSISTENCE.md">technical persistence notes</a>.</p>
+</main>
+<footer><a href="/">Home</a> · <a aria-current="page" href="/privacy">Privacy Policy</a> · <a href="/terms">Terms &amp; Conditions</a> · Portfolio prototype; synthetic data only.</footer>
+</body>
+</html>

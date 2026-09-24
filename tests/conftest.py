@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 import backend
 from chaoshire.platform import LIMITER
+from chaoshire.site import SITE_ANALYTICS
 from chaoshire.state import APPEALS, UPLOADED, UPLOADED_LOCK, appeals_capacity
 
 TEST_API_KEY = "test-operator-key-not-a-secret"
@@ -50,8 +51,15 @@ def isolated_state(tmp_path, monkeypatch):
     monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_FOR", raising=False)
     monkeypatch.delenv("CHAOSHIRE_MAX_APPEALS", raising=False)
     monkeypatch.delenv("CHAOSHIRE_REMOTE_MODELS", raising=False)
+    monkeypatch.delenv("CHAOSHIRE_FORCE_HTTPS", raising=False)
+    monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_PROTO", raising=False)
+    monkeypatch.delenv("CHAOSHIRE_PUBLIC_ORIGIN", raising=False)
+    monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
+    monkeypatch.delenv("RENDER_SERVICE_ID", raising=False)
     LIMITER.reset()
+    SITE_ANALYTICS.reset()
     _clear_shared_state()
     yield
     LIMITER.reset()
+    SITE_ANALYTICS.reset()
     _clear_shared_state()

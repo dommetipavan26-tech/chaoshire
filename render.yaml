@@ -11,6 +11,15 @@ services:
       - key: CHAOSHIRE_MAX_BODY_BYTES
         value: "5500000"
 
+      # TLS is terminated by Render. Only trust its forwarded scheme header
+      # behind that proxy; redirect public HTTP to the canonical HTTPS origin.
+      - key: CHAOSHIRE_PUBLIC_ORIGIN
+        value: "https://chaoshire.onrender.com"
+      - key: CHAOSHIRE_FORCE_HTTPS
+        value: "1"
+      - key: CHAOSHIRE_TRUST_FORWARDED_PROTO
+        value: "1"
+
       # --- write access -----------------------------------------------------
       # A real secret is generated at deploy time, not left unset. Holding it
       # makes an upload "published": it is written to the persistent audit
