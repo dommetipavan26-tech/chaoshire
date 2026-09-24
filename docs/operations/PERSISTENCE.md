@@ -30,7 +30,13 @@ ChaosHire deliberately does not write the following upload contents to SQLite:
 
 The raw parsed DataFrame remains in process memory only so the current session can render and export its aggregate audit. A restart clears those rows.
 
-The public demonstration has no authentication. Audit names, aggregate metrics, and configurations returned by the history API are visible to every visitor. Use synthetic data and non-sensitive audit names only.
+The public demonstration has no visitor authentication. Audit names, aggregate metrics, and configurations returned by the history API are visible to every visitor. Use synthetic data and non-sensitive audit names only.
+
+## Site preferences and anonymous analytics
+
+The browser uses `localStorage` to remember an explicit analytics Allow or Reject choice. No tracking cookies or third-party analytics scripts are loaded. Only after Allow does the browser send an allowlisted page-section name to `POST /api/analytics/view`; it sends no visitor ID, name, candidate ID, or referrer. Daily aggregate counters are held in process memory for at most 30 UTC days, reset on restart, and can be read only through operator-authenticated `GET /api/ops/analytics`. Separate short-term rate-limit buckets do keep client IP identifiers in memory until a process restart; they are not copied into the analytics counters. Hosting-provider access logs may have their own retention.
+
+See the [Privacy Policy source](../../chaoshire/web/privacy.html) for the visitor-facing notice (served at `/privacy` after deployment), and [website readiness](WEBSITE-READINESS.md) for release checks.
 
 ## Database configuration
 

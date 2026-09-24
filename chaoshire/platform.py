@@ -38,7 +38,9 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+
+from .site import public_origin
 
 # A zero value disables the corresponding limiter. The defaults are non-zero so
 # a deployment that forgets to configure anything is still bounded.
@@ -69,6 +71,9 @@ BLUEPRINT_CONTRACT: dict[str, str] = {
     "CHAOSHIRE_DB_PATH": "/app/data/chaoshire.db",
     "CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE": "2",
     "CHAOSHIRE_AUDIT_HISTORY_DURABLE": "0",
+    "CHAOSHIRE_FORCE_HTTPS": "1",
+    "CHAOSHIRE_TRUST_FORWARDED_PROTO": "1",
+    "CHAOSHIRE_PUBLIC_ORIGIN": "https://chaoshire.onrender.com",
 }
 
 # Keys that describe budgets, key presence, and bucketing. Public ``/api/meta``
@@ -106,6 +111,27 @@ def _bool_env(name: str, default: bool) -> bool:
     if not raw:
         return default
     return raw.lower() in TRUTHY
+
+
+def running_on_render() -> bool:
+    return bool(os.getenv("RENDER_SERVICE_ID") or os.getenv("RENDER_EXTERNAL_URL"))
+
+
+def force_https() -> bool:
+    """Require TLS on Render; leave local HTTP usable unless explicitly enabled."""
+    return _bool_env("CHAOSHIRE_FORCE_HTTPS", running_on_render())
+
+
+def trusted_forwarded_proto() -> bool:
+    """Only trust proxy scheme headers behind an operator-declared TLS terminator."""
+    return _bool_env("CHAOSHIRE_TRUST_FORWARDED_PROTO", running_on_render())
+
+
+def is_secure_request(request: Request) -> bool:
+    if request.url.scheme == "https":
+        return True
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",", maxsplit=1)[0]
+    return trusted_forwarded_proto() and forwarded.strip().lower() == "https"
 
 
 def configured_api_key() -> str | None:
@@ -489,6 +515,17 @@ def require_operator(
 
 async def platform_middleware(request: Request, call_next):
     request_id = request.headers.get("x-request-id") or uuid4().hex[:16]
+    # Health probes run inside the Render network and need not be redirected.
+    health_probes = {"/api/health", "/api/live", "/api/ready"}
+    if force_https() and not is_secure_request(request) and request.url.path not in health_probes:
+        target = public_origin() + request.url.path
+        if request.url.query:
+            target += "?" + request.url.query
+        return RedirectResponse(
+            target,
+            status_code=308,
+            headers={"Cache-Control": "no-store", "X-Request-ID": request_id},
+        )
     # A fresh nonce per request; the nonce-based CSP below forbids 'unsafe-inline'.
     request.state.csp_nonce = token_urlsafe(16)
     content_length = request.headers.get("content-length")
@@ -525,6 +562,9 @@ async def platform_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if is_secure_request(request):
+        # Do not include subdomains: Render controls other *.onrender.com hosts.
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; style-src 'self'; "
         f"script-src 'self' 'nonce-{request.state.csp_nonce}'; "

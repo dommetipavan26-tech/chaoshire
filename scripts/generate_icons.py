@@ -94,6 +94,14 @@ def main() -> None:
         draw_icon(size, maskable).save(path, format="PNG", optimize=True)
         print(f"Wrote {path} ({path.stat().st_size} bytes)")
 
+    source = draw_icon(192)
+    small = output / "favicon-32.png"
+    source.resize((32, 32), Image.Resampling.LANCZOS).save(small, format="PNG", optimize=True)
+    browser_icon = output / "favicon.ico"
+    source.save(browser_icon, format="ICO", sizes=[(16, 16), (32, 32), (48, 48)])
+    for path in (small, browser_icon):
+        print(f"Wrote {path} ({path.stat().st_size} bytes)")
+
 
 if __name__ == "__main__":
     main()

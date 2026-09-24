@@ -26,6 +26,39 @@ the dashboard.
 | `CHAOSHIRE_DB_PATH` | `/app/data/chaoshire.db` | Where the aggregate-history SQLite file lives | `GET /api/ready` → `{"status": "ready", "database": "available"}` |
 | `CHAOSHIRE_MAX_BODY_BYTES` | `5500000` | Rejects over-long request bodies | A POST with a larger `Content-Length` gets `413` |
 
+### Website HTTPS and privacy checks (owner action)
+
+The existing Render service is hand-managed: **changing `render.yaml` does not
+update its dashboard settings**. The new Blueprint declares
+`CHAOSHIRE_PUBLIC_ORIGIN=https://chaoshire.onrender.com`,
+`CHAOSHIRE_FORCE_HTTPS=1`, and `CHAOSHIRE_TRUST_FORWARDED_PROTO=1`. The app also
+auto-enforces HTTPS when Render's own `RENDER_SERVICE_ID` or
+`RENDER_EXTERNAL_URL` is present, while permitting plain HTTP on localhost.
+Only trust `X-Forwarded-Proto` behind a TLS proxy that overwrites the header;
+check this on the live service before declaring the rollout complete:
+
+```bash
+curl -I http://chaoshire.onrender.com/privacy     # expect HTTPS redirect
+curl -I https://chaoshire.onrender.com/privacy    # expect HSTS header
+curl -s -o /dev/null -w '%{http_code}\n' https://chaoshire.onrender.com/api/ready  # GET, expect 200
+```
+
+The privacy and terms pages, robots/sitemap, and social-preview image must also
+be inspected on the deployed URL. The first-party, cookie-free analytics API
+records a page-section view **only after browser consent**, and the aggregate
+report is operator-only; send the key from a server-side shell, never from the
+browser:
+
+```bash
+curl -H "X-API-Key: $CHAOSHIRE_API_KEY" \
+  https://chaoshire.onrender.com/api/ops/analytics
+```
+
+Counts reset on process restart and do not store IPs. See
+[website readiness](WEBSITE-READINESS.md) for local speed and accessibility
+checks. Privacy/terms wording requires the owner's legal review; do not use the
+public prototype with real candidate information.
+
 On the public demo, `GET /api/meta` still discloses the posture. Private
 deployments set `CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0` and read the same facts
 from authenticated `GET /api/ops/posture`. The service logs a key=value summary

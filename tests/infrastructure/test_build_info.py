@@ -196,13 +196,12 @@ def _living_documentation() -> list[Path]:
 def test_the_readme_quotes_the_same_numbers_and_all_model_variants():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(
-        r"verified v([\d.]+)\s+baseline contains\s+\*\*(\d+) tests with ([\d.]+%) package coverage\*\*",
+        r"\*\*current source\s+baseline\*\*, measured locally, contains \*\*(\d+) tests with ([\d.]+%) package coverage\*\*",
         readme,
     )
-    assert match, "README no longer states the verified baseline in the expected form"
-    assert match.group(1) == VERSION
-    assert int(match.group(2)) == AUTOMATED_TESTS
-    assert match.group(3) == PACKAGE_COVERAGE
+    assert match, "README no longer states the current source baseline in the expected form"
+    assert int(match.group(1)) == AUTOMATED_TESTS
+    assert match.group(2) == PACKAGE_COVERAGE
 
     # Keep the published table in sync with /api/meta, including the trained fixture.
     model_table = re.search(r"\| Model \(API/CLI ID\) \|.*?(?=\n\n)", readme, re.DOTALL)

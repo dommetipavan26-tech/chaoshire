@@ -52,7 +52,7 @@ def main() -> None:
         desktop.goto(args.base_url, wait_until="networkidle")
         wait_for_landing(desktop, args.base_url)
         desktop.screenshot(path=output / "landing-desktop.png", full_page=True)
-        desktop.get_by_role("button", name="Explore dashboard").click()
+        desktop.get_by_role("button", name="Fairness Dashboard").click()
         expect(desktop.locator("#tab-overview")).to_contain_text("Fairness Risk Score")
         expect(desktop.locator("#tab-overview .grade-ring b")).to_have_text("32")
         desktop.screenshot(path=output / "dashboard-desktop.png", full_page=True)

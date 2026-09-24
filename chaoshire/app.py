@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
 from .adapters import adapter_catalog, find_remote_adapter, remote_adapters_from_env
@@ -40,6 +43,7 @@ from .platform import (
     anonymous_writes_allowed,
     audit_history_durable,
     blueprint_drift,
+    client_key,
     configured_api_key,
     describe_client,
     disclose_write_posture,
@@ -66,6 +70,7 @@ from .schemas import (
     FairnessGateRequest,
     MitigationRequest,
     ShapBatchRequest,
+    SitePageView,
     UploadRequest,
 )
 from .services import (
@@ -79,6 +84,7 @@ from .services import (
     upload_decisions,
     uploaded_audit,
 )
+from .site import SITE_ANALYTICS, css_version, public_origin, site_html
 
 #: Upstream failure detail is logged, never echoed into a response body.
 logger = logging.getLogger(__name__)
@@ -86,7 +92,9 @@ logger = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).resolve().parent / "web"
 STATIC_DIR = WEB_DIR / "static"
 STATIC_CSS = STATIC_DIR / "chaoshire.css"
-ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
+ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon-32.png")
+FAVICON = STATIC_DIR / "icons" / "favicon.ico"
+SOCIAL_PREVIEW = STATIC_DIR / "social-preview.png"
 # Constant lookup table: request strings select an entry but never become part
 # of a filesystem path, which keeps the icon route free of path-injection taint.
 ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / "icons" / name for name in ICON_FILES}
@@ -182,7 +190,25 @@ app = FastAPI(
     ),
     lifespan=lifespan,
 )
+# Compress the 55 KB HTML shell and JSON on mobile networks; tiny assets remain uncompressed.
+app.add_middleware(GZipMiddleware, minimum_size=10_000)
 app.middleware("http")(platform_middleware)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def browser_not_found(request: Request, error: StarletteHTTPException) -> Response:
+    """Friendly HTML for browser navigation; preserve JSON errors for API clients."""
+    if (
+        error.status_code == 404
+        and "text/html" in request.headers.get("accept", "")
+        and not request.url.path.startswith("/api/")
+    ):
+        return HTMLResponse(
+            site_html("404.html"),
+            status_code=404,
+            headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"},
+        )
+    return await http_exception_handler(request, error)
 
 
 @app.get("/api/health", tags=["system"])
@@ -236,6 +262,12 @@ def operator_whoami(request: Request) -> dict:
     return describe_client(request)
 
 
+@app.get("/api/ops/analytics", tags=["system"], dependencies=[Depends(require_operator)])
+def operator_analytics() -> dict[str, object]:
+    """Anonymous aggregate page counts; only an operator can read them."""
+    return SITE_ANALYTICS.snapshot()
+
+
 @app.get("/manifest.webmanifest", include_in_schema=False)
 def web_manifest() -> JSONResponse:
     return JSONResponse(
@@ -275,12 +307,14 @@ def web_manifest() -> JSONResponse:
 
 
 @app.get("/static/chaoshire.css", include_in_schema=False)
-def static_css() -> Response:
-    """External stylesheet — served with a long cache so the CSP can drop 'unsafe-inline'."""
+def static_css(request: Request) -> Response:
+    """Cache the content-hashed CSS indefinitely, but revalidate unversioned URLs."""
+    version = request.query_params.get("v")
+    cache = "public, max-age=31536000, immutable" if version == css_version() else "no-cache"
     return Response(
         STATIC_CSS.read_bytes(),
         media_type="text/css",
-        headers={"Cache-Control": "public, max-age=86400"},
+        headers={"Cache-Control": cache},
     )
 
 
@@ -296,16 +330,35 @@ def app_icon(name: str) -> Response:
     )
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> Response:
+    return Response(
+        FAVICON.read_bytes(),
+        media_type="image/x-icon",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/social-preview.png", include_in_schema=False)
+def social_preview() -> Response:
+    return Response(
+        SOCIAL_PREVIEW.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/service-worker.js", include_in_schema=False)
 def service_worker() -> Response:
     # The cache name is derived from the package version so a release cannot ship
     # a service worker that keeps serving the previous version's precached shell.
     script = """const CACHE='__CACHE_NAME__';
-self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/static/chaoshire.css','/icons/icon-192.png','/icons/icon-512.png'])),self.skipWaiting()])));
+const PAGES=['/','/privacy','/terms','/manifest.webmanifest','/static/chaoshire.css?v=__CSS_VERSION__','/icons/icon-192.png','/icons/icon-512.png','/icons/favicon-32.png'];
+self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(PAGES)),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))),self.clients.claim()])));
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request.url).pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x));return r}).catch(()=>caches.match(e.request)))});""".replace(
-        "__CACHE_NAME__", SERVICE_WORKER_CACHE
-    )
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{if(r.ok&&PAGES.includes(u.pathname+u.search)){const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x))}return r}).catch(()=>caches.match(e.request)))});""".replace(
+        "__CACHE_NAME__", f"{SERVICE_WORKER_CACHE}-{css_version()}"
+    ).replace("__CSS_VERSION__", css_version())
     return Response(
         script,
         media_type="application/javascript",
@@ -315,19 +368,65 @@ self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request) -> HTMLResponse:
-    html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
-    nonce = getattr(request.state, "csp_nonce", "")
-    if nonce:
-        # The nonce-based CSP forbids 'unsafe-inline', so the single inline
-        # script must carry the per-request nonce.
-        html = html.replace("<script>", f'<script nonce="{nonce}">', 1)
-    return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
+    # The per-request nonce allows the one inline application script under CSP.
+    return HTMLResponse(
+        content=site_html("index.html", request.state.csp_nonce),
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.head("/", include_in_schema=False)
 def home_head() -> Response:
     """Uptime monitors that probe ``/`` with HEAD used to get 405."""
     return Response(status_code=200, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+def privacy_page() -> HTMLResponse:
+    return HTMLResponse(site_html("privacy.html"), headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+def terms_page() -> HTMLResponse:
+    return HTMLResponse(site_html("terms.html"), headers={"Cache-Control": "no-cache"})
+
+
+@app.head("/privacy", include_in_schema=False)
+@app.head("/terms", include_in_schema=False)
+def legal_head() -> Response:
+    return Response(status_code=200, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+def robots_txt() -> PlainTextResponse:
+    return PlainTextResponse(
+        "User-agent: *\nDisallow: /api/\nDisallow: /docs\nDisallow: /openapi.json\n"
+        f"Sitemap: {public_origin()}/sitemap.xml\n",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml() -> Response:
+    origin = public_origin()
+    urls = "".join(f"<url><loc>{origin}{path}</loc></url>" for path in ("/", "/privacy", "/terms"))
+    return Response(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{urls}</urlset>",
+        media_type="application/xml",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.post("/api/analytics/view", status_code=204, include_in_schema=False)
+def record_site_view(event: SitePageView, request: Request) -> Response:
+    """Count only consented, allowlisted page sections (no visitor payloads)."""
+    bucket = f"analytics:{client_key(request)}"
+    if not LIMITER.allow(bucket, 30):
+        raise HTTPException(status_code=429, detail="Analytics request rate limit exceeded.")
+    SITE_ANALYTICS.record(event.page)
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/meta", tags=["system"])

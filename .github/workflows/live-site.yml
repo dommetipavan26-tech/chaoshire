@@ -1,0 +1,95 @@
+name: Live site checks
+
+# The Render service is hand-managed, so a merge to main does not prove a deploy.
+# After each push to main this waits (up to 30 minutes) until the live site
+# reports this commit's build facts, then checks the running site from outside:
+# routes, HTTP->HTTPS redirect and HSTS, security headers, links, consent gating,
+# mobile layout, and speed (warm, then a cold start after 17 idle minutes).
+# After a manual Render deploy, run it by hand: Actions -> Live site checks ->
+# Run workflow. Results appear as annotations and in each job's summary.
+# Read-only apart from one invalid analytics POST that the site rejects (422);
+# the browser consent check intercepts the analytics beacon, so nothing is counted.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Site to check
+        default: https://chaoshire.onrender.com
+        required: true
+      wait_minutes:
+        description: Minutes to wait for the live build to match this commit
+        default: "10"
+        required: true
+      measure_cold_start:
+        description: Also time a cold start (adds about 17 minutes)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-site-checks
+  cancel-in-progress: true
+
+env:
+  BASE_URL: ${{ inputs.base_url || 'https://chaoshire.onrender.com' }}
+  WAIT_MINUTES: ${{ inputs.wait_minutes || '30' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    outputs:
+      deployed: ${{ steps.live.outputs.deployed }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-browser.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements-browser.txt
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Check the live site
+        id: live
+        run: python scripts/check_live_site.py --base-url "$BASE_URL" --wait-minutes "$WAIT_MINUTES"
+      - name: Keep screenshots and measurements
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-site-evidence
+          path: reports/generated/live/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  cold-start:
+    needs: verify
+    if: >-
+      always() && needs.verify.outputs.deployed == 'true' &&
+      (github.event_name == 'push' || inputs.measure_cold_start)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Let the free instance spin down (17 idle minutes)
+        run: sleep 1020
+      - name: Time a cold request, then a warm one
+        run: |
+          echo "## Cold and warm start" >> "$GITHUB_STEP_SUMMARY"
+          for label in cold warm; do
+            out="$(curl -sS -o /dev/null --max-time 180 \
+              -w '%{http_code} %{time_starttransfer} %{time_total}' "$BASE_URL/" || echo '000 0 0')"
+            read -r code first total <<< "$out"
+            message="GET / after ${label} start -> HTTP ${code}: first byte ${first}s, complete ${total}s"
+            echo "::notice title=Live ${label} start::${message}"
+            echo "- ${message}" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$code" != "200" ]; then
+              echo "::error title=Live ${label} start::expected HTTP 200"
+              exit 1
+            fi
+          done

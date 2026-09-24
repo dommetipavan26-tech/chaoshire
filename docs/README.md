@@ -15,6 +15,7 @@ are relative to the **repository root**.
 - [Persistence and privacy](operations/PERSISTENCE.md) — what is stored and for how long.
 - [Monitoring](operations/MONITORING.md) — deployment posture and operational checks.
 - [Release checklist](operations/RELEASE-CHECKLIST.md) — automated gates and owner actions.
+- [Website readiness](operations/WEBSITE-READINESS.md) — privacy, HTTPS, SEO, accessibility, and page-speed checks.
 - [Security policy](../SECURITY.md) — root-level file so GitHub also discovers it.
 
 ## Portfolio
