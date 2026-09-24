@@ -6,7 +6,7 @@ This document audits the public-facing ChaosHire **synthetic prototype**. It is 
 
 | Checklist area | Status in this codebase |
 |---|---|
-| Privacy Policy and Terms & Conditions | Separate `/privacy` and `/terms` pages, linked from the site footer. The owner must review the contact method, actual deployment retention, and legal wording before publication. |
+| Privacy Policy and Terms & Conditions | Separate `/privacy` and `/terms` pages, linked from the site footer. Their private contact route is GitHub's private vulnerability reporting (**Report a vulnerability** on the repository's Security tab), which must stay enabled. Wording reviewed for the synthetic demo on 24 September 2026; it is not a substitute for independent legal review before handling real personal data. |
 | Secrets and HTTPS | Operator, connector, and webhook credentials remain in server environment variables; a canary test checks public HTML/CSS/API metadata for leaks. On Render (or with `CHAOSHIRE_FORCE_HTTPS=1`) public HTTP redirects to a configured HTTPS origin, and secure responses carry HSTS. Health probes are exempt from redirects. Never trust forwarded scheme headers outside a proxy that overwrites them. |
 | Consent and analytics | Accessible, optional, cookie-free consent banner. No page-view request occurs before Allow. The choice is stored in localStorage and can be changed in the footer. Only allowlisted section names reach the first-party API; daily counts are operator-only, process-local, and expire within 30 UTC days or on restart. No visitor IDs are stored with those counts. |
 | Search and sharing | Distinct page titles/descriptions, canonical HTTPS URLs, Open Graph/Twitter preview with alt text, 1200×630 PNG, `/favicon.ico` + PNG favicon, `/sitemap.xml`, and `/robots.txt` (excludes API/docs). |
@@ -46,7 +46,7 @@ Direct `curl` requests to the public HTTPS host failed a TLS handshake **from th
 
 ## Owner checks before the live rollout
 
-1. Review privacy/terms wording and a contact path for the entity operating the service. Do not accept real applicant data on the public demo.
+1. Keep private vulnerability reporting enabled (**Settings → Advanced Security**); both legal pages and `SECURITY.md` link to its **Report a vulnerability** form. Re-review the privacy/terms wording before accepting any real personal data; do not accept real applicant data on the public demo.
 2. On the **existing hand-managed Render service**, confirm the generated API key remains server-side; verify `RENDER_SERVICE_ID`/`RENDER_EXTERNAL_URL`, `CHAOSHIRE_PUBLIC_ORIGIN`, HTTPS enforcement, and proxy-header behaviour. `render.yaml` alone does not update that service. Test `curl -I http://chaoshire.onrender.com/privacy` for a HTTPS redirect and `curl -I https://chaoshire.onrender.com/privacy` for HSTS; `/api/ready` must still return 200.
 3. Verify the deployed robots/sitemap and preview image, and inspect link previews in the target social networks. Check external URLs manually; the repository tests only validate same-site links and files.
 4. With consent rejected, inspect browser Network to confirm **no** `/api/analytics/view` call. With consent allowed, confirm a page-section count is visible to an operator via authenticated `GET /api/ops/analytics`. Keep `X-API-Key` out of the browser and published documentation.

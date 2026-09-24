@@ -180,6 +180,8 @@ recorded here because it is a deliberate design decision rather than an oversigh
 
 ## Reporting a vulnerability
 
-Please report security issues privately to the repository owner rather than opening a public issue containing exploitation details or sensitive information. Include affected component, reproduction steps, likely impact, and a suggested fix if available.
+Report security or privacy issues privately through GitHub's private vulnerability reporting: open the repository's **Security** tab and choose **Report a vulnerability**, or go directly to <https://github.com/dommetipavan26-tech/chaoshire/security/advisories/new>. Only you and the repository's maintainers can see the report; a free GitHub account is required. Please do not open a public issue containing exploitation details or personal information. Include the affected component, reproduction steps, likely impact, and a suggested fix if available.
+
+The website's Privacy Policy and Terms link to this form as their private contact route, so private vulnerability reporting must stay enabled (**Settings → Advanced Security → Private vulnerability reporting**).
 
 Production adoption would require authentication, authorization, encryption, secure storage, retention controls, audit logging, dependency scanning, privacy review, and legal review.
