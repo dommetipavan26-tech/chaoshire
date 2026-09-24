@@ -1,7 +1,9 @@
-# Python
+# Python and development tools
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 coverage.json
 htmlcov/
@@ -26,7 +28,8 @@ data/
 *.db-wal
 reports/generated/
 
-# Packaging
+# Packaging and generated release bundles
 build/
 dist/
+release/
 *.egg-info/

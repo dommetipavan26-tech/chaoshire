@@ -45,7 +45,7 @@ on** (the public demo). Private deployments set
 for the current request so the left-most-XFF rule and the instance-wide
 `write:_instance` backstop can be proved against the live proxy, not just read
 as a config flag. `scripts/probe_xff.py` automates that probe.
-`tests/test_write_access.py` covers all of the above.
+`tests/api/test_write_access.py` covers all of the above.
 
 ## Content security
 
@@ -54,14 +54,14 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
   'nonce-…'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';
   base-uri 'self'; form-action 'self'`. There is no `script-src 'unsafe-inline'`
   and the nonce is regenerated per request, so a leaked page cannot be replayed.
-- `index.html` contains exactly one `<script>` tag, carries no inline event
+- `chaoshire/web/index.html` contains exactly one `<script>` tag, carries no inline event
   handlers, and builds no HTML by unescaped string concatenation. Its `esc()`
   helper escapes `& < > " '` and the backtick. Every interpolation into an
   attribute that can break out (`href`, `src`, `value`, `title`, `alt`,
   `placeholder`, `id`, `for`, `name`, `data-*`) goes through `esc()` or
   `encodeURIComponent()`; the remaining `class`/`style`/`aria-*` interpolations
   are a frozen, reviewed presentational allowlist.
-  `tests/test_html_escaping.py` asserts the invariant mechanically and includes a
+  `tests/web/test_html_escaping.py` asserts the invariant mechanically and includes a
   regression test that uploads a hostile group value containing
   `" onerror="…` and confirms it renders as inert text.
 - Server-rendered HTML and PDF reports escape through `html.escape(quote=True)`
@@ -72,7 +72,7 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
   exceptions routinely embed the request URL, proxy configuration or a credential
   fragment, and pandas parser messages can quote buffer contents, so the full text
   is written to the server log instead, where an operator can still read it.
-  `tests/test_security_connectors.py` asserts that a connector exception carrying
+  `tests/infrastructure/test_security_connectors.py` asserts that a connector exception carrying
   `https://operator:sk-live-SUPERSECRET@…?token=abc123` produces a body containing
   none of those fragments while the log contains all of them.
 - `style-src 'unsafe-inline'` is still permitted. Inline `style` attributes are
@@ -91,7 +91,7 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
   contrast, reachable only with `threshold_contrast_acknowledged: true`, reported
   under its own `research_contrast` key, never merged into a mitigation result,
   and accompanied by the statute, its text and a "not legal advice" notice in
-  every response that mentions it. `tests/test_threshold_contrast.py`.
+  every response that mentions it. `tests/core/test_threshold_contrast.py`.
 - **The fairness risk score is measured, not padded.**
   `total = measured / available × 100`. Earlier versions added an unconditional
   15 "transparency" points that were never measured and capped a perfect result
@@ -99,7 +99,7 @@ as a config flag. `scripts/probe_xff.py` automates that probe.
   present) and 60 (not), and that switch is disclosed through `basis`,
   `available_points`, `unmeasured_components` and `comparable_with_full_basis`
   rather than hidden behind two identical-looking numbers.
-  `tests/test_certificate_scale.py`.
+  `tests/core/test_certificate_scale.py`.
 
 ## Static analysis
 
@@ -148,7 +148,7 @@ recorded here because it is a deliberate design decision rather than an oversigh
   The CLI still writes the whole report to
   `reports/generated/protected-contrast.json` (`--out` overrides the path) and
   prints only a static acknowledgement, which is the better channel for a
-  machine-readable report regardless of the scanner; `tests/test_trained_model.py`
+  machine-readable report regardless of the scanner; `tests/core/test_trained_model.py`
   enforces both halves. **Re-review this dismissal — and never rely on it — before
   any deployment that handles real candidate data.**
 

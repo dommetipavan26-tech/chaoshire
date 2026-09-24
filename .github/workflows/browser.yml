@@ -31,7 +31,7 @@ jobs:
         # summary is re-emitted through ::error:: to reach the PR page too.
         run: |
           set +e
-          output="$(python -m pytest browser_tests -q 2>&1)"
+          output="$(python -m pytest tests/browser -q 2>&1)"
           code=$?
           printf '%s\n' "$output"
           if [ "$code" -ne 0 ]; then

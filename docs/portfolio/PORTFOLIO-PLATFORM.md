@@ -47,7 +47,7 @@ Metrics reset whenever the process restarts and contain no candidate data.
 
 ## Tamper-evident evidence
 
-`GET /api/evidence` combines aggregate audit evidence, Chaos results, and the agent review in `chaoshire.evidence.v1`. A SHA-256 digest covers canonical JSON. `POST /api/evidence/verify` detects any later modification. This proves integrity relative to the downloaded bundle; it is not a third-party digital signature.
+`GET /api/evidence` combines aggregate audit evidence, Chaos results, and the deterministic fairness review in `chaoshire.evidence.v1`. A SHA-256 digest covers canonical JSON. `POST /api/evidence/verify` detects any later modification. This proves integrity relative to the downloaded bundle; it is not a third-party digital signature.
 
 CLI equivalent:
 
@@ -69,7 +69,7 @@ The dashboard has a skip link, visible keyboard focus, reduced-motion handling, 
 
 ## Guided demonstration
 
-`GET /api/demo` returns a stable six-step, three-minute portfolio story covering baseline risk, controlled Chaos, candidate C-1046, agent review, mitigation/comparison, and the release decision. The dashboard exposes the same story in the Guided Demo tab.
+`GET /api/demo` returns a stable six-step, three-minute portfolio story covering baseline risk, controlled Chaos, candidate C-1046, fairness review, mitigation/comparison, and the release decision. The dashboard exposes the same story in the Guided Demo tab.
 
 ## Deployment environment
 
@@ -87,4 +87,4 @@ CHAOSHIRE_MAX_BODY_BYTES=5500000
 CHAOSHIRE_REMOTE_MODELS=[{"model_id":"acme-v4","url":"https://models.example/decisions","api_key_env":"ACME_KEY"}]
 ```
 
-SQLite remains the default. Render free-tier files are ephemeral, so durable multi-instance deployments still require a managed database adapter.
+SQLite remains the default. Render free-tier files are ephemeral; use the optional PostgreSQL repository adapter with a managed database for durable aggregate history. Multi-instance deployments also need shared state and rate limiting, which are not provided by the process-local demo.

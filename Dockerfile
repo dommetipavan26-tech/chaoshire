@@ -9,7 +9,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend.py index.html ./
+# The packaged web shell lives under chaoshire/web, not at the repository root.
+COPY backend.py ./
 COPY chaoshire ./chaoshire
 
 RUN useradd --create-home --uid 10001 chaoshire \

@@ -8,14 +8,15 @@ from fastapi.testclient import TestClient
 
 from chaoshire.app import app
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INDEX_HTML = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
-CSS_FILE = PROJECT_ROOT / "chaoshire" / "static" / "chaoshire.css"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+WEB_DIR = PROJECT_ROOT / "chaoshire" / "web"
+INDEX_HTML = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+CSS_FILE = WEB_DIR / "static" / "chaoshire.css"
 CSS_CONTENT = CSS_FILE.read_text(encoding="utf-8")
 
 
 def test_no_inline_style_block_in_html():
-    """The <style> block was extracted to chaoshire/static/chaoshire.css."""
+    """The <style> block was extracted to chaoshire/web/static/chaoshire.css."""
     assert "<style>" not in INDEX_HTML
     assert "</style>" not in INDEX_HTML
 
@@ -64,12 +65,20 @@ def test_data_style_applied_via_cssom_helper():
     assert "data-style" in INDEX_HTML
 
 
-def test_css_route_serves_stylesheet():
+def test_web_assets_are_packaged_and_served_independent_of_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     with TestClient(app) as client:
-        response = client.get("/static/chaoshire.css")
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/css")
-    assert "Cache-Control" in response.headers
+        home = client.get("/")
+        css = client.get("/static/chaoshire.css")
+        icon = client.get("/icons/icon-192.png")
+    assert home.status_code == 200
+    assert 'href="/static/chaoshire.css"' in home.text
+    assert css.status_code == 200
+    assert css.headers["content-type"].startswith("text/css")
+    assert css.text == CSS_CONTENT
+    assert "Cache-Control" in css.headers
+    assert icon.status_code == 200
+    assert icon.content == (WEB_DIR / "static" / "icons" / "icon-192.png").read_bytes()
 
 
 def test_csp_style_src_has_no_unsafe_inline():

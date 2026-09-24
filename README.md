@@ -2,11 +2,11 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [scikit-learn example](docs/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence](docs/PORTFOLIO-EVIDENCE.md) · [Case study](docs/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/ARCHITECTURE.svg) · [Methodology](docs/METHODOLOGY.md) · [Platform](docs/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/MONITORING.md) · [Roadmap](PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [scikit-learn example](docs/engineering/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence](docs/portfolio/PORTFOLIO-EVIDENCE.md) · [Case study](docs/portfolio/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/engineering/ARCHITECTURE.svg) · [Methodology](docs/engineering/METHODOLOGY.md) · [Platform](docs/portfolio/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/operations/MONITORING.md) · [Roadmap](docs/planning/PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
-![ChaosHire recruiter landing page](docs/assets/landing-desktop.png)
+![ChaosHire landing page showing LegacyCorp, MeritFirst, and TalentFit (trained) model choices](docs/portfolio/assets/landing-desktop.png)
 
 ChaosHire is an open-source fairness-auditing prototype for hiring models. It combines conventional group-fairness metrics with controlled counterfactual experiments, candidate-level explanations, mitigation simulations, and an appeals workflow.
 
@@ -28,20 +28,28 @@ Each experiment produces a `PASS`, `WARN`, or `FAIL`. Together they form a 0–1
 
 On the shipped fixtures the privilege-keyword injection verdict is labelled
 **fixture-limited** (in the API payload, next to the badge in the Chaos Lab, and
-in `docs/CONTINUOUS-FAIRNESS.md`): those résumés cannot clear the decision
+in `docs/engineering/CONTINUOUS-FAIRNESS.md`): those résumés cannot clear the decision
 threshold at the fixtures' prestige weight, so the PASS records how much
 headroom exists rather than general resistance to résumé gaming. The label
 changes no verdict and no resilience point.
 
 ## Demonstration results
 
-The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and three transparent reference models:
+The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and **three selectable model variants**. `legacy` and `fair` are hand-authored scoring fixtures; `trained` is fitted with scikit-learn at build time and loaded from a pinned artifact at runtime (no scikit-learn runtime dependency).
 
-| Reference model | Purpose | Fairness risk score | Chaos resilience |
+| Model (API/CLI ID) | Purpose | Fairness risk score | Chaos resilience |
 |---|---|---:|---:|
-| **LegacyCorp Screen v1** | Intentionally biased test fixture | **32 / F** | **30 / 100** |
-| **MeritFirst v2** | Merit-based control fixture | **84 / B** | **100 / 100** |
-| **TalentFit v3** | Trained-on-merit fixture with a biased proxy feature | **66 / C** | **100 / 100** |
+| **LegacyCorp Screen v1** (`legacy`) | Intentionally biased test fixture | **32 / F** | **30 / 100** |
+| **MeritFirst v2** (`fair`) | Merit-based control fixture | **84 / B** | **100 / 100** |
+| **TalentFit v3 (trained)** (`trained`) | Fitted merit features with proxy signals retained | **66 / C** | **100 / 100** |
+
+All three appear in the dashboard's model selector. With the app running locally, audit each variant by its ID:
+
+```bash
+curl 'http://localhost:8000/api/audit?model=legacy&dataset=demo'
+curl 'http://localhost:8000/api/audit?model=fair&dataset=demo'
+curl 'http://localhost:8000/api/audit?model=trained&dataset=demo'
+```
 
 The LegacyCorp fixture produces:
 
@@ -129,7 +137,7 @@ than left for a reader to infer:
 
 ## Architecture
 
-[View the architecture diagram](docs/ARCHITECTURE.svg).
+[View the architecture diagram](docs/engineering/ARCHITECTURE.svg).
 
 ```text
 Browser (vanilla HTML/CSS/JS)
@@ -149,34 +157,42 @@ Browser (vanilla HTML/CSS/JS)
        NumPy + Pandas
 ```
 
-### Source layout
+### Repository layout
 
 ```text
-backend.py                 # stable Render/uvicorn compatibility entry point
-chaoshire/
-├── app.py                 # FastAPI routes and OpenAPI organization
-├── chaos.py               # controlled counterfactual experiments
-├── config.py              # thresholds and deterministic demo settings
-├── data.py                # synthetic fixture generation
-├── metrics.py             # fairness metrics and risk-score formula
-├── models.py              # feature transformations and scoring models
-├── schemas.py             # validated API request contracts
-├── services.py            # product workflows and orchestration
-├── repository.py          # SQLite aggregate audit-history repository
-├── quality.py             # model comparison and fairness release policies
-├── reporting.py           # self-contained HTML audit reports
-├── pdf_reporting.py       # dependency-free native PDF summaries
-├── agent.py               # deterministic evidence-grounded review agent
-├── adapters.py            # pluggable decision-source contract
-├── evidence.py            # canonical SHA-256 evidence bundles
-├── platform.py            # security, access control, and operations
-├── demo.py                # stable guided portfolio walkthrough
-├── cli.py                 # gate, review, evidence, and report commands
-└── state.py               # explicit temporary raw-upload state
-tests/                     # API, metrics, workflows, statistics, gates, and persistence
+backend.py                 # stable uvicorn backend:app compatibility entry point
+chaoshire/                 # importable application; existing module paths stay stable
+├── app.py, schemas.py     # HTTP routes and request contracts
+├── services.py, demo.py   # workflows and guided demonstration
+├── metrics.py, chaos.py   # fairness calculations and experiments
+├── models.py, data.py     # synthetic reference models and fixtures
+├── repository*.py         # SQLite and optional PostgreSQL persistence
+├── artifacts/             # pinned trained-model fixture
+└── web/                   # packaged browser shell (served at /)
+    ├── index.html
+    └── static/            # stylesheet and PWA icons
+tests/
+├── api/                   # endpoints, uploads, and access controls
+├── core/                  # metrics, models, and fairness workflows
+├── infrastructure/        # repositories, connectors, and build checks
+├── web/                   # HTML/CSS, CSP, and escaping
+└── browser/               # opt-in Playwright suite
+docs/
+├── engineering/           # architecture, methodology, integration
+├── operations/            # persistence, monitoring, releases
+├── portfolio/             # case study, evidence, and screenshots
+└── planning/              # roadmap and historical task log
+scripts/                   # CI checks, icon/screenshot generators, live probes
+examples/                  # runnable decision-adapter example
+.github/workflows/         # quality, browser, fairness, security, release CI
 ```
 
-`backend.py` remains intentionally small so existing deployments can continue using `uvicorn backend:app`. Persistence, authentication, and configurable schema mapping are tracked for later releases.
+See the [documentation index](docs/README.md) for individual files and maintenance
+commands. `backend.py`, dependency manifests, `Dockerfile`, `render.yaml`, and the
+standard community files remain at the root for existing deployment and tooling
+conventions. The Python modules remain at their public `chaoshire.*` import paths;
+the web assets are resolved relative to the package rather than the working
+directory.
 
 ## Quick start
 
@@ -204,16 +220,22 @@ docker build -t chaoshire .
 docker run --rm -p 8000:8000 chaoshire
 ```
 
-Aggregate audit history defaults to `data/chaoshire.db`. Override it with `CHAOSHIRE_DB_PATH`; see [Persistence & privacy](docs/PERSISTENCE.md). Render's free filesystem is ephemeral, so the public demo's history is not durable across redeploys.
+Aggregate audit history defaults to `data/chaoshire.db`. Override it with `CHAOSHIRE_DB_PATH`; see [Persistence & privacy](docs/operations/PERSISTENCE.md). Render's free filesystem is ephemeral, so the public demo's history is not durable across redeploys.
 
 ### Run tests
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest -q
+python -m pytest -q               # API, core, infrastructure, and web tests
 ```
 
-GitHub Actions runs linting, type checking, the trained-model drift check and the full test suite on Python 3.11 and 3.12 for every pull request and push to `main`. The quality gate requires at least 90% package coverage; the verified v0.24.0 baseline contains **270 tests with 94.7% package coverage** (the configured source set excludes the synthetic fixture module `chaoshire/data.py`).
+The optional Playwright suite lives in `tests/browser/`; its install and run
+commands are in the [documentation index](docs/README.md). GitHub Actions runs
+linting, type checking, the trained-model drift check and the default test suite
+on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
+quality gate requires at least 90% package coverage; the verified v0.24.0
+baseline contains **270 tests with 94.7% package coverage** (the configured
+source set excludes the synthetic fixture module `chaoshire/data.py`).
 
 `chaoshire/build_info.py` is the single source of truth for every number the
 landing page and this README quote. Version, model count, experiment count and
@@ -221,8 +243,8 @@ fixture size are derived from the running package at import time, so they cannot
 drift. The test count and coverage figure cannot be derived that way, so
 `scripts/check_build_info.py` re-derives both from a real pytest run and fails
 the build if `chaoshire/build_info.py` disagrees. `GET /api/meta` serves the
-result as `build`, and `index.html` renders that payload instead of hardcoding a
-version string — the failure mode that once left the landing page advertising
+result as `build`, and `chaoshire/web/index.html` renders that payload instead
+of hardcoding a version string — the failure mode that once left the landing page advertising
 v0.21.0 while the package said v0.22.0.
 
 ### Audit scikit-learn predictions
@@ -234,7 +256,7 @@ python -m pip install -r requirements-examples.txt
 python -m examples.sklearn_decision_adapter
 ```
 
-See the [scikit-learn integration guide](docs/SCIKIT-LEARN-INTEGRATION.md) for the data contract, adaptation steps, and responsible-use limits.
+See the [scikit-learn integration guide](docs/engineering/SCIKIT-LEARN-INTEGRATION.md) for the data contract, adaptation steps, and responsible-use limits.
 
 ### Continuous fairness commands
 
@@ -249,12 +271,17 @@ python -m chaoshire report --model legacy --output chaoshire-report.html
 # native PDF summary
 python -m chaoshire report --model legacy --format pdf --output chaoshire-report.pdf
 
-# transparent agent review and tamper-evident evidence bundle
+# deterministic fairness review and tamper-evident evidence bundle
 python -m chaoshire review --model legacy
 python -m chaoshire evidence --model legacy --output chaoshire-evidence.json
 ```
 
-See [Continuous fairness engineering](docs/CONTINUOUS-FAIRNESS.md) for the test contract, experiment fingerprints, evidence format, comparison API, and CI policy.
+The gate example compares `legacy` with `fair`; it is not the full model list.
+Use `--candidate trained` to evaluate the third variant (it may be blocked by
+the example thresholds). The `report`, `review`, and `evidence` commands accept
+`--model legacy`, `--model fair`, or `--model trained`.
+
+See [Continuous fairness engineering](docs/engineering/CONTINUOUS-FAIRNESS.md) for the test contract, experiment fingerprints, evidence format, comparison API, and CI policy.
 
 ## Audit your own decisions
 
@@ -287,7 +314,7 @@ The original schema remains backward-compatible. Download a compatible synthetic
 2. Open **Chaos Lab** and run the suite; explain the 16.9% gender-swap flip rate.
 3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
 4. Apply both mitigations and compare **32/F with 80/B**. Note the panel explaining why per-group threshold "calibration" is *not* one of them, with the statute cited.
-5. Switch to **MeritFirst v2** (**84/B**, resilience 100/100) to demonstrate that the same tests can certify a cleaner model.
+5. Switch to **MeritFirst v2** (**84/B**, resilience 100/100) to show a cleaner synthetic fixture under the same tests; these results are not a certification.
 6. Switch to **TalentFit v3** (**66/C**, resilience 100/100, disparate impact 0.78): it passes every counterfactual ChaosHire can throw at it and still fails the four-fifths rule. This is the step that shows why resilience alone is not a fairness result.
 7. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
 
@@ -315,11 +342,12 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - [x] Named SQLite-backed aggregate audit history
 - [x] Model-version comparison and regression gates for CI/CD
 - [x] Self-contained HTML and native PDF report export
-- [x] Evidence-grounded fairness review agent and verified evidence bundles
+- [x] Deterministic evidence-grounded fairness review and verified evidence bundles
 - [x] Pluggable decision-source adapters
 - [x] Optional API-key protection, platform safeguards, metrics, PWA, and guided demo
-- [ ] User accounts, role-based access, and durable managed storage
-- [ ] Remote REST scoring connector and SHAP explanations
+- [x] Authenticated remote REST connector and SHAP-compatible explanations
+- [x] Optional PostgreSQL repository adapter (SQLite remains the default)
+- [ ] User accounts, role-based access, and a configured durable deployment
 
 ## Responsible use
 

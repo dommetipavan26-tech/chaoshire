@@ -69,9 +69,9 @@ Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits 
 - API docs: <https://chaoshire.onrender.com/docs>
 - Source: <https://github.com/dommetipavan26-tech/chaoshire>
 - Latest release: <https://github.com/dommetipavan26-tech/chaoshire/releases/latest>
-- Desktop landing screenshot: `docs/assets/landing-desktop.png`
-- Mobile landing screenshot: `docs/assets/landing-mobile.png`
-- Dashboard screenshot: `docs/assets/dashboard-desktop.png`
-- scikit-learn integration: `docs/SCIKIT-LEARN-INTEGRATION.md`
+- Desktop landing screenshot: `docs/portfolio/assets/landing-desktop.png`
+- Mobile landing screenshot: `docs/portfolio/assets/landing-mobile.png`
+- Dashboard screenshot: `docs/portfolio/assets/dashboard-desktop.png`
+- scikit-learn integration: `docs/engineering/SCIKIT-LEARN-INTEGRATION.md`
 
 All screenshots and claims must be refreshed after production deployment. Do not present synthetic outcomes as findings about a real employer.

@@ -95,8 +95,8 @@ function showTab(id){
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.t);});
 $('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')showTab('demo');if(e.target.id==='exploredashboard')showTab('overview');});
 
-// Deterministic fixture results, mirrored by tests/test_metrics.py and
-// tests/test_trained_model.py. If these drift, the tests fail first.
+// Deterministic fixture results, mirrored by tests/core/test_metrics.py and
+// tests/core/test_trained_model.py. If these drift, the tests fail first.
 const HOME_MODELS={
   legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30},
   fair:{name:'MeritFirst',score:'84 / B',grade:'B',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100},

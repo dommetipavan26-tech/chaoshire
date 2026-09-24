@@ -254,7 +254,7 @@ def age_stress_experiment(coefficients: Coefficients, _limit: int) -> Observatio
 
 
 #: The privilege-injection fixture deliberately cannot be gamed by the shipped
-#: reference models (see docs/CONTINUOUS-FAIRNESS.md), so its verdict must carry
+#: reference models (see docs/engineering/CONTINUOUS-FAIRNESS.md), so its verdict must carry
 #: this scope note wherever it is rendered. The label changes no verdict and no
 #: resilience point — it states what the PASS can and cannot falsify.
 INJECTION_FIXTURE_LIMIT = (
@@ -263,7 +263,7 @@ INJECTION_FIXTURE_LIMIT = (
     "prestige weight (the exact headroom is in the detail line). PASS means "
     "'this fixture cannot be gamed this way', not 'the model is résumé-gaming "
     "resistant'; a prestige-heavy variant of the fixture is regression-proven "
-    "to FAIL (tests/test_verification_fixes.py)."
+    "to FAIL (tests/api/test_verification_fixes.py)."
 )
 
 CHAOS_TESTS = [

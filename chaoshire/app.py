@@ -83,13 +83,13 @@ from .services import (
 #: Upstream failure detail is logged, never echoed into a response body.
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+WEB_DIR = Path(__file__).resolve().parent / "web"
+STATIC_DIR = WEB_DIR / "static"
 STATIC_CSS = STATIC_DIR / "chaoshire.css"
 ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png")
 # Constant lookup table: request strings select an entry but never become part
 # of a filesystem path, which keeps the icon route free of path-injection taint.
-ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / name for name in ICON_FILES}
+ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / "icons" / name for name in ICON_FILES}
 DATASETS = ("demo", "uploaded")
 
 
@@ -315,7 +315,7 @@ self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||new URL(e.request
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request) -> HTMLResponse:
-    html = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+    html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
     nonce = getattr(request.state, "csp_nonce", "")
     if nonce:
         # The nonce-based CSP forbids 'unsafe-inline', so the single inline

@@ -29,8 +29,8 @@ from fastapi.testclient import TestClient
 from chaoshire.app import app
 from chaoshire.services import upload_decisions
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INDEX_HTML = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+INDEX_HTML = (PROJECT_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
 
 NONCE_RE = re.compile(r"script-src 'self' 'nonce-([^']+)'")
 ATTR_INTERPOLATION = re.compile(r'([a-zA-Z-]+)\s*=\s*"([^"]*\$\{[^"]*)"')
@@ -175,7 +175,7 @@ def test_csp_is_nonce_based_and_fresh_per_request():
         csp = response.headers["content-security-policy"]
         script_src = csp.split("script-src")[1].split(";")[0]
         assert "'unsafe-inline'" not in script_src
-        # The external stylesheet (chaoshire/static/chaoshire.css) lets the
+        # The external stylesheet (chaoshire/web/static/chaoshire.css) lets the
         # CSP drop style-src 'unsafe-inline'; dynamic values are applied via
         # CSSOM after innerHTML, which is not restricted by style-src.
         style_src = csp.split("style-src")[1].split(";")[0]
