@@ -56,7 +56,7 @@ ANONYMOUS_UPLOADS_PUBLISHED = False
 # reviewer learns that scaling replicas silently doubles the budget.
 LIMITER_SCOPE = "process-local-memory"
 
-# Committed contract with ``render.yaml``. ``tests/test_write_access.py``
+# Committed contract with ``render.yaml``. ``tests/api/test_write_access.py``
 # parses the Blueprint and fails if these diverge. Live drift (dashboard env
 # vs this file) is reported at boot and on ``GET /api/ops/posture``.
 BLUEPRINT_CONTRACT: dict[str, str] = {

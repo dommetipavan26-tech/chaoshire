@@ -3,15 +3,19 @@
 .gitignore
 .github/
 
-# Local environments and caches
+# Local secrets, environments, caches, and test outputs
+.env
+.env.*
 .venv/
 venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.coverage
-htmlcov/
+.mypy_cache/
 .ruff_cache/
+.coverage
+coverage.json
+htmlcov/
 
 # Local databases and generated artifacts
 data/
@@ -23,7 +27,6 @@ release/
 
 # Documentation sources not needed at runtime
 docs/
-browser_tests/
 examples/
 scripts/
 tests/

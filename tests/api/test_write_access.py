@@ -479,7 +479,7 @@ def test_blueprint_contract_matches_render_yaml():
 
     from chaoshire.platform import BLUEPRINT_CONTRACT
 
-    text = (Path(__file__).resolve().parent.parent / "render.yaml").read_text(encoding="utf-8")
+    text = (Path(__file__).resolve().parents[2] / "render.yaml").read_text(encoding="utf-8")
     for name, expected in BLUEPRINT_CONTRACT.items():
         match = re.search(
             rf"- key:\s*{re.escape(name)}\n\s+value:\s*\"([^\"]+)\"",

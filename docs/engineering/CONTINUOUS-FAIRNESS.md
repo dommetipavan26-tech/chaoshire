@@ -25,14 +25,14 @@ The same model, policy, and results produce the same ID. Changing policy or mode
 ## Known limit of the privilege-injection fixture
 
 The Privilege-Keyword Injection experiment submits deliberately weak,
-prestige-heavy synthetic résumés. Against the shipped fixtures those résumés
-score at most 0.4043 against the 0.5 decision threshold, so the experiment
-currently PASSES for both reference models: LegacyCorp's prestige weight (0.09)
-is roughly three times smaller than the ~0.27 required to accept the strongest
-injected résumé. The experiment's detail string therefore reports the score
-headroom and the required prestige weight, and the regression suite verifies
-that a prestige-heavy variant of the fixture (prestige weight 0.35) FAILS while
-the merit-only fixture PASSES. Because the fixture bounds what this test can
+prestige-heavy synthetic résumés. It currently PASSES for **all three** bundled
+variants: the highest injected score is 0.4043 for `legacy`, 0.1997 for `fair`
+and 0.0498 for `trained`, all below the 0.5 decision threshold. LegacyCorp's
+prestige weight (0.09) would need to reach at least 0.19 on this fixture before
+the experiment could fail; the merit-only fixture applies no prestige weight.
+The experiment's detail string reports each variant's score headroom and
+required prestige weight. The regression suite verifies that a prestige-heavy
+variant (prestige weight 0.35) FAILS while the merit-only fixture PASSES. Because the fixture bounds what this test can
 falsify, the verdict ships with a `fixture_limit` scope note in every
 `/api/chaos` payload and a visible **fixture-limited** label next to the badge
 in the Chaos Lab UI — a green PASS means "this fixture cannot be gamed this
@@ -53,7 +53,7 @@ Evidence explains *which decisions changed*; it does not itself determine whethe
 GET /api/compare?baseline=legacy&candidate=fair
 ```
 
-The response compares fairness risk score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs.
+The response compares fairness risk score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs. The same endpoint also accepts `candidate=trained`; the CI example above intentionally compares `legacy` with `fair`.
 
 ## Fairness release gate
 

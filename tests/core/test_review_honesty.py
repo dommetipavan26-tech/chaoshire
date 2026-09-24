@@ -6,13 +6,13 @@ overclaim at least once:
 1. the Chaos Lab story blurbs read as marketing narrative ("Does the model get
    gamed? Who survives?") instead of describing the experiment;
 2. the privilege-injection experiment's PASS badge hid that the fixture itself
-   bounds what the test can falsify (docs/CONTINUOUS-FAIRNESS.md);
+   bounds what the test can falsify (docs/engineering/CONTINUOUS-FAIRNESS.md);
 3. the deterministic rules engine was branded a "Fairness Review Agent";
 4. the TalentFit blurb ended on a teaser question instead of the measured
    result.
 
 A fifth finding, the unredacted `GET /api/appeals` queue, has its own module:
-`tests/test_appeals_redaction.py`.
+`tests/api/test_appeals_redaction.py`.
 """
 
 from pathlib import Path
@@ -25,8 +25,8 @@ from chaoshire.demo import guided_demo
 from chaoshire.metrics import audit
 from chaoshire.models import LEGACY, MODEL_META, build_decisions
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INDEX_HTML = (PROJECT_ROOT / "index.html").read_text(encoding="utf-8")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+INDEX_HTML = (PROJECT_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
 
 client = operator_client()
 
@@ -112,7 +112,7 @@ def test_the_fairness_review_is_not_marketed_as_an_ai_agent():
 
 def test_the_talentfit_blurb_reports_the_measured_outcome():
     blurb = MODEL_META["trained"]["blurb"]
-    # Pinned fixture results (tests/test_trained_model.py): 66/C, DI 0.78, 100/100.
+    # Pinned fixture results (tests/core/test_trained_model.py): 66/C, DI 0.78, 100/100.
     assert "66/C" in blurb
     assert "0.78" in blurb
     assert "100/100" in blurb

@@ -34,7 +34,7 @@ from chaoshire.chaos import CHAOS_TESTS
 from chaoshire.data import DEMO_DATA
 from chaoshire.models import MODEL_META
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 client = operator_client()
 
@@ -177,40 +177,39 @@ def test_the_check_script_refuses_to_guess_when_coverage_json_is_missing(tmp_pat
         checker.main(["--coverage-json", str(tmp_path / "absent.json")])
 
 
-#: Living documentation. CHANGELOG.md and TODO.md are excluded on purpose: they
-#: are historical records, and a v0.22.0 entry that says "98 tests" is correct
-#: forever even though the suite has moved on.
-DOCUMENTED_FILES = (
-    "README.md",
-    "SECURITY.md",
-    "CONTRIBUTING.md",
-    "PROJECT-ROADMAP.md",
-)
+#: Living documentation. CHANGELOG.md and docs/planning/TODO.md are historical
+#: records: an old entry quoting a past test count is still correct for that release.
+DOCUMENTED_FILES = ("README.md", "SECURITY.md", "CONTRIBUTING.md")
 
 TEST_COUNT_PATTERN = re.compile(r"(\d{2,4}) (?:automated )?tests")
 COVERAGE_PATTERN = re.compile(r"(\d{2}\.\d)% (?:package )?coverage")
 
 
 def _living_documentation() -> list[Path]:
+    docs = REPO_ROOT / "docs"
     return [
-        REPO_ROOT / name
-        for name in (
-            *DOCUMENTED_FILES,
-            *(f"docs/{p.name}" for p in (REPO_ROOT / "docs").glob("*.md")),
-        )
+        *(REPO_ROOT / name for name in DOCUMENTED_FILES),
+        *(p for p in docs.rglob("*.md") if p != docs / "planning" / "TODO.md"),
     ]
 
 
-def test_the_readme_quotes_the_same_numbers():
+def test_the_readme_quotes_the_same_numbers_and_all_model_variants():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     match = re.search(
-        r"verified v([\d.]+) baseline contains \*\*(\d+) tests with ([\d.]+%) package coverage\*\*",
+        r"verified v([\d.]+)\s+baseline contains\s+\*\*(\d+) tests with ([\d.]+%) package coverage\*\*",
         readme,
     )
     assert match, "README no longer states the verified baseline in the expected form"
     assert match.group(1) == VERSION
     assert int(match.group(2)) == AUTOMATED_TESTS
     assert match.group(3) == PACKAGE_COVERAGE
+
+    # Keep the published table in sync with /api/meta, including the trained fixture.
+    model_table = re.search(r"\| Model \(API/CLI ID\) \|.*?(?=\n\n)", readme, re.DOTALL)
+    assert model_table, "README needs a table of all selectable models"
+    for model_id, metadata in MODEL_META.items():
+        assert f"| **{metadata['title']}** (`{model_id}`) |" in model_table.group(0)
+    assert model_table.group(0).count("\n| **") == len(MODEL_META)
 
 
 def test_no_living_document_quotes_a_stale_test_or_coverage_figure():
@@ -241,7 +240,7 @@ def test_the_landing_page_reads_the_numbers_instead_of_hardcoding_them():
     once advertised v0.21.0 while the package said v0.22.0, and a browser test
     asserted the stale string, so nothing caught it.
     """
-    html = (REPO_ROOT / "index.html").read_text(encoding="utf-8")
+    html = (REPO_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
 
     # Every proof card ships an em-dash placeholder and is filled from `build`.
     proof = re.search(r'<div class="proof" id="proof">(.*?)</div>\s*</div>', html, re.DOTALL)

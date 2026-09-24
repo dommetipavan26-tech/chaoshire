@@ -5,10 +5,10 @@ Tests run as an **authenticated operator**: ``isolated_state`` configures
 That keeps the publish path (persistent audit history + the shared
 ``dataset=uploaded`` slot) under test. Tests that need the anonymous path build
 a plain ``TestClient`` and omit the header — see
-``tests/test_write_access.py``.
+``tests/api/test_write_access.py``.
 
 The per-minute rate-limit budgets are disabled here so a fast suite does not
-trip them; the limiters are exercised directly in ``tests/test_write_access.py``.
+trip them; the limiters are exercised directly in ``tests/api/test_write_access.py``.
 """
 
 from typing import Any

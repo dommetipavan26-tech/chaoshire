@@ -46,6 +46,7 @@ def running_app():
         env = {**os.environ, "CHAOSHIRE_DB_PATH": f"{temp_dir}/browser.db"}
         process = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "backend:app", "--port", str(port)],
+            cwd=Path(__file__).resolve().parents[2],
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

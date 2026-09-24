@@ -13,7 +13,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Professional README, license, changelog, security and contribution guidance
 - [x] Split the monolithic backend into data, models, metrics, chaos, and API modules
 - [x] Add linting and coverage reporting (Ruff + 90% CI coverage gate)
-- [ ] Add automated formatting and static type checking
+- [x] Add automated formatting and static type checking (Ruff and mypy in CI)
 - [x] Tagged GitHub releases (v0.20.0, v0.20.1, v0.21.0, v0.23.0, v0.23.3; v0.22.0, v0.23.1, v0.23.2 and v0.23.4 tags pending owner)
 
 ## Phase 2 — Real audit workflow
@@ -56,7 +56,7 @@ Build an honest, reproducible, portfolio-grade platform for testing fairness ris
 - [x] Installable PWA icons, manifest metadata, and offline icon caching
 - [ ] User accounts and auditor/reviewer roles
 - [x] Structured external log shipping (`CHAOSHIRE_LOG_WEBHOOK_URL`, HMAC-signed JSON events)
-- [x] Architecture diagram (`docs/ARCHITECTURE.svg`)
+- [x] Architecture diagram (`docs/engineering/ARCHITECTURE.svg`)
 - [ ] Short demonstration video
 
 ## Definition of portfolio-ready

@@ -1,6 +1,6 @@
 """Generate the deterministic ChaosHire PWA icon set.
 
-The icons are committed to ``chaoshire/static`` so the application, Docker image,
+The icons are committed to ``chaoshire/web/static/icons`` so the application, Docker image,
 and Render deployment stay dependency-free at runtime. Regenerate them with:
 
     python -m pip install pillow
@@ -22,7 +22,7 @@ EDGE = (31, 44, 72, 255)  # #1f2c48
 BAR_BOTTOM = (56, 189, 248, 255)  # #38bdf8
 BAR_TOP = (167, 139, 250, 255)  # #a78bfa
 ACCENT = (251, 113, 133, 255)  # #fb7185 — the "chaos" slash
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "chaoshire" / "static"
+OUTPUT_DIR = Path(__file__).resolve().parent.parent / "chaoshire" / "web" / "static" / "icons"
 
 
 def _mix(first: tuple[int, int, int, int], second: tuple[int, int, int, int], ratio: float):

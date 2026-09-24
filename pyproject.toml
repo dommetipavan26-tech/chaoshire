@@ -1,5 +1,6 @@
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# The Playwright suite is opt-in: its browser dependency is not part of requirements-dev.txt.
+testpaths = ["tests/api", "tests/core", "tests/infrastructure", "tests/web"]
 addopts = "--strict-markers"
 filterwarnings = [
   "ignore:Using `httpx` with `starlette.testclient` is deprecated.*",

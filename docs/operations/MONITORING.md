@@ -59,15 +59,15 @@ file — is the source of truth for its environment.
 Render's free filesystem is wiped on redeploy, instance replacement, and
 platform maintenance, so the SQLite audit history (`GET /api/audits`) is
 **ephemeral**: it survives a process restart on the same instance and nothing
-more. `docs/PERSISTENCE.md` defines what is stored; this section is about how
-long it lasts. Three postures are on the table:
+more. `docs/operations/PERSISTENCE.md` defines what is stored; this section is
+about how long it lasts. Three postures are on the table:
 
 1. **Stay ephemeral.** Accept that the history is demo scratch space, keep the
    "not durable cloud storage" wording, and do nothing. Cheapest, and honest.
-2. **External managed store.** Point the repository at a managed database
-   (Render Postgres or an equivalent) through the planned repository adapter so
-   history survives redeploys. Costs money and adds a second service with its
-   own cold starts.
+2. **External managed store.** Configure the shipped optional PostgreSQL
+   repository adapter (`CHAOSHIRE_DB_BACKEND=postgres`) with a managed database
+   (Render Postgres or an equivalent) so aggregate history survives redeploys.
+   Costs money and adds a second service with its own operational requirements.
 3. **Ship, don't store.** Export the history periodically (for example
    `GET /api/audit/export` to object storage) instead of making the running
    service own durability.

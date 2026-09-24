@@ -8,7 +8,20 @@ Thank you for helping improve responsible testing of automated decisions.
 2. Create a focused branch: `git checkout -b feature/short-description`.
 3. Create and activate a virtual environment.
 4. Install development dependencies: `python -m pip install -r requirements-dev.txt`.
-5. Run `python -m ruff check .` and `python -m pytest -q` before opening a pull request; the Quality workflow enforces both.
+5. Run the same default quality checks as CI before opening a pull request:
+
+   ```bash
+   python -m ruff check .
+   python -m ruff format --check .
+   python -m mypy
+   python -m pytest --cov=chaoshire --cov-report=json -q
+   python scripts/check_build_info.py --coverage-json coverage.json
+   python -m chaoshire train --check
+   ```
+
+The Playwright tests require optional browser dependencies and run separately;
+see the [documentation index](docs/README.md) for their commands and the
+[repository layout](README.md#repository-layout) for where each area lives.
 
 ## Pull-request expectations
 

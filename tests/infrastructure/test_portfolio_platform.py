@@ -21,7 +21,7 @@ client = operator_client()
 
 def test_v020_contract_and_operational_endpoints():
     # Not a literal: build_info.VERSION is the single source of truth and
-    # tests/test_build_info.py pins it to the package version.
+    # tests/infrastructure/test_build_info.py pins it to the package version.
     assert __version__ == VERSION
     assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
     assert client.get("/api/live").json() == {"status": "alive"}
