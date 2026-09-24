@@ -23,7 +23,9 @@ def wait_for_landing(page: Page, base_url: str) -> None:
     expect(selector).to_have_count(len(expected_ids))
     actual_ids = selector.evaluate_all("buttons => buttons.map(button => button.dataset.m)")
     if actual_ids != expected_ids:
-        raise RuntimeError(f"Model selector does not match /api/meta: {actual_ids} != {expected_ids}")
+        raise RuntimeError(
+            f"Model selector does not match /api/meta: {actual_ids} != {expected_ids}"
+        )
     for model in models:
         expect(page.locator(f'#modelsel button[data-m="{model["id"]}"]')).to_contain_text(
             model["title"]
