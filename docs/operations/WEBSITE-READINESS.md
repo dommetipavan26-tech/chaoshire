@@ -38,6 +38,19 @@ python -m pytest tests/browser -q   # browser suite is opt-in, not in the defaul
 
 For custom Chromium binaries, pass `--chromium-executable PATH` to both scripts. JSON evidence is saved in ignored `reports/generated/page-speed.json` and `reports/generated/accessibility.json`. The default suite verifies mobile contrast tokens, form behaviour, SEO routes, relative links, and consent gating; external links and the hand-managed live service require the owner checks below.
 
+## Automated live checks
+
+A merge does not prove a deploy on the hand-managed service, so [`.github/workflows/live-site.yml`](../../.github/workflows/live-site.yml) checks the running site from GitHub's servers. It runs after every push to `main` and can be started by hand (**Actions → Live site checks → Run workflow**) after a manual Render deploy. It first waits (30 minutes after a push; 10 by default when run by hand) until the live `/api/meta` build facts and stylesheet version match the commit. Then [`scripts/check_live_site.py`](../../scripts/check_live_site.py) verifies:
+
+- the new routes, content types, titles, robots/sitemap origin, and the 1200×630 social card;
+- the HTTP→HTTPS redirect target, HSTS of at least one year, CSP without `unsafe-inline`, and the framing/sniffing/referrer headers;
+- that analytics rejects a non-allowlisted page (422, not counted) and hides counts without the operator key (401);
+- every link on the home, privacy, and terms pages;
+- in Chromium, at 1440/390/320px: no horizontal overflow, all three model choices visible, no analytics beacon before a choice, and correct Reject/Allow behaviour (the beacon is intercepted, so production counts are untouched);
+- warm server timings and real-browser page speed, then a second job times a cold start after 17 idle minutes (Render's free instance spins down after 15).
+
+A site still serving an older build is reported as a warning, not a failure. Results appear as annotations and job summaries, and screenshots are kept as the `live-site-evidence` artifact. The same checks run locally with `python scripts/check_live_site.py --base-url https://chaoshire.onrender.com`.
+
 ## Live verification snapshot — 24 September 2026
 
 The source changes **have not reached** the existing Render deployment. The live `/api/ready` returned `{"status":"ready","database":"available"}`, but live `/api/meta` still advertised the previous release's figures (**270 / 94.7%**) rather than this checkout's (**281 / 94.8%**). Requests to the live `/privacy`, `/terms`, `/robots.txt`, `/sitemap.xml`, and `/social-preview.png` returned `{"detail":"Not Found"}`; the home page still showed the older CTA and proof figures. Locally, all five new routes return 200 with the expected content types.

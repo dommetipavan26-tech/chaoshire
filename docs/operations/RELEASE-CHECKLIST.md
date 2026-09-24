@@ -35,6 +35,7 @@ it described.
 - [ ] Confirm the generated key is stored somewhere the owner can retrieve it, and that `CHAOSHIRE_TRUST_FORWARDED_FOR=1` is active behind the Render proxy
 - [ ] Review Privacy Policy and Terms & Conditions with the site operator/legal adviser; confirm the contact path and actual retention
 - [ ] On the hand-managed Render service, verify HTTP→HTTPS redirect, secure-response HSTS, and `/api/ready` (see `WEBSITE-READINESS.md`)
+- [ ] After deploying, confirm the **Live site checks** workflow passed for the release commit (run it by hand after a manual deploy)
 - [ ] Check the social preview, sitemap, robots, internal/external links, consent choice, and private analytics summary on the deployed host
 - [ ] Re-run the real-browser mobile/contrast and page-speed checks; a local timing is not a production Lighthouse score
 - [ ] Test overview, Chaos, fairness review, guided demo, PDF, and evidence download on one Android or iPhone
