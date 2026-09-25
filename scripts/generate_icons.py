@@ -17,11 +17,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-BACKGROUND = (11, 18, 32, 255)  # #0b1220 — matches the dashboard theme
-EDGE = (31, 44, 72, 255)  # #1f2c48
-BAR_BOTTOM = (56, 189, 248, 255)  # #38bdf8
-BAR_TOP = (167, 139, 250, 255)  # #a78bfa
-ACCENT = (251, 113, 133, 255)  # #fb7185 — the "chaos" slash
+BACKGROUND = (28, 23, 20, 255)  # #1c1714 — Night Ledger paper
+EDGE = (58, 50, 42, 255)  # #3a322a
+BAR_BOTTOM = (203, 187, 166, 255)  # #cbbba6
+BAR_TOP = (243, 235, 223, 255)  # #f3ebdf
+ACCENT = (198, 161, 91, 255)  # #c6a15b — the brass slash
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "chaoshire" / "web" / "static" / "icons"
 
 
@@ -35,19 +35,13 @@ def draw_icon(size: int, maskable: bool = False) -> Image.Image:
     draw = ImageDraw.Draw(image)
 
     # Maskable icons must keep their content inside the central 80% safe zone
-    # and bleed the background to the edges; "any" icons get rounded corners.
-    inset = round(size * 0.20) if maskable else round(size * 0.10)
+    # and bleed the background to the edges.
+    inset = round(size * 0.20) if maskable else round(size * 0.12)
     if not maskable:
-        corner = round(size * 0.22)
         image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
-        draw.rounded_rectangle([0, 0, size - 1, size - 1], radius=corner, fill=BACKGROUND)
-        draw.rounded_rectangle(
-            [round(size * 0.02)] * 2 + [size - 1 - round(size * 0.02)] * 2,
-            radius=corner,
-            outline=EDGE,
-            width=max(2, round(size * 0.012)),
-        )
+        draw.rectangle([0, 0, size - 1, size - 1], fill=BACKGROUND)
+        draw.rectangle([0, 0, size - 1, max(3, round(size * 0.045))], fill=ACCENT)
 
     canvas = size - 2 * inset
     bar_width = round(canvas * 0.20)
@@ -58,11 +52,7 @@ def draw_icon(size: int, maskable: bool = False) -> Image.Image:
         left = inset + index * (bar_width + gap)
         top = baseline - round(canvas * height)
         fill = _mix(BAR_BOTTOM, BAR_TOP, index / (len(heights) - 1))
-        draw.rounded_rectangle(
-            [left, top, left + bar_width, baseline],
-            radius=round(bar_width * 0.35),
-            fill=fill,
-        )
+        draw.rectangle([left, top, left + bar_width, baseline], fill=fill)
 
     # Chaos slash: the deliberate break through the measured bars.
     stroke = max(3, round(size * 0.045))

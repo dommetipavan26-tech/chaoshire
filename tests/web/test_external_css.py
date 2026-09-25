@@ -36,7 +36,7 @@ def test_external_css_has_responsive_rules():
 
 def test_external_css_has_root_variables():
     assert ":root{" in CSS_CONTENT or ":root {" in CSS_CONTENT
-    assert "--bg:#0b1220" in CSS_CONTENT
+    assert "--bg:#1c1714" in CSS_CONTENT
 
 
 def test_external_css_has_data_style_utility_classes():
@@ -94,4 +94,15 @@ def test_csp_style_src_has_no_unsafe_inline():
 def test_service_worker_precaches_css():
     with TestClient(app) as client:
         sw = client.get("/service-worker.js").text
+        response = client.get("/static/fonts/besley-latin.woff2")
+        missing = client.get("/static/fonts/not-a-font.woff2")
     assert "/static/chaoshire.css" in sw
+    # CSP default-src 'self' blocks a font CDN, so the heading face is packaged.
+    assert "/static/fonts/besley-latin.woff2" in sw
+    assert 'url("/static/fonts/besley-latin.woff2")' in CSS_CONTENT
+    font = WEB_DIR / "static" / "fonts" / "besley-latin.woff2"
+    assert font.is_file() and font.read_bytes()[:4] == b"wOF2"
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("font/woff2")
+    assert response.content == font.read_bytes()
+    assert missing.status_code == 404

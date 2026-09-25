@@ -1,0 +1,8 @@
+besley-latin.woff2 is a Latin subset of Besley 2.001 (weights 400–700),
+converted to WOFF2 for this site. It is a Modified Version of the
+Original Version and remains under the SIL Open Font License in OFL.txt.
+
+The font file's name table records:
+Copyright 2020 The Besley Project Authors (https://github.com/indestructible-type/Besley)
+
+No Reserved Font Name is declared in OFL.txt, so the primary name stays Besley.

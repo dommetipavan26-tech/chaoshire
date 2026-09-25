@@ -93,11 +93,13 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 STATIC_DIR = WEB_DIR / "static"
 STATIC_CSS = STATIC_DIR / "chaoshire.css"
 ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon-32.png")
+FONT_FILES = ("besley-latin.woff2",)
 FAVICON = STATIC_DIR / "icons" / "favicon.ico"
 SOCIAL_PREVIEW = STATIC_DIR / "social-preview.png"
 # Constant lookup table: request strings select an entry but never become part
 # of a filesystem path, which keeps the icon route free of path-injection taint.
 ICON_PATHS: dict[str, Path] = {name: STATIC_DIR / "icons" / name for name in ICON_FILES}
+FONT_PATHS: dict[str, Path] = {name: STATIC_DIR / "fonts" / name for name in FONT_FILES}
 DATASETS = ("demo", "uploaded")
 
 
@@ -278,8 +280,8 @@ def web_manifest() -> JSONResponse:
             "start_url": "/",
             "scope": "/",
             "display": "standalone",
-            "background_color": "#0b1220",
-            "theme_color": "#0b1220",
+            "background_color": "#1c1714",
+            "theme_color": "#1c1714",
             "description": "Evidence-grounded chaos testing for hiring-model fairness.",
             "icons": [
                 {
@@ -318,6 +320,19 @@ def static_css(request: Request) -> Response:
     )
 
 
+@app.get("/static/fonts/{name}", include_in_schema=False)
+def static_font(name: str) -> Response:
+    """Serve the self-hosted heading face. CSP default-src 'self' blocks CDNs."""
+    font_path = FONT_PATHS.get(name)
+    if font_path is None or not font_path.is_file():
+        raise HTTPException(status_code=404, detail="Font not found.")
+    return Response(
+        font_path.read_bytes(),
+        media_type="font/woff2",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/icons/{name}", include_in_schema=False)
 def app_icon(name: str) -> Response:
     icon_path = ICON_PATHS.get(name)
@@ -353,7 +368,7 @@ def service_worker() -> Response:
     # The cache name is derived from the package version so a release cannot ship
     # a service worker that keeps serving the previous version's precached shell.
     script = """const CACHE='__CACHE_NAME__';
-const PAGES=['/','/privacy','/terms','/manifest.webmanifest','/static/chaoshire.css?v=__CSS_VERSION__','/icons/icon-192.png','/icons/icon-512.png','/icons/favicon-32.png'];
+const PAGES=['/','/privacy','/terms','/manifest.webmanifest','/static/chaoshire.css?v=__CSS_VERSION__','/static/fonts/besley-latin.woff2','/icons/icon-192.png','/icons/icon-512.png','/icons/favicon-32.png'];
 self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(PAGES)),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))),self.clients.claim()])));
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{if(r.ok&&PAGES.includes(u.pathname+u.search)){const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x))}return r}).catch(()=>caches.match(e.request)))});""".replace(

@@ -74,38 +74,45 @@ The three layout fixes in this revision (score-card text column, phone-width Upl
 4. With consent rejected, inspect browser Network to confirm **no** `/api/analytics/view` call. With consent allowed, confirm a page-section count is visible to an operator via authenticated `GET /api/ops/analytics`. Keep `X-API-Key` out of the browser and published documentation.
 5. Repeat a real-device audit for contrast, touch targets, horizontal scrolling, keyboard navigation, and page load across a cold Render instance. Use an independent legal/security review before handling personal data or making production hiring decisions.
 
-## Direction B — intentional lab console (this revision)
+## Night Ledger (this revision)
 
-This revision restyles the public site as an instrument bench — squared panels
-with a signal top rule, hairline rules, monospace micro-labels, channel-indexed
-navigation (`01 HOME` … `11 GUIDED DEMO`), a console status bar whose build facts
-are served from `/api/meta` (never hardcoded), status lamps, and meter tracks with
-tick marks. Every feature, element ID, and accessibility contract is unchanged;
-the redesign lives in `chaoshire/web/static/chaoshire.css` plus small masthead /
-status-bar markup in the packaged pages. Before/after evidence:
-`docs/portfolio/assets/redesign-{before,after}-{desktop,mobile}.png`, captured by
-`scripts/capture_redesign.py` with identical settings for both labels.
+This revision replaces the lab-console skin with a bound-audit look: warm
+near-black paper (`#1c1714`), cream text, a brass rule, and one self-hosted
+heading face (Besley, Latin subset, SIL OFL, `chaoshire/web/static/fonts/`).
+The eleven sections are five groups, with Guided Demo first. The three model
+choices are a compact picker. The landing page leads with one finding (Zara
+Garcia, C-1489, 169 gender flips) instead of four feature cards. Build facts
+stay in the footer and still come from `/api/meta`. The privacy choice is a
+slim bar fixed to the bottom; nothing is counted before Reject or Allow.
+Element IDs the tests use are unchanged.
+
+Before/after evidence, captured with consent already dismissed so the fixed
+bar is not painted over the page:
+`docs/portfolio/assets/redesign-{before,after}-{desktop,mobile}.png`.
+"Before" is the previous lab-console revision. "After" is Night Ledger.
+`scripts/capture_redesign.py` uses the same viewport and scale for both labels.
 
 Measured locally on 25 September 2026 against a running Uvicorn app (headless
-Chromium 153, fresh context per page, service workers blocked):
+Chromium, fresh context, service workers blocked):
 
-- Tests: `281 passed`, package coverage `94.8%` (`scripts/check_build_info.py` OK);
-  5 opt-in browser tests pass, including the every-tab sweep.
-- axe-core 4.10.3, 21 audits (Home/Dashboard/Upload/Appeals/Privacy/Terms/404 at
-  1440/390/320): **0 violations**. Untestable colour-contrast is now confined to
-  horizontally scrollable containers (the Upload `#schema` `<pre>` and the appeals
-  table) on 6 of 21 audits — the same manual-review class as before, not a
-  regression; decorative pseudo-overlays were converted to real borders and alpha
-  washes to opaque tints so all other text keeps a decidable background.
-- Token contrast re-verified: lowest pair `--rose` on `--card2` = 5.56:1; primary
-  button text `#062033` on `--blue` = 8.63:1 (all asserted pairs ≥ 4.5:1).
-- Layout: 0px horizontal overflow at 1440/1366/1024/768/390/320 across all eleven
-  tabs.
-- Page speed (median of 5): 1440px TTFB 5 ms / load 28 ms / FCP 68 ms / LCP 68 ms,
-  HTML 17,454 B on wire; 390px TTFB 5 ms / load 27 ms / FCP 60 ms / LCP 60 ms.
+- Tests: `281` collected (`276` passed here, `5` skipped without scikit-learn);
+  the committed counts stay `281` tests and `94.8%` package coverage. The five
+  opt-in browser tests pass, including the every-tab sweep.
+- axe-core 4.13.0, 21 audits (Home, Dashboard, Upload, Appeals, Privacy, Terms,
+  and 404 at 1440/390/320): **0 violations**. Colour-contrast on the consent
+  bar is decidable: the bar, its actions, and its buttons use an opaque
+  `#241e19` fill, and the privacy link is a sibling of the one-line notice
+  rather than a nested run of text.
+- Token contrast: lowest required pair `--rose` on `--card2` is 5.87:1.
+  Button text `#1c1714` on `--blue` (`#f3ebdf`) is 15.02:1.
+- Layout: 0px horizontal overflow at 1440/1366/1024/768/390/320. At 1366×768
+  and 390×844 the headline and "Start the 3-minute demo" sit above the
+  consent bar without scrolling.
+- Page speed (median of 5): 1440px TTFB 6 ms / load 75 ms / FCP 120 ms /
+  LCP 120 ms, HTML 17,961 B on the wire, other resources 30,332 B (the
+  self-hosted face is 18,604 B). 390px TTFB 5 ms / load 52 ms / FCP 68 ms /
+  LCP 68 ms. Timings stay well under a second. The extra asset bytes are the
+  required same-origin font; CSP does not allow a font CDN.
 
-Sandbox note: `cdn.playwright.dev` is unreachable from this workspace, so the
-verification ran on Chromium 153.0.8010.0 fetched from the reachable npm registry
-(`@sparticuz/chromium`, same major version Playwright pins) plus its bundled
-NSS/SwiftShader libraries, injected only through the throwaway virtualenv — the
-tests under `tests/browser` run byte-for-byte as committed.
+The previous lab-console measurements (axe-core 4.10.3, 1440px FCP 68 ms)
+remain in the git history of this file.

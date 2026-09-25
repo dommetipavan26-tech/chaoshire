@@ -39,6 +39,14 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def launch_chromium(playwright):
+    """Use CHAOSHIRE_CHROMIUM when Playwright's own browser download is unavailable."""
+    path = os.environ.get("CHAOSHIRE_CHROMIUM")
+    if path:
+        return playwright.chromium.launch(executable_path=path)
+    return playwright.chromium.launch()
+
+
 @contextmanager
 def running_app():
     port = free_port()
@@ -77,7 +85,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         build = api(url, "/api/meta")["build"]
         models = {model["id"]: model for model in api(url, "/api/meta")["models"]}
 
-        browser = playwright.chromium.launch()
+        browser = launch_chromium(playwright)
         page = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=2)
         page.goto(url, wait_until="networkidle")
 
@@ -118,7 +126,8 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         expect(page.locator("#home-community")).to_have_text("111")
         expect(page.locator("#home-resilience")).to_have_text("30")
 
-        page.get_by_role("button", name="Fairness Dashboard").click()
+        page.get_by_role("button", name="Measure", exact=True).click()
+        page.get_by_role("button", name="Fairness Dashboard", exact=True).click()
         expect(page.get_by_role("heading", name="Fairness Dashboard", level=2)).to_be_visible()
         page.get_by_role("button", name=models["fair"]["title"]).click()
         expect(page.locator("#tab-overview .grade-ring b", has_text="84")).to_be_visible()
@@ -140,7 +149,8 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         home = page.get_by_role("button", name="Home")
         home.focus()
         page.keyboard.press("Enter")
-        page.get_by_role("button", name="Fairness Dashboard").click()
+        page.get_by_role("button", name="Measure", exact=True).click()
+        page.get_by_role("button", name="Fairness Dashboard", exact=True).click()
         # Scoped to the overview tab and matched as a substring: the score line now
         # reads "Fairness Risk Score · 71.3 of 85 measurable points, normalised to
         # 100", so there is no element whose entire text is the bare label. Asserting
@@ -156,11 +166,12 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
 
 def test_mitigation_tab_refuses_per_group_thresholds() -> None:
     with running_app() as url, sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        browser = launch_chromium(playwright)
         page = browser.new_page()
         page.goto(url, wait_until="networkidle")
 
-        page.get_by_role("button", name="Mitigations").click()
+        page.get_by_role("button", name="Review", exact=True).click()
+        page.get_by_role("button", name="Mitigations", exact=True).click()
         # The one-click set is exactly the two lawful controls.
         expect(page.locator(".mit-check")).to_have_count(2)
         expect(page.locator("#m_blind")).to_be_visible()
@@ -194,7 +205,7 @@ def test_mitigation_tab_refuses_per_group_thresholds() -> None:
 def test_uploaded_group_values_cannot_escape_the_attribute_context() -> None:
     """Regression test for the ``title="${esc(g.group)}"`` breakout."""
     with running_app() as url, sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        browser = launch_chromium(playwright)
         page = browser.new_page()
         page.goto(url, wait_until="networkidle")
 
@@ -222,7 +233,8 @@ def test_uploaded_group_values_cannot_escape_the_attribute_context() -> None:
         csv_path = Path(tempfile.gettempdir()) / "chaoshire-xss.csv"
         csv_path.write_text(buffer.getvalue(), encoding="utf-8")
 
-        page.get_by_role("button", name="Upload Your Model").click()
+        page.get_by_role("button", name="Your data", exact=True).click()
+        page.get_by_role("button", name="Upload Your Model", exact=True).click()
         page.locator("#auditname").fill("XSS probe")
         page.locator("#csvfile").set_input_files(str(csv_path))
         page.locator("#attrs").fill("gender,ethnicity")
@@ -250,7 +262,7 @@ def test_uploaded_group_values_cannot_escape_the_attribute_context() -> None:
 def test_mobile_consent_and_form_validation() -> None:
     """No analytics before opt-in; mobile choices and form errors stay accessible."""
     with running_app() as url, sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        browser = launch_chromium(playwright)
         page = browser.new_page(viewport={"width": 320, "height": 700})
         tracking: list[str] = []
         submissions: list[str] = []
@@ -295,7 +307,8 @@ def test_mobile_consent_and_form_validation() -> None:
         assert page.evaluate("localStorage.getItem('chaoshire-analytics-consent-v1')") == "yes"
         expect(page.locator("#consent-banner")).to_be_hidden()
 
-        page.get_by_role("button", name="Appeals Portal").click()
+        page.get_by_role("button", name="Review", exact=True).click()
+        page.get_by_role("button", name="Appeals Portal", exact=True).click()
         page.get_by_role("button", name="Submit appeal").click()
         expect(page.locator("#aout")).to_contain_text("Enter an application ID")
         page.locator("#acid").fill("C-1046")
@@ -309,7 +322,8 @@ def test_mobile_consent_and_form_validation() -> None:
             page.get_by_role("button", name="Submit appeal").click()
         assert event.value.status == 422
 
-        page.get_by_role("button", name="Upload Your Model").click()
+        page.get_by_role("button", name="Your data", exact=True).click()
+        page.get_by_role("button", name="Upload Your Model", exact=True).click()
         page.get_by_role("button", name="Validate & audit").click()
         expect(page.locator("#upout")).to_contain_text("Choose a CSV file first")
         page.locator("#csvfile").set_input_files(

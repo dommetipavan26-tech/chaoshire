@@ -56,7 +56,7 @@ BREAKOUT_ATTRIBUTES = {
 #: (``gradeColor``, ``dcol``, ``severity``), or numeric arithmetic — none can
 #: produce a quote or an angle bracket. Adding an entry means reviewing it.
 REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
-    "aria-current": {"i===0?'page':'false'"},
+    "aria-current": {"id===section?'page':'false'"},
     "aria-pressed": {"m.id===MODEL"},
     "class": {
         "String(a.priority).startsWith('HIGH')?'warn':'info'",
@@ -68,7 +68,7 @@ REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
         "c.grade==='A'||c.grade==='B'?'ok':c.grade==='F'?'bad':'warn'",
         "c.passed?'ok':'bad'",
         "fullBasis?'ok':'warn'",
-        "i===0?'on':''",
+        "id===section?'on':''",
         "m.id===MODEL?'on':''",
         "ok?'ok':'bad'",
         "r.disposition==='MONITOR'?'ok':'bad'",
@@ -84,7 +84,6 @@ REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
     # innerHTML, not parsed as HTML attribute markup, so the same
     # presentational-constant rule applies.
     "data-style": {
-        "assessable?c.total*3.6:0",
         "at.statistical_test.significant_at_0_05?'var(--rose)':'var(--green)'",
         "col",
         "dcol(r.delta.certificate)",

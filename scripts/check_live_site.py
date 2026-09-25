@@ -468,8 +468,26 @@ def check_browser(base: str, insecure: bool, results: Results) -> None:
                 # in tab content (score card, schema block, narrow grid cards), so
                 # checking only the home page would not have seen them.
                 tab_overflow: dict[str, int] = {}
+                group_of = {
+                    "overview": "measure",
+                    "filtered": "measure",
+                    "chaos": "chaos",
+                    "mitigations": "review",
+                    "appeals": "review",
+                    "upload": "data",
+                    "history": "data",
+                    "compare": "review",
+                    "agent": "review",
+                    "demo": "demo",
+                }
                 for tab, ready in TAB_READY.items():
-                    page.locator(f'#tabs button[data-t="{tab}"]').click()
+                    if tab == "welcome":
+                        page.locator("#home-tab").click()
+                    else:
+                        page.locator(f'#tabs button[data-t="{group_of[tab]}"]').click()
+                        sub = page.locator(f'#subnav button[data-t="{tab}"]')
+                        if sub.count():
+                            sub.click()
                     page.wait_for_function(ready, timeout=60_000)
                     tab_overflow[tab] = overflow(page)
                 worst_tab, worst_overflow = max(tab_overflow.items(), key=lambda item: item[1])
