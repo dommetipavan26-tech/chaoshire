@@ -79,9 +79,13 @@ The three layout fixes in this revision (score-card text column, phone-width Upl
 This revision replaces the lab-console skin with a bound-audit look: warm
 near-black paper (`#1c1714`), cream text, a brass rule, and one self-hosted
 heading face (Besley, Latin subset, SIL OFL, `chaoshire/web/static/fonts/`).
-The eleven sections are five groups, with Guided Demo first. The three model
-choices are a compact picker. The landing page leads with one finding (Zara
-Garcia, C-1489, 169 gender flips) instead of four feature cards. Build facts
+The eleven sections are five groups, with Guided Demo first. The three audit
+models are a persistent strip above the navigation — large cards on a wide
+screen (name, grade, one-line role), full-width rows on a phone — so they are
+not buried in the finding card. The selected model carries a brass rule and a
+check. LegacyCorp stays 32/F, MeritFirst 84/B, TalentFit 66/C. The landing
+page still leads with one finding (Zara Garcia, C-1489, 169 gender flips)
+instead of four feature cards. Build facts
 stay in the footer and still come from `/api/meta`. The privacy choice is a
 slim bar fixed to the bottom; nothing is counted before Reject or Allow.
 Element IDs the tests use are unchanged.
@@ -89,7 +93,9 @@ Element IDs the tests use are unchanged.
 Before/after evidence, captured with consent already dismissed so the fixed
 bar is not painted over the page:
 `docs/portfolio/assets/redesign-{before,after}-{desktop,mobile}.png`.
-"Before" is the previous lab-console revision. "After" is Night Ledger.
+"Before" is the previous lab-console revision. "After" is Night Ledger before
+the audit-model strip moved above the navigation. The current landing shots
+are `docs/portfolio/assets/landing-{desktop,mobile}.png`.
 `scripts/capture_redesign.py` uses the same viewport and scale for both labels.
 
 Measured locally on 25 September 2026 against a running Uvicorn app (headless
@@ -107,7 +113,9 @@ Chromium, fresh context, service workers blocked):
   Button text `#1c1714` on `--blue` (`#f3ebdf`) is 15.02:1.
 - Layout: 0px horizontal overflow at 1440/1366/1024/768/390/320. At 1366×768
   and 390×844 the headline and "Start the 3-minute demo" sit above the
-  consent bar without scrolling.
+  consent bar without scrolling. Rechecked after the audit-model strip moved
+  above the navigation: same fold, still 0px of horizontal overflow at those
+  widths.
 - Page speed (median of 5): 1440px TTFB 6 ms / load 75 ms / FCP 120 ms /
   LCP 120 ms, HTML 17,961 B on the wire, other resources 30,332 B (the
   self-hosted face is 18,604 B). 390px TTFB 5 ms / load 52 ms / FCP 68 ms /
