@@ -38,10 +38,12 @@
     <button type="button" class="text-button" id="home-tab" data-t="welcome" aria-current="page">Home</button>
   </div>
 </header>
+<div class="audit-strip">
+  <div class="modelsel" id="modelsel" role="group" aria-label="Audit model selector"></div>
+</div>
 <nav id="tabs" aria-label="Product sections"></nav>
 <nav id="subnav" aria-label="Section" hidden></nav>
 <main id="main" tabindex="-1">
-  <div id="lab-model-slot" class="lab-model-slot" hidden></div>
   <h2 id="active-tab-heading" class="tab-heading hidden" aria-live="polite"></h2>
   <section id="tab-welcome">
     <div class="hero">
@@ -62,12 +64,6 @@
         <div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i></i></div><b id="home-gender">169</b></div>
         <div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i></i></div><b id="home-community">111</b></div>
         <div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i></i></div><b id="home-resilience">30</b></div>
-        <div id="welcome-model-slot">
-          <div id="model-picker">
-            <p class="model-label">Model under audit</p>
-            <div class="modelsel" id="modelsel" role="group" aria-label="Audit model selector"></div>
-          </div>
-        </div>
         <p class="dim hero-footnote">All people, employers, and findings are synthetic.</p>
       </div>
     </div>
@@ -165,13 +161,6 @@ function renderSubnav(section){
   nav.hidden=false;
   nav.innerHTML=group.sections.map(id=>`<button type="button" data-t="${esc(id)}" class="${id===section?'on':''}" aria-current="${id===section?'page':'false'}">${esc(SECTION_LABEL[id])}</button>`).join('');
 }
-function placeModelPicker(section){
-  const picker=$('#model-picker');
-  if(!picker)return;
-  const welcome=section==='welcome';
-  $(welcome?'#welcome-model-slot':'#lab-model-slot').appendChild(picker);
-  $('#lab-model-slot').hidden=welcome;
-}
 renderNav();
 // No third-party analytics or cookies. Persist only the user's choice locally;
 // send an allowlisted section name to our own API after an explicit opt-in.
@@ -221,7 +210,6 @@ function showTab(id){
   const heading=$('#active-tab-heading');
   heading.textContent=section==='welcome'?'':(SECTION_LABEL[section]||'');
   heading.classList.toggle('hidden',section==='welcome');
-  placeModelPicker(section);
   if(section==='filtered')loadFiltered();
   if(section==='history')loadHistory();
   if(section==='compare')loadComparison();
@@ -239,11 +227,11 @@ $('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')show
 // Deterministic fixture results, mirrored by tests/core/test_metrics.py and
 // tests/core/test_trained_model.py. If these drift, the tests fail first.
 const HOME_MODELS={
-  legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30,
+  legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',role:'Biased vendor screen',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30,
     finding:'Marked female, LegacyCorp scores her 0.485 and rejects her. The same résumé marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.'},
-  fair:{name:'MeritFirst',score:'84 / B',grade:'B',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
+  fair:{name:'MeritFirst',score:'84 / B',grade:'B',role:'Skills-only reference',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
     finding:'The same résumé does not flip under MeritFirst. Gender flips: 0. Community flips: 0. Resilience 100. Fairness risk score 84 / B. Skills-only scoring removes this particular failure. It is a reference, not a claim that hiring is solved.'},
-  trained:{name:'TalentFit',score:'66 / C',grade:'C',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
+  trained:{name:'TalentFit',score:'66 / C',grade:'C',role:'Trained, proxies kept',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
     finding:'TalentFit keeps her decision when gender is swapped. Gender flips: 0. Resilience 100. It still fails the four-fifths rule: disparate impact 0.78. Score 66 / C. Withholding the gender column did not make the decisions blind.'}
 };
 function renderHomeModel(){
@@ -256,8 +244,12 @@ function renderHomeModel(){
   [['#home-gender-bar',d.genderWidth,risky],['#home-community-bar',d.communityWidth,risky],['#home-resilience-bar',d.resilience,d.resilience<80]].forEach(([id,width,bad])=>{const bar=$(id);bar.classList.toggle('badbar',bad);bar.querySelector('i').style.width=width+'%';});
 }
 function renderModelSel(){
-  $('#modelsel').innerHTML=META.models.map(m=>
-    `<button type="button" class="mbtn ${m.id===MODEL?'on':''}" data-m="${esc(m.id)}" aria-pressed="${m.id===MODEL}">${esc(m.title)}</button>`).join('');
+  $('#modelsel').innerHTML=META.models.map(m=>{
+    const d=HOME_MODELS[m.id]||{name:m.title,score:'',grade:'',role:''};
+    const version=m.title.startsWith(d.name+' ')?m.title.slice(d.name.length+1):'';
+    const shown=version?d.name:m.title;
+    return `<button type="button" class="mbtn ${m.id===MODEL?'on':''}" data-m="${esc(m.id)}" data-grade="${esc(d.grade)}" aria-pressed="${m.id===MODEL}"><span class="mname"><span class="mshort">${esc(shown)}</span>${version?` <span class="mver">${esc(version)}</span>`:''}</span><span class="mgrade">${esc(d.score)}</span><span class="mrole">${esc(d.role||'')}</span><span class="mcheck" aria-hidden="true">${m.id===MODEL?ICO_CHECK:''}</span></button>`;
+  }).join('');
 }
 $('#modelsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MODEL=b.dataset.m;renderModelSel();renderHomeModel();
   loadOverview();$('#tab-chaos').innerHTML=chaosIntro();$('#tab-filtered').innerHTML='<p class="dim">Open this tab to load…</p>';$('#tab-mitigations').innerHTML=mitHTML();});

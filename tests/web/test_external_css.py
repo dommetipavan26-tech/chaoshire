@@ -23,6 +23,11 @@ def test_no_inline_style_block_in_html():
 
 def test_html_links_external_stylesheet():
     assert 'href="/static/chaoshire.css?v=__CSS_VERSION__"' in INDEX_HTML
+    # The three audit models sit above the navigation, not in the finding card.
+    assert INDEX_HTML.index('id="modelsel"') < INDEX_HTML.index('<nav id="tabs"')
+    assert "welcome-model-slot" not in INDEX_HTML
+    assert "lab-model-slot" not in INDEX_HTML
+    assert "placeModelPicker" not in INDEX_HTML
 
 
 def test_external_css_file_exists():
@@ -32,6 +37,12 @@ def test_external_css_file_exists():
 def test_external_css_has_responsive_rules():
     assert "@media(max-width:600px)" in CSS_CONTENT
     assert "prefers-reduced-motion" in CSS_CONTENT
+    # Wide: three cards. Phone: one full-width row per model, so names do not
+    # wrap into narrow columns. The selected model carries a brass rule.
+    assert ".audit-strip" in CSS_CONTENT
+    assert "grid-template-columns:repeat(3,minmax(0,1fr))" in CSS_CONTENT
+    assert "grid-template-columns:minmax(0,1fr)" in CSS_CONTENT
+    assert ".mbtn.on" in CSS_CONTENT and "var(--brass)" in CSS_CONTENT
 
 
 def test_external_css_has_root_variables():

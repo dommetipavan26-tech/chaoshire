@@ -164,6 +164,56 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         browser.close()
 
 
+def test_audit_models_lead_every_tab_and_the_demo_cta_fits() -> None:
+    """The three models stay above the nav, and the landing CTA clears the fold."""
+    with running_app() as url, sync_playwright() as playwright:
+        browser = launch_chromium(playwright)
+        try:
+            for width, height in ((1366, 768), (390, 844)):
+                page = browser.new_page(viewport={"width": width, "height": height})
+                page.goto(url, wait_until="networkidle")
+                page.wait_for_selector("#modelsel .mbtn")
+                buttons = page.locator("#modelsel .mbtn")
+                expect(buttons).to_have_count(3)
+                expect(page.locator('#modelsel button[data-m="legacy"]')).to_contain_text("32 / F")
+                expect(page.locator('#modelsel button[data-m="fair"]')).to_contain_text("84 / B")
+                expect(page.locator('#modelsel button[data-m="trained"]')).to_contain_text("66 / C")
+                boxes = [buttons.nth(i).bounding_box() for i in range(3)]
+                assert all(box is not None for box in boxes)
+                if width >= 900:
+                    assert abs(boxes[0]["y"] - boxes[1]["y"]) < 2
+                else:
+                    assert boxes[1]["y"] >= boxes[0]["y"] + boxes[0]["height"] - 1
+                    assert boxes[0]["width"] > width * 0.8
+                above = page.evaluate(
+                    """() => {
+                      const m = document.querySelector('#modelsel').getBoundingClientRect();
+                      const n = document.querySelector('#tabs').getBoundingClientRect();
+                      return m.bottom <= n.top + 1;
+                    }"""
+                )
+                assert above, f"{width}px: audit models are not above the navigation"
+                expect(page.locator("#modelsel .mbtn.on .mcheck svg")).to_have_count(1)
+                assert page.evaluate("() => window.scrollY") == 0
+                assert page.evaluate(
+                    "() => document.documentElement.scrollWidth <= window.innerWidth"
+                )
+                banner_top = page.locator("#consent-banner").bounding_box()["y"]
+                for selector in (".hero-title", "#startdemo"):
+                    box = page.locator(selector).bounding_box()
+                    assert box is not None
+                    assert box["y"] >= 0
+                    assert box["y"] + box["height"] <= banner_top + 0.5, (
+                        f"{width}px: {selector} is not fully above the consent bar"
+                    )
+                page.get_by_role("button", name="Measure", exact=True).click()
+                expect(page.locator("#modelsel")).to_be_visible()
+                expect(page.locator("#modelsel .mbtn")).to_have_count(3)
+                page.close()
+        finally:
+            browser.close()
+
+
 def test_mitigation_tab_refuses_per_group_thresholds() -> None:
     with running_app() as url, sync_playwright() as playwright:
         browser = launch_chromium(playwright)

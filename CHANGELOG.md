@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The three audit models sit above the navigation on every tab, not inside the
+  finding card. A wide screen shows three large cards (name, grade, one-line
+  role); a phone shows three full-width rows so the names do not wrap into
+  narrow columns. The selected model carries a brass rule and a check.
+  LegacyCorp stays **32 / F**, MeritFirst **84 / B**, TalentFit **66 / C**.
+
 ## [0.24.0] - 2026-09-21
 
 Future engineering items from `PROJECT-ROADMAP.md` and `TODO.md` — external
