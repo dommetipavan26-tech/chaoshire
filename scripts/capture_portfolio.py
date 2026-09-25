@@ -51,9 +51,7 @@ def main() -> None:
         desktop = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
         # The consent bar is position:fixed. A full-page shot would paint it over
         # the middle of the page, so dismiss it the same way capture_redesign does.
-        desktop.add_init_script(
-            "localStorage.setItem('chaoshire-analytics-consent-v1','no');"
-        )
+        desktop.add_init_script("localStorage.setItem('chaoshire-analytics-consent-v1','no');")
         desktop.goto(args.base_url, wait_until="networkidle")
         wait_for_landing(desktop, args.base_url)
         desktop.screenshot(path=output / "landing-desktop.png", full_page=True)
@@ -64,9 +62,7 @@ def main() -> None:
         desktop.screenshot(path=output / "dashboard-desktop.png", full_page=True)
 
         mobile = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=1)
-        mobile.add_init_script(
-            "localStorage.setItem('chaoshire-analytics-consent-v1','no');"
-        )
+        mobile.add_init_script("localStorage.setItem('chaoshire-analytics-consent-v1','no');")
         mobile.goto(args.base_url, wait_until="networkidle")
         wait_for_landing(mobile, args.base_url)
         mobile.screenshot(path=output / "landing-mobile.png", full_page=True)
