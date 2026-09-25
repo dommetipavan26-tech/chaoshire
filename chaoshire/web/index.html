@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1220">
+<meta name="theme-color" content="#1c1714">
 <title>ChaosHire | Stress-test hiring AI fairly</title>
-<meta name="description" content="Audit synthetic hiring models for group fairness, test counterfactual decisions, and explore evidence before unfair outcomes reach candidates.">
+<meta name="description" content="A synthetic hiring-model audit. Swap one fact on a résumé and see whether the decision flips.">
 <link rel="canonical" href="__PUBLIC_ORIGIN__/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ChaosHire">
 <meta property="og:url" content="__PUBLIC_ORIGIN__/">
 <meta property="og:title" content="ChaosHire | Stress-test hiring AI fairly">
-<meta property="og:description" content="A synthetic fairness-auditing demo with group metrics, controlled experiments, and human-review evidence.">
+<meta property="og:description" content="A synthetic hiring-model audit. Same résumé, different decision.">
 <meta property="og:image" content="__PUBLIC_ORIGIN__/social-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="ChaosHire: stress-test hiring AI before unfair decisions reach candidates.">
+<meta property="og:image:alt" content="ChaosHire: stress-test hiring AI while the résumé stays still.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="ChaosHire | Stress-test hiring AI fairly">
-<meta name="twitter:description" content="Explore a synthetic hiring AI fairness audit, counterfactual tests, and accountable review.">
+<meta name="twitter:description" content="A synthetic hiring-model audit. Same résumé, different decision.">
 <meta name="twitter:image" content="__PUBLIC_ORIGIN__/social-preview.png">
-<meta name="twitter:image:alt" content="ChaosHire: stress-test hiring AI before unfair decisions reach candidates.">
+<meta name="twitter:image:alt" content="ChaosHire: stress-test hiring AI while the résumé stays still.">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
@@ -32,37 +32,48 @@
 <header>
   <div class="masthead-row">
     <div class="brand-block">
-      <h1>Chaos<span>Hire</span></h1>
-      <div class="tag">Chaos Simulator for Fair Hiring · break your hiring AI before it breaks someone's career</div>
+      <h1>ChaosHire</h1>
+      <p class="tag">A hiring-model audit. Not a hiring tool.</p>
     </div>
-    <div class="modelsel" id="modelsel" role="group" aria-label="Audit model selector"></div>
-  </div>
-  <div class="console-status">
-    <span class="lamp">Synthetic fixture</span>
-    <span class="cs-item">Build <b id="console-version">…</b></span>
-    <span class="cs-item">Tests <b id="console-tests">…</b></span>
-    <span class="cs-item">Coverage <b id="console-coverage">…</b></span>
-    <span class="cs-item">Experiments <b id="console-experiments">…</b></span>
-    <span class="lamp warn">Demo — not for real hiring decisions</span>
+    <button type="button" class="text-button" id="home-tab" data-t="welcome" aria-current="page">Home</button>
   </div>
 </header>
 <nav id="tabs" aria-label="Product sections"></nav>
-<section class="consent-banner" id="consent-banner" aria-label="Optional analytics preference" hidden>
-  <div><b>Your privacy choice</b><p>We use no tracking cookies. May we count anonymous page views on this site? This is optional; the demo works either way. <a href="/privacy">Read the Privacy Policy</a>.</p></div>
-  <div class="consent-actions"><button type="button" class="btn ghost" id="reject-analytics">Reject optional</button><button type="button" class="btn" id="allow-analytics">Allow analytics</button></div>
-</section>
+<nav id="subnav" aria-label="Section" hidden></nav>
 <main id="main" tabindex="-1">
+  <div id="lab-model-slot" class="lab-model-slot" hidden></div>
   <h2 id="active-tab-heading" class="tab-heading hidden" aria-live="polite"></h2>
   <section id="tab-welcome">
     <div class="hero">
-      <div><span class="chip info">OPEN-SOURCE RESPONSIBLE AI</span><h2 class="hero-title">Stress-test hiring AI <span>before unfair decisions reach candidates.</span></h2><p>ChaosHire combines statistical fairness audits with controlled counterfactual experiments, candidate-level evidence, and automated release gates.</p><div class="hero-actions"><button type="button" class="btn" id="startdemo">Start the 3-minute demo</button></div><div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository ↗</a><a href="/docs" target="_blank">API documentation ↗</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release ↗</a></div></div>
-      <div class="hero-panel" role="group" aria-label="Synthetic model risk summary" aria-live="polite"><div class="dim">DETERMINISTIC DEMONSTRATION</div><div id="home-score" class="hero-score">32 / F</div><div id="home-model">LegacyCorp fairness risk score</div><hr class="hero-divider"><div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i></i></div><b id="home-gender">169</b></div><div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i></i></div><b id="home-community">111</b></div><div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i></i></div><b id="home-resilience">30</b></div><p class="dim hero-footnote">All people, employers, and findings are synthetic.</p></div>
+      <div class="hero-copy">
+        <h2 class="hero-title">Stress-test hiring AI while the résumé stays still.</h2>
+        <p class="lede">I built this because a fairness chart can look fine while one qualified person is rejected only because a form said female. The résumé does not change. The decision does.</p>
+        <div class="hero-actions"><button type="button" class="btn" id="startdemo">Start the 3-minute demo</button></div>
+        <div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository</a><a href="/docs" target="_blank">API documentation</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release</a></div>
+      </div>
+      <div class="hero-panel" role="group" aria-label="Synthetic model risk summary" aria-live="polite">
+        <p class="entry-label">One person in the fixture</p>
+        <p class="entry-name">Zara Garcia <span class="dim">C-1489</span></p>
+        <p class="entry-meta">Qualified. Skills 87. Community C. Age 50+.</p>
+        <p id="home-finding" class="entry-body">Marked female, LegacyCorp scores her 0.485 and rejects her. The same résumé marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.</p>
+        <hr class="hero-divider">
+        <div id="home-score" class="hero-score">32 / F</div>
+        <div id="home-model">LegacyCorp fairness risk score</div>
+        <div class="grow"><span class="lbl">Gender flips</span><div class="bar badbar" id="home-gender-bar"><i></i></div><b id="home-gender">169</b></div>
+        <div class="grow"><span class="lbl">Community flips</span><div class="bar badbar" id="home-community-bar"><i></i></div><b id="home-community">111</b></div>
+        <div class="grow"><span class="lbl">Resilience</span><div class="bar badbar" id="home-resilience-bar"><i></i></div><b id="home-resilience">30</b></div>
+        <div id="welcome-model-slot">
+          <div id="model-picker">
+            <p class="model-label">Model under audit</p>
+            <div class="modelsel" id="modelsel" role="group" aria-label="Audit model selector"></div>
+          </div>
+        </div>
+        <p class="dim hero-footnote">All people, employers, and findings are synthetic.</p>
+      </div>
     </div>
-    <div class="proof" id="proof"><div class="card"><b id="proof-tests">—</b><span class="dim">automated tests (verified baseline)</span></div><div class="card"><b id="proof-coverage">—</b><span class="dim">package coverage (verified baseline)</span></div><div class="card"><b id="proof-experiments">—</b><span class="dim">Chaos experiments</span></div><div class="card"><b id="proof-version">—</b><span class="dim">package version</span></div></div>
-    <div class="kicker">From measurement to accountable release</div><div class="grid g4"><article class="card feature-card"><h3>Measure disparities</h3><p class="dim">Selection rates, confidence intervals, significance indicators, and intersectional analysis.</p></article><article class="card feature-card"><h3>Break decisions safely</h3><p class="dim">Identity swaps and demographic stress tests reveal decision sensitivity.</p></article><article class="card feature-card"><h3>Inspect human impact</h3><p class="dim">Before/after evidence, explanations, appeals, and qualified candidates missed.</p></article><article class="card feature-card"><h3>Block regressions</h3><p class="dim">Model comparisons and CI/CD policy prevent a weaker release from shipping.</p></article></div>
-    <div class="card card-mt-lg"><b>Responsible boundary:</b> ChaosHire supports investigation and human review. It does not make hiring decisions, prove unlawful discrimination, or provide legal certification.</div>
+    <div class="card card-mt-lg responsibility-card"><b>Responsible boundary:</b> ChaosHire supports investigation and human review. It does not make hiring decisions, prove unlawful discrimination, or provide legal certification.</div>
   </section>
-  <section id="tab-overview" class="hidden" aria-live="polite"><p class="dim overview-loading">⏳ Waking up the server — first load on the free tier can take up to 60 seconds, please wait…</p></section>
+  <section id="tab-overview" class="hidden" aria-live="polite"><p class="dim overview-loading">Waking up the server. The free tier can take about 60 seconds on the first load.</p></section>
   <section id="tab-chaos" class="hidden"></section>
   <section id="tab-filtered" class="hidden"></section>
   <section id="tab-mitigations" class="hidden"></section>
@@ -73,7 +84,16 @@
   <section id="tab-agent" class="hidden" aria-live="polite"></section>
   <section id="tab-demo" class="hidden" aria-live="polite"></section>
 </main>
-<footer><div>Portfolio prototype · 1,000 synthetic candidates with hidden ground-truth "qualified" labels · do not upload real applicant data.</div><div class="footer-links"><a href="/privacy">Privacy Policy</a><a href="/terms">Terms &amp; Conditions</a><button type="button" class="text-button" id="privacy-settings">Privacy settings</button></div></footer>
+<footer>
+  <div class="proof" id="proof"><div class="card"><b id="proof-tests">—</b><span class="dim">tests</span></div><div class="card"><b id="proof-coverage">—</b><span class="dim">package coverage</span></div><div class="card"><b id="proof-experiments">—</b><span class="dim">chaos experiments</span></div><div class="card"><b id="proof-version">—</b><span class="dim">package version</span></div></div>
+  <p>Portfolio prototype. 1,000 synthetic candidates with hidden ground-truth labels. Do not upload real applicant data.</p>
+  <div class="footer-links"><a href="/privacy">Privacy Policy</a><a href="/terms">Terms &amp; Conditions</a><button type="button" class="text-button" id="privacy-settings">Privacy settings</button></div>
+</footer>
+<section class="consent-banner" id="consent-banner" aria-label="Optional analytics preference" hidden>
+  <p>Nothing is counted until you choose.</p>
+  <a class="consent-link" href="/privacy">Privacy Policy</a>
+  <div class="consent-actions"><button type="button" class="btn ghost" id="reject-analytics">Reject optional</button><button type="button" class="btn" id="allow-analytics">Allow analytics</button></div>
+</section>
 <script>
 let META=null, MODEL='legacy', LAST_UPLOAD=null;
 const $=s=>document.querySelector(s);
@@ -98,8 +118,12 @@ const gchar={M:'Male',F:'Female',NB:'Non-binary'},geth={G1:'Community A',G2:'Com
 const attrTitle={gender:'Gender',ethnicity:'Ethnicity / Community',age_band:'Age band'};
 const glabel=(a,v)=>a==='gender'?(gchar[v]||v):a==='ethnicity'?(geth[v]||v):v;
 const chipFor=(ok,label)=>ok===null?`<span class="chip warn">${label}: n/a</span>`:`<span class="chip ${ok?'ok':'bad'}">${label}</span>`;
-const gradeColor=g=>({A:'var(--green)',B:'var(--green)',C:'var(--amber)',D:'var(--amber)',F:'var(--rose)'}[g]||'var(--txt)');
-const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${esc(v)}</span>`;
+const gradeColor=g=>({A:'var(--txt)',B:'var(--txt)',C:'var(--amber)',D:'var(--amber)',F:'var(--rose)'}[g]||'var(--txt)');
+const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${esc(v==='PASS'?'Pass':v==='FAIL'?'Fail':v)}</span>`;
+const svg=d=>`<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${d}</svg>`;
+const ICO_WARN=svg('<path d="M12 3.5 2.8 20h18.4L12 3.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9.2v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="16.8" r=".9" fill="currentColor"/>');
+const ICO_CHECK=svg('<path d="M5 12.5 9.2 17 19 7.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>');
+const WARN=`<span class="warn-mark">${ICO_WARN}<span class="sr">Warning: </span></span>`;
 
 // Apply data-style="" attributes via CSSOM after innerHTML, so the CSP can
 // forbid style-src 'unsafe-inline'. Only attribute-based inline styles are
@@ -111,16 +135,51 @@ function applyDataStyles(root){
   });
 }
 
-const TABS=[['welcome','Home'],['overview','Fairness Dashboard'],['chaos','⚡ Chaos Lab'],['filtered','Who Got Filtered Out'],
-  ['mitigations','Mitigations'],['appeals','Appeals Portal'],['upload','Upload Your Model'],['history','Audit History'],['compare','Release Gate'],['agent','Fairness Review'],['demo','Guided Demo']];
-$('#tabs').innerHTML=TABS.map(([id,l],i)=>`<button data-t="${esc(id)}" class="${i===0?'on':''}" aria-current="${i===0?'page':'false'}">${esc(l)}</button>`).join('');
+// Section names kept for the packaged page and the analytics allowlist.
+// "Guided Demo" and "Fairness Review" are the names the product ships with.
+const SECTIONS=['welcome','overview','chaos','filtered','mitigations','appeals','upload','history','compare','agent','demo'];
+const SECTION_LABEL={
+  welcome:'Home',overview:'Fairness Dashboard',chaos:'Chaos lab',filtered:'Who got filtered out',
+  mitigations:'Mitigations',appeals:'Appeals Portal',upload:'Upload Your Model',history:'Audit history',
+  compare:'Release gate',agent:'Fairness Review',demo:'Guided Demo'
+};
+const GROUPS=[
+  {id:'demo',label:'Guided Demo',sections:['demo']},
+  {id:'measure',label:'Measure',sections:['overview','filtered']},
+  {id:'chaos',label:'Chaos lab',sections:['chaos']},
+  {id:'review',label:'Review',sections:['mitigations','appeals','agent','compare']},
+  {id:'data',label:'Your data',sections:['upload','history']}
+];
+let currentSection='welcome';
+function resolveSection(id){
+  const group=GROUPS.find(g=>g.id===id);
+  return group?group.sections[0]:id;
+}
+function renderNav(){
+  $('#tabs').innerHTML=GROUPS.map(g=>`<button type="button" data-t="${esc(g.id)}">${esc(g.label)}</button>`).join('');
+}
+function renderSubnav(section){
+  const nav=$('#subnav');
+  const group=GROUPS.find(g=>g.sections.includes(section));
+  if(!group||group.sections.length<2){nav.hidden=true;nav.innerHTML='';return;}
+  nav.hidden=false;
+  nav.innerHTML=group.sections.map(id=>`<button type="button" data-t="${esc(id)}" class="${id===section?'on':''}" aria-current="${id===section?'page':'false'}">${esc(SECTION_LABEL[id])}</button>`).join('');
+}
+function placeModelPicker(section){
+  const picker=$('#model-picker');
+  if(!picker)return;
+  const welcome=section==='welcome';
+  $(welcome?'#welcome-model-slot':'#lab-model-slot').appendChild(picker);
+  $('#lab-model-slot').hidden=welcome;
+}
+renderNav();
 // No third-party analytics or cookies. Persist only the user's choice locally;
 // send an allowlisted section name to our own API after an explicit opt-in.
 const CONSENT_KEY='chaoshire-analytics-consent-v1';
 let analyticsConsent='';
 try{analyticsConsent=localStorage.getItem(CONSENT_KEY)||'';}catch(_){}
 function trackPage(page){
-  if(analyticsConsent!=='yes')return;
+  if(analyticsConsent!=='yes'||!SECTIONS.includes(page))return;
   fetch('/api/analytics/view',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({page}),credentials:'omit',keepalive:true}).catch(()=>{});
 }
@@ -128,7 +187,7 @@ function chooseAnalytics(choice){
   analyticsConsent=choice;
   try{localStorage.setItem(CONSENT_KEY,choice);}catch(_){}
   $('#consent-banner').hidden=true;
-  if(choice==='yes')trackPage(document.querySelector('#tabs button.on')?.dataset.t||'welcome');
+  if(choice==='yes')trackPage(currentSection);
 }
 $('#allow-analytics').addEventListener('click',()=>chooseAnalytics('yes'));
 $('#reject-analytics').addEventListener('click',()=>chooseAnalytics('no'));
@@ -142,39 +201,63 @@ $('#privacy-settings').addEventListener('click',()=>{
 $('#consent-banner').hidden=analyticsConsent==='yes'||analyticsConsent==='no';
 if(analyticsConsent==='yes')trackPage('welcome');
 function showTab(id){
-  document.querySelectorAll('nav button').forEach(x=>{const on=x.dataset.t===id;x.classList.toggle('on',on);x.setAttribute('aria-current',on?'page':'false');});
-  TABS.forEach(([tab])=>$('#tab-'+tab).classList.toggle('hidden',tab!==id));
+  const section=resolveSection(id);
+  if(!SECTIONS.includes(section))return;
+  currentSection=section;
+  const group=GROUPS.find(g=>g.sections.includes(section));
+  document.querySelectorAll('#tabs button').forEach(x=>{
+    const on=!!group&&x.dataset.t===group.id;
+    x.classList.toggle('on',on);
+    x.setAttribute('aria-current',on?'true':'false');
+  });
+  const home=$('#home-tab');
+  if(home){
+    const on=section==='welcome';
+    home.classList.toggle('on',on);
+    home.setAttribute('aria-current',on?'page':'false');
+  }
+  renderSubnav(section);
+  SECTIONS.forEach(tab=>$('#'+'tab-'+tab).classList.toggle('hidden',tab!==section));
   const heading=$('#active-tab-heading');
-  heading.textContent=TABS.find(([tab])=>tab===id)?.[1]||'';
-  heading.classList.toggle('hidden',id==='welcome');
-  if(id==='filtered')loadFiltered();
-  if(id==='history')loadHistory();
-  if(id==='compare')loadComparison();
-  if(id==='agent')loadAgent();
-  if(id==='demo')loadDemo();
-  trackPage(id);
+  heading.textContent=section==='welcome'?'':(SECTION_LABEL[section]||'');
+  heading.classList.toggle('hidden',section==='welcome');
+  placeModelPicker(section);
+  if(section==='filtered')loadFiltered();
+  if(section==='history')loadHistory();
+  if(section==='compare')loadComparison();
+  if(section==='agent')loadAgent();
+  if(section==='demo')loadDemo();
+  trackPage(section);
   $('#main').focus({preventScroll:true});
 }
-$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.t);});
+document.body.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-t]');
+  if(b)showTab(b.dataset.t);
+});
 $('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')showTab('demo');});
 
 // Deterministic fixture results, mirrored by tests/core/test_metrics.py and
 // tests/core/test_trained_model.py. If these drift, the tests fail first.
 const HOME_MODELS={
-  legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30},
-  fair:{name:'MeritFirst',score:'84 / B',grade:'B',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100},
-  trained:{name:'TalentFit',score:'66 / C',grade:'C',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100}
+  legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30,
+    finding:'Marked female, LegacyCorp scores her 0.485 and rejects her. The same résumé marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.'},
+  fair:{name:'MeritFirst',score:'84 / B',grade:'B',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
+    finding:'The same résumé does not flip under MeritFirst. Gender flips: 0. Community flips: 0. Resilience 100. Fairness risk score 84 / B. Skills-only scoring removes this particular failure. It is a reference, not a claim that hiring is solved.'},
+  trained:{name:'TalentFit',score:'66 / C',grade:'C',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
+    finding:'TalentFit keeps her decision when gender is swapped. Gender flips: 0. Resilience 100. It still fails the four-fifths rule: disparate impact 0.78. Score 66 / C. Withholding the gender column did not make the decisions blind.'}
 };
 function renderHomeModel(){
   const d=HOME_MODELS[MODEL], risky=MODEL==='legacy';
   $('#home-score').textContent=d.score;$('#home-score').style.color=gradeColor(d.grade);
   $('#home-model').textContent=`${d.name} fairness risk score`;
   $('#home-gender').textContent=d.gender;$('#home-community').textContent=d.community;$('#home-resilience').textContent=d.resilience;
-  [['#home-gender-bar',d.genderWidth],['#home-community-bar',d.communityWidth],['#home-resilience-bar',d.resilience]].forEach(([id,width])=>{const bar=$(id);bar.classList.toggle('badbar',risky);bar.querySelector('i').style.width=width+'%';});
+  const finding=$('#home-finding');
+  if(finding)finding.textContent=d.finding;
+  [['#home-gender-bar',d.genderWidth,risky],['#home-community-bar',d.communityWidth,risky],['#home-resilience-bar',d.resilience,d.resilience<80]].forEach(([id,width,bad])=>{const bar=$(id);bar.classList.toggle('badbar',bad);bar.querySelector('i').style.width=width+'%';});
 }
 function renderModelSel(){
   $('#modelsel').innerHTML=META.models.map(m=>
-    `<button class="mbtn ${m.id===MODEL?'on':''}" data-m="${esc(m.id)}" aria-pressed="${m.id===MODEL}"><b>${esc(m.title)}</b><br><span class="mbtn-blurb">${esc(m.blurb)}</span></button>`).join('');
+    `<button type="button" class="mbtn ${m.id===MODEL?'on':''}" data-m="${esc(m.id)}" aria-pressed="${m.id===MODEL}">${esc(m.title)}</button>`).join('');
 }
 $('#modelsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MODEL=b.dataset.m;renderModelSel();renderHomeModel();
   loadOverview();$('#tab-chaos').innerHTML=chaosIntro();$('#tab-filtered').innerHTML='<p class="dim">Open this tab to load…</p>';$('#tab-mitigations').innerHTML=mitHTML();});
@@ -188,32 +271,32 @@ async function loadOverview(dataset='demo'){
   if(a.error){s.innerHTML=`<div class="err">${esc(a.error)}</div>`;return;}
   const c=a.certificate, col=gradeColor(c.grade), assessable=c.assessable!==false;
   const fullBasis=c.comparable_with_full_basis!==false;
-  const ring=`<div class="grade-ring" data-style="background:conic-gradient(${col} ${assessable?c.total*3.6:0}deg, var(--card2) 0)">
+  const ring=`<div class="grade-ring">
     <div class="grade-ring-inner">
     <b data-style="color:${col}">${assessable?c.total:'N/A'}</b><small>${assessable?`Grade ${esc(c.grade)}`:'Not assessable'}</small></div></div>`;
   // Scores measured without ground-truth labels rest on strictly less evidence.
   // Say so next to the grade instead of letting two bases look interchangeable.
   const basisChip=assessable?`<span class="chip ${fullBasis?'ok':'warn'}" title="${esc(c.basis_note||'')}">${fullBasis?'full basis':'selection-rate basis only'}</span>`:'';
   const componentRows=(c.components||[]).map(x=>`<div class="grow"><span class="lbl lbl-auto">${esc(x.label)}</span><span class="val">${x.pts}/${x.max}</span></div>`).join('')
-    +(c.unmeasured_components||[]).map(x=>`<div class="grow"><span class="lbl lbl-auto" title="${esc(x.reason||'')}">${esc(x.label)} ⚠</span><span class="val">n/a</span></div>`).join('');
+    +(c.unmeasured_components||[]).map(x=>`<div class="grow"><span class="lbl lbl-auto" title="${esc(x.reason||'')}">${esc(x.label)} ${WARN}</span><span class="val">n/a</span></div>`).join('');
   let html=assessable?'':`<div class="err err-mb">Fairness risk score not assessable: ${(c.reasons||[]).map(esc).join(' ')} The group metrics below are shown for inspection only.</div>`;
-  if(assessable&&!fullBasis)html+=`<div class="err err-warn">⚠ ${esc(c.basis_note||'')}</div>`;
-  html+=`<div class="grid g4">
+  if(assessable&&!fullBasis)html+=`<div class="err err-warn">${WARN} ${esc(c.basis_note||'')}</div>`;
+  html+=`<div class="grid g4 stat-grid">
     <div class="card"><h3>Candidates</h3><div class="stat-num">${a.stats.candidates}</div><div class="dim">in audit pool</div></div>
     <div class="card"><h3>Accepted</h3><div class="stat-num">${a.stats.accepted} <span class="dim fs-note">(${pc(a.stats.accept_rate)})</span></div><div class="dim">overall selection rate</div></div>
     <div class="card"><h3>Ground truth</h3><div class="stat-num">${a.stats.qualified_share!==null?pc(a.stats.qualified_share):'n/a'}</div><div class="dim">truly qualified (hidden from model)</div></div>
-    <div class="card flex-card">${ring}
+    <div class="card flex-card score-card">${ring}
       <div class="flex-col">${componentRows}
-      <div class="dim">Fairness Risk Score · ${assessable?`${c.measured_points} of ${c.available_points} measurable points, normalised to ${c.scale||100}`:'not assessable'} ${basisChip}</div></div></div></div>`;
+      <div class="dim score-basis">Fairness Risk Score · ${assessable?`${c.measured_points} of ${c.available_points} measurable points, normalised to ${c.scale||100}`:'not assessable'}</div>${basisChip}</div></div></div>`;
   if(c.platform_disclosure){const d=c.platform_disclosure;
-    html+=`<div class="card card-mt"><h3>Platform capabilities — disclosed, not scored</h3>
+    html+=`<div class="card card-mt"><h3>Platform capabilities, disclosed, not scored</h3>
       <div class="dim row-mb">${esc(d.why_unscored)}</div>
       ${d.capabilities.map(x=>`<div class="grow"><span class="chip info">unscored</span><span data-style="flex:1;font-size:13px"><b>${esc(x.label)}</b><br><span class="dim">${esc(x.available_for)}</span></span></div>`).join('')}</div>`;}
   html+=`<div class="kicker">Group fairness metrics</div><div class="grid g2">`;
   for(const at of a.attributes){
     html+=`<div class="card"><h3>${esc(attrTitle[at.attribute]||at.attribute)}</h3>`;
     for(const g of at.groups){
-      html+=`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}${g.low_n?' <span class="dim" title="Small sample — interpret with caution">⚠</span>':''}</span>
+      html+=`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}${g.low_n?` <span title="Small sample. Interpret with caution.">${WARN}</span>`:''}</span>
         <div class="bar"><i data-style="width:${g.selection_rate*100}%"></i></div>
         <span class="val">${pc(g.selection_rate)}</span></div>`;
     }
@@ -227,26 +310,26 @@ async function loadOverview(dataset='demo'){
   }
   html+='</div>';
   if(a.intersections&&a.intersections.length){
-    html+=`<div class="kicker">Intersectional risks — where identities overlap</div><div class="grid g2">`;
+    html+=`<div class="kicker">Intersectional risks, where identities overlap</div><div class="grid g2">`;
     for(const at of a.intersections){
       const reliable=at.groups.filter(g=>!g.low_n), pool=reliable.length?reliable:at.groups;
       const worst=[...pool].sort((x,y)=>x.selection_rate-y.selection_rate).slice(0,4);
       html+=`<div class="card"><h3>${esc(at.attribute.replaceAll('_',' '))}</h3>
        <div class="flex-row row-mb-sm">${chipFor(at.di_pass,'DI '+at.disparate_impact)} ${at.statistical_test?`<span class="chip ${at.statistical_test.significant_at_0_05?'bad':'ok'}">${pval(at.statistical_test.p_value)}</span>`:''}</div>
        ${worst.map(g=>`<div class="grow"><span class="lbl" title="${esc(g.group)}">${esc(g.group)}</span><div class="bar"><i data-style="width:${g.selection_rate*100}%"></i></div><span class="val">${pc(g.selection_rate)}</span></div>`).join('')}
-       <div class="dim row-mt-sm">Lowest reliable intersection groups shown. ⚠ groups below n=${a.configuration?.minimum_group_size||30} remain visible but are excluded when reliable groups exist.</div></div>`;
+       <div class="dim row-mt-sm">Lowest reliable intersection groups shown. ${WARN} groups below n=${a.configuration?.minimum_group_size||30} remain visible but are excluded when reliable groups exist.</div></div>`;
     }
     html+='</div>';
   }
-  html+=`<div class="dim row-mt-lg">95% intervals use the Wilson method. Significance indicators are exploratory, not proof of causation. Thresholds — disparate impact ≥ 0.80 · parity gap ≤ 0.10 · equal-opportunity gap ≤ 0.10${MODEL==='legacy'?' · switch to <b>MeritFirst v2</b> (top right) to see a cleaner audit.':''}</div>
+  html+=`<div class="dim row-mt-lg">95% intervals use the Wilson method. Significance indicators are exploratory, not proof of causation. Thresholds: disparate impact at least 0.80, parity gap at most 0.10, equal-opportunity gap at most 0.10.${MODEL==='legacy'?' Switch the model under audit to MeritFirst v2 to see a cleaner audit.':''}</div>
   <div class="download-actions"><a class="btn ghost btn-link-first" href="/api/report.html?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-report.html">Download HTML report</a><a class="btn ghost btn-link-first" href="/api/report.pdf?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-report.pdf">Download PDF</a><a class="btn ghost btn-link-first" href="/api/evidence?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-evidence.json">Download verified evidence</a></div>`;
   s.innerHTML=html;
   applyDataStyles(s);
 }
 
 /* ---------------- CHAOS ---------------- */
-const chaosIntro=()=>`<div class="card"><h3>⚡ Chaos Engineering for Fairness</h3>
-  <p class="dim fs-base">Netflix breaks its own servers to find weaknesses. ChaosHire breaks your <b>hiring model</b> the same way — counterfactual identity swaps, adversarial résumés, and demographic stress tests — before a regulator or a lawsuit does.</p>
+const chaosIntro=()=>`<div class="card"><h3>Chaos lab</h3>
+  <p class="fs-base">I swap one fact on a résumé and ask the model to decide again. If the decision flips, the model was using that fact. The suite also runs adversarial résumés and demographic stress tests, on synthetic people only.</p>
   <button class="btn" id="runchaos">Run full chaos suite</button>
   <div id="chaosout" class="row-mt-lg"></div></div>`;
 $('#tab-chaos').innerHTML=chaosIntro();
@@ -266,7 +349,7 @@ $('#tab-chaos').addEventListener('click',async e=>{
       <div><span class="dim">${esc(t.metric)}:</span> <b>${esc(t.value)}</b></div>
       <div class="dim fs-xs row-mt">${esc(t.detail)}</div>
       ${t.fixture_limit?`<div class="dim scope-note"><b>Scope note:</b> ${esc(t.fixture_limit)}</div>`:''}
-      ${t.evidence_count?`<details class="details-evidence"><summary class="details-evidence-summary">View ${Math.min(t.evidence.length,t.evidence_count)} of ${t.evidence_count} affected candidates</summary><div class="details-evidence-inner"><table><tr><th>ID</th><th>Before</th><th>After</th><th>Δ score</th></tr>${t.evidence.map(x=>`<tr><td>${esc(x.candidate_id)}</td><td>${x.before_score??'—'} ${x.before_decision||''}</td><td>${x.after_score??x.score??'—'} ${x.after_decision||x.decision||''}</td><td>${x.score_delta??'—'}</td></tr>`).join('')}</table></div></details>`:''}</div>`;
+      ${t.evidence_count?`<details class="details-evidence"><summary class="details-evidence-summary">View ${Math.min(t.evidence.length,t.evidence_count)} of ${t.evidence_count} affected candidates</summary><div class="details-evidence-inner"><table><tr><th>ID</th><th>Before</th><th>After</th><th>Δ score</th></tr>${t.evidence.map(x=>`<tr><td>${esc(x.candidate_id)}</td><td>${x.before_score??'n/a'} ${x.before_decision||''}</td><td>${x.after_score??x.score??'n/a'} ${x.after_decision||x.decision||''}</td><td>${x.score_delta??'n/a'}</td></tr>`).join('')}</table></div></details>`:''}</div>`;
   }
   $('#chaosout').innerHTML=html+'</div>';
   applyDataStyles($('#chaosout'));
@@ -280,15 +363,15 @@ async function loadFiltered(){
   const mx=Math.max(...r.top_reasons.map(t=>t.count),1);
   let html=`<div class="grid g4">
     <div class="card"><h3>Rejected</h3><div class="stat-num stat-rose">${r.total_rejected}</div><div class="dim">candidates filtered out</div></div>
-    <div class="card"><h3>Qualified but rejected</h3><div class="stat-num stat-amber">${r.qualified_missed}</div><div class="dim">false rejections — talent lost</div></div>
+    <div class="card"><h3>Qualified but rejected</h3><div class="stat-num stat-amber">${r.qualified_missed}</div><div class="dim">false rejections, talent lost</div></div>
     <div class="card"><h3>Rejection share by gender</h3>${r.by_gender.map(g=>`<div class="grow"><span class="lbl">${esc(glabel('gender',g.group))}</span><div class="bar badbar"><i data-style="width:${g.share*100}%"></i></div><span class="val">${pc(g.share)}</span></div>`).join('')}</div>
     <div class="card"><h3>Why they were filtered (XAI)</h3>${r.top_reasons.map(t=>{const bias=META.bias_features.some(b=>META.feature_labels[b]===t.label);
       return `<div class="grow"><span class="lbl lbl-wide">${esc(t.label)}</span><div class="bar ${bias?'badbar':''}"><i data-style="width:${t.count/mx*100}%"></i></div><span class="val">${t.count}</span></div>`;}).join('')}
       <div class="dim" data-style="margin-top:6px">Red bars = bias-related features, not merit.</div></div></div>`;
-  html+=`<div class="kicker">Sample of rejected candidates (auditor view — ground truth visible)</div>
+  html+=`<div class="kicker">Sample of rejected candidates (auditor view, ground truth visible)</div>
   <div class="card overflow-card"><table><tr><th>Candidate</th><th>Gender</th><th>Community</th><th>Age</th><th>Score</th><th>Truly qualified</th><th>Primary rejection reason</th></tr>
   ${r.sample.map(x=>`<tr><td><b>${esc(x.name)}</b><br><span class="dim">${esc(x.id)}</span></td><td>${esc(glabel('gender',x.gender))}</td><td>${esc(glabel('ethnicity',x.ethnicity))}</td><td>${esc(x.age_band)}</td>
-  <td>${x.score}</td><td>${x.qualified?'<span class="chip warn">YES — lost</span>':'<span class="chip info">no</span>'}</td>
+  <td>${x.score}</td><td>${x.qualified?'<span class="chip warn">Yes, lost</span>':'<span class="chip info">no</span>'}</td>
   <td><span class="reason-badge ${x.bias_related?'bad':'info'} chip">${esc(x.reason_label)}</span></td></tr>`).join('')}</table></div>`;
   s.innerHTML=html;
   applyDataStyles(s);
@@ -301,14 +384,14 @@ async function loadFiltered(){
 const MIT=[
  ['blind','Blind screening','Strip every protected-attribute signal (gender, community, age) at inference time. The model physically cannot use them.'],
  ['proxy','Proxy removal','Drop college-prestige (a socioeconomic proxy) and heavily reduce the career-gap penalty that punishes caregivers.']];
-const mitHTML=()=>`<div class="card"><h3>Mitigation playbook — apply fixes and re-audit live</h3>
+const mitHTML=()=>`<div class="card"><h3>Mitigation playbook: apply fixes and re-audit live</h3>
  <div class="dim row-mb">Each strategy is simulated against <b>LegacyCorp Screen v1</b> so you can show before→after on stage. Only controls a United States employer may lawfully apply are offered here.</div>
  ${MIT.map(([v,t,d])=>`<div class="mit"><input type="checkbox" class="mit-check" value="${esc(v)}" id="m_${esc(v)}">
    <label for="m_${esc(v)}" class="mit-check-label"><b>${esc(t)}</b><br>${esc(d)}</label></div>`).join('')}
  <button class="btn btn-mt-lg" id="applymit">Apply selected &amp; re-audit</button>
  <div id="mitout" class="row-mt-lg"></div></div>
  <div class="card contrast-card" id="contrastcard">
-  <h3 class="contrast-title">⚠ Not offered as a mitigation: per-group threshold "calibration"</h3>
+  <h3 class="contrast-title">${WARN} Not offered as a mitigation: per-group threshold "calibration"</h3>
   <p class="contrast-body">Setting a different decision cutoff for each protected group would push this fixture's
   score much higher without changing the model at all. ChaosHire refuses to offer that as a fix.</p>
   <p class="contrast-body-mt"><b>42 U.S.C. § 2000e-2(l)</b> (Civil Rights Act of 1991) makes it an unlawful employment
@@ -354,7 +437,7 @@ $('#tab-mitigations').addEventListener('click',async e=>{
   o.innerHTML=`<div class="card" data-style="background:var(--card2)"><h3>Result</h3>
     ${r.applied.map(x=>`<div class="grow grow-sm"><span class="chip ok">applied</span><span data-style="font-size:13.5px">${esc(x)}</span></div>`).join('')}
     ${scoreLine('Fairness Risk Score',b,a)}
-    <div class="dim row-mt-md">Excluded on legal grounds: ${esc(r.excluded_controls?.threshold_calibration?.statute||'42 U.S.C. § 2000e-2(l)')} — per-group cutoff scores. See the panel below.</div></div>
+    <div class="dim row-mt-md">Excluded on legal grounds: ${esc(r.excluded_controls?.threshold_calibration?.statute||'42 U.S.C. § 2000e-2(l)')}, per-group cutoff scores. See the panel below.</div></div>
     <div class="grid g2 row-mt-lg">${r.after.attributes.map(at=>`<div class="card"><h3>${esc(attrTitle[at.attribute]||at.attribute)}</h3>
       ${at.groups.map(g=>`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}</span><div class="bar"><i data-style="width:${g.selection_rate*100}%"></i></div><span class="val">${pc(g.selection_rate)}</span></div>`).join('')}
       <div class="flex-row row-mt-md">${chipFor(at.di_pass,'DI '+at.disparate_impact)}${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div></div>`).join('')}</div>`;
@@ -364,7 +447,7 @@ $('#tab-mitigations').addEventListener('click',async e=>{
 /* ---------------- APPEALS ---------------- */
 $('#tab-appeals').innerHTML=`<div class="grid g2">
  <div class="card"><h3>Candidate-facing portal</h3>
-  <div class="dim" data-style="margin-bottom:6px">What a rejected applicant sees — decision, score, plain-language reasons, and a way to appeal. Transparency = trust.</div>
+  <div class="dim" data-style="margin-bottom:6px">What a rejected applicant sees: the decision, the score, plain-language reasons, and a way to appeal.</div>
   <label for="cid">Application ID <span class="dim">(try <span id="sid"></span>)</span></label>
   <div class="appeal-lookup"><input id="cid" placeholder="C-1000" maxlength="100" required><button type="button" class="btn nowrap" id="lookup">Look up</button></div>
   <div id="cout" class="row-mt" role="status"></div></div>
@@ -373,7 +456,7 @@ $('#tab-appeals').innerHTML=`<div class="grid g2">
   <label for="amsg">Why should this decision be reviewed?</label><textarea id="amsg" maxlength="5000" required placeholder="Tell us what the model couldn't see…"></textarea>
   <div class="honeypot" aria-hidden="true"><label for="appeal-website">Leave this blank</label><input id="appeal-website" name="website" autocomplete="off" tabindex="-1"></div>
   <button type="button" class="btn btn-mt" id="sendappeal">Submit appeal</button><div id="aout" class="row-mt" role="status"></div></div></div>
- <div class="kicker">HR review queue</div><div class="card" id="queue"><span class="dim">No appeals yet — submit one from the candidate portal above.</span></div>
+ <div class="kicker">Review queue</div><div class="card" id="queue"><span class="dim">No appeals yet. Submit one from the candidate portal above.</span></div>
  <div class="row-mt"><button class="btn ghost" id="refreshq">Refresh queue</button></div>`;
 $('#tab-appeals').addEventListener('click',async e=>{
   if(e.target.id==='lookup'){
@@ -421,7 +504,7 @@ $('#tab-upload').innerHTML=`<div class="grid g2">
  <div class="card"><h3>Bring your own model's output</h3>
   <div class="dim row-mt-md">Upload a CSV of decisions, then tell ChaosHire how to interpret its columns. The model itself never leaves your system.</div>
   <pre id="schema" tabindex="0"></pre>
-  <div class="err upload-privacy">Privacy: raw CSV rows stay in temporary memory and only aggregate metrics are ever stored. <b>Unauthenticated uploads are not published</b> — your audit is returned to you and then discarded, so nothing you type here becomes visible to other visitors. An operator holding this deployment's <code>X-API-Key</code> publishes to the shared history. Use synthetic data only.</div>
+  <div class="err upload-privacy">Privacy: raw CSV rows stay in temporary memory and only aggregate metrics are ever stored. <b>Unauthenticated uploads are not published.</b> Your audit is returned to you and then discarded, so nothing you type here becomes visible to other visitors. An operator holding this deployment's <code>X-API-Key</code> publishes to the shared history. Use synthetic data only.</div>
   <label for="auditname">Audit name</label><input id="auditname" required maxlength="100" value="Screening model review" placeholder="e.g. Q3 graduate hiring audit">
   <label for="csvfile">CSV file <span class="dim">(synthetic data only; max 5 MB)</span></label><input type="file" id="csvfile" required accept=".csv,text/csv">
   <div id="detected" class="dim" data-style="margin-top:6px">No file selected.</div>
@@ -437,12 +520,14 @@ $('#tab-upload').innerHTML=`<div class="grid g2">
   <a class="btn ghost btn-link" href="/api/sample.csv" download="sample.csv">Download sample CSV</a>
   <div id="upout" class="row-mt" role="status"></div></div>
  <div class="card"><h3>What you get</h3>
-  <div class="dim fs-note" data-style="line-height:1.9">✔ Custom outcome and protected-attribute columns<br>
-  ✔ Configurable favorable values and minimum group size<br>
-  ✔ Disparate impact, demographic parity &amp; equal opportunity<br>
-  ✔ Transparent Fairness Risk Score<br>
-  ✔ Downloadable JSON evidence for review or CI pipelines<br>
-  ✔ IP-safe: upload decisions, never model weights</div></div></div>`;
+  <ul class="tick-list">
+  <li>${ICO_CHECK}<span>Custom outcome and protected-attribute columns</span></li>
+  <li>${ICO_CHECK}<span>Configurable favorable values and minimum group size</span></li>
+  <li>${ICO_CHECK}<span>Disparate impact, demographic parity, and equal opportunity</span></li>
+  <li>${ICO_CHECK}<span>Transparent Fairness Risk Score</span></li>
+  <li>${ICO_CHECK}<span>Downloadable JSON evidence for review or CI pipelines</span></li>
+  <li>${ICO_CHECK}<span>Upload decisions, never model weights</span></li>
+  </ul></div></div>`;
 applyDataStyles($('#tab-upload'));
 $('#tab-upload').addEventListener('change',async e=>{
   if(e.target.id!=='csvfile')return;
@@ -470,10 +555,10 @@ $('#tab-upload').addEventListener('click',async e=>{
       protected_attributes:split('#attrs'),minimum_group_size:Number($('#mingroup').value)||30};
     const r=await jpost('/api/upload',payload);
     const problem=problemOf(r);
-    const warns=(r.warnings||[]).map(w=>`<div class="dim" data-style="color:var(--amber);margin-top:5px">⚠ ${esc(w)}</div>`).join('');
+    const warns=(r.warnings||[]).map(w=>`<div class="dim warn-line">${WARN} ${esc(w)}</div>`).join('');
     if(!problem&&r.audit)LAST_UPLOAD=r.audit;
     $('#upout').innerHTML=problem?`<div class="err">${esc(problem)}</div>${r.available_columns?`<div class="dim" data-style="margin-top:6px">Available columns: ${r.available_columns.map(esc).join(', ')}</div>`:''}`:
-      `<div class="chip ${r.published?'ok':'warn'}">${r.published?'Published to the shared audit history':'Audited — not published'}</div>
+      `<div class="chip ${r.published?'ok':'warn'}">${r.published?'Published to the shared audit history':'Audited, not published'}</div>
        <div data-style="margin-top:7px"><b>${esc(r.audit_name)}</b><br><span class="dim">${r.audit_id?`Audit ID: ${esc(r.audit_id)} · `:''}attributes: ${r.attributes_found.map(esc).join(', ')} · ground truth: ${r.has_ground_truth?'yes':'no (equal-opportunity will be n/a)'} · ${esc(r.rows)} rows</span></div>
        <div class="dim" data-style="margin-top:5px">${esc(r.publishing_note||'')}</div>${warns}
        <div data-style="margin-top:12px"><button class="btn" id="viewup">View audit →</button>
@@ -505,7 +590,7 @@ $('#tab-history').addEventListener('click',async e=>{
   $('#historydetail').innerHTML=`<div class="card"><div class="history-detail-head"><div><h3>${esc(a.audit_name)}</h3><div class="dim">${esc(a.audit_id)} · ${new Date(a.created_at).toLocaleString()} · ${esc(a.source)}</div></div><span class="chip ${c.grade==='A'||c.grade==='B'?'ok':c.grade==='F'?'bad':'warn'} chip-xl">${esc(c.total)} / Grade ${esc(c.grade)}</span></div>
    ${c.basis_note?`<div class="dim row-mt-md">${esc(c.basis_note)}</div>`:''}
    <div class="history-detail-grid"><div><div class="dim">Candidates</div><b>${a.stats.candidates}</b></div><div><div class="dim">Accepted</div><b>${a.stats.accepted} (${pc(a.stats.accept_rate)})</b></div><div><div class="dim">Attributes</div><b>${a.configuration.protected_attributes.map(esc).join(', ')}</b></div><div><div class="dim">Minimum group size</div><b>${a.configuration.minimum_group_size}</b></div></div>
-   <div class="dim history-detail-note">This record contains aggregate metrics and configuration only—not the uploaded candidate rows.</div></div>`;
+   <div class="dim history-detail-note">This record contains aggregate metrics and configuration only, not the uploaded candidate rows.</div></div>`;
 });
 
 /* ---------------- CONTINUOUS FAIRNESS RELEASE GATE ---------------- */
@@ -529,7 +614,7 @@ async function runComparison(){
   const r=await jget(`/api/compare?baseline=${encodeURIComponent(CMP.base)}&candidate=${encodeURIComponent(CMP.cand)}`);
   const cproblem=problemOf(r);
   if(cproblem){o.innerHTML=`<div class="err">${esc(cproblem)}</div>`;return;}
-  o.innerHTML=`<div class="grid g2">${modelCard(r.baseline,'BASELINE')}${modelCard(r.candidate,'CANDIDATE')}</div>
+  o.innerHTML=`<div class="grid g2">${modelCard(r.baseline,'Baseline')}${modelCard(r.candidate,'Candidate')}</div>
    <div class="card card-mt"><h3>Change summary</h3><div class="grid g4"><div><div class="dim">Risk score Δ</div><div class="stat-num" data-style="color:${dcol(r.delta.certificate)}">${sgn(r.delta.certificate)}</div></div><div><div class="dim">Resilience Δ</div><div class="stat-num" data-style="color:${dcol(r.delta.chaos_resilience)}">${sgn(r.delta.chaos_resilience)}</div></div><div><div class="dim">Worst DI Δ</div><div class="stat-num" data-style="color:${dcol(r.delta.worst_disparate_impact)}">${sgn(r.delta.worst_disparate_impact)}</div></div></div></div>
    <div class="card card-mt"><h3>CI/CD fairness policy</h3><p class="dim">Block a model release automatically when it fails an absolute floor or regresses from the baseline.</p><div class="gate-cols"><div><label for="gatecert">Minimum risk score</label><input id="gatecert" type="number" value="75" min="0" max="100"></div><div><label for="gateres">Minimum resilience</label><input id="gateres" type="number" value="80" min="0" max="100"></div><div><label for="gatedi">Minimum disparate impact</label><input id="gatedi" type="number" value="0.8" min="0" max="1" step="0.01"></div></div><button class="btn btn-mt" id="rungate">Evaluate release gate</button><div id="gateout" class="row-mt"></div></div>`;
   applyDataStyles(o);
@@ -543,12 +628,12 @@ $('#tab-compare').addEventListener('click',async e=>{
 });
 
 /* ---------------- FAIRNESS REVIEW ---------------- */
-$('#tab-agent').innerHTML='<div class="card"><h3>Fairness Review</h3><p class="dim">Open this tab to generate a transparent, evidence-linked review. Deterministic rules only — no AI agent or language model is involved.</p></div>';
+$('#tab-agent').innerHTML='<div class="card"><h3>Fairness Review</h3><p class="dim">Open this tab to generate a transparent, evidence-linked review. Deterministic rules only: no AI agent or language model is involved.</p></div>';
 async function loadAgent(){
   const s=$('#tab-agent');s.setAttribute('aria-busy','true');s.innerHTML='<div class="card"><p class="dim">Reviewing aggregate evidence and Chaos results…</p></div>';
   const r=await jpost('/api/agent/review',{model:MODEL,dataset:'demo',include_chaos:true});
   const severity=x=>x==='CRITICAL'?'bad':x==='HIGH'?'warn':'info';
-  s.innerHTML=`<div class="card"><div class="agent-head"><div><div class="dim">${esc(r.agent.name)} · ${esc(r.agent.mode.replaceAll('_',' '))} — not an AI agent</div><h3>${esc(r.summary)}</h3><div class="dim">Review ${esc(r.review_id)} · conclusions link directly to aggregate evidence</div></div><span class="chip ${r.disposition==='MONITOR'?'ok':'bad'} chip-lg">${esc(r.disposition)}</span></div></div>
+  s.innerHTML=`<div class="card"><div class="agent-head"><div><div class="dim">${esc(r.agent.name)} · ${esc(r.agent.mode.replaceAll('_',' '))} · not an AI agent</div><h3>${esc(r.summary)}</h3><div class="dim">Review ${esc(r.review_id)}. Conclusions link directly to aggregate evidence.</div></div><span class="chip ${r.disposition==='MONITOR'?'ok':'bad'} chip-lg">${esc(r.disposition)}</span></div></div>
   <div class="kicker">Prioritized findings</div><div class="grid g2">${r.findings.map(f=>`<article class="card"><span class="chip ${severity(f.severity)}">${f.severity}</span><h3 class="agent-finding-title">${esc(f.title)}</h3><p class="dim">${esc(f.explanation)}</p><div class="agent-evidence"><b>Actual:</b> ${esc(JSON.stringify(f.actual))} · <b>Threshold:</b> ${esc(JSON.stringify(f.threshold))}</div><code class="dim">${esc(f.evidence_path)}</code></article>`).join('')||'<div class="card"><span class="chip ok">No policy findings</span></div>'}</div>
   <div class="card card-mt"><h3>Human action plan</h3><ol class="agent-actions">${r.recommended_actions.map(a=>`<li class="agent-action">${esc(a)}</li>`).join('')}</ol><p class="dim agent-limits">${r.limitations.map(esc).join(' ')}</p></div>`;
   s.removeAttribute('aria-busy');
@@ -559,7 +644,7 @@ $('#tab-demo').innerHTML='<div class="card"><h3>Three-minute guided demo</h3><p 
 async function loadDemo(){
   const s=$('#tab-demo');s.setAttribute('aria-busy','true');s.innerHTML='<div class="card"><p class="dim">Preparing the deterministic story…</p></div>';
   const r=await jget('/api/demo');
-  s.innerHTML=`<div class="card"><div class="dim">${r.duration_minutes}-minute portfolio walkthrough · synthetic data</div><h2 class="demo-title">${esc(r.title)}</h2><p class="dim">Follow these ${esc(r.steps.length)} steps during an interview or product demonstration.</p></div><div class="demo-steps">${r.steps.map(step=>`<article class="card demo-step"><div class="chip info">STEP ${step.id}</div><h3 class="demo-step-title">${esc(step.title)}</h3><p>${esc(step.message)}</p></article>`).join('')}</div>`;
+  s.innerHTML=`<div class="card"><div class="dim">${r.duration_minutes}-minute portfolio walkthrough · synthetic data</div><h2 class="demo-title">${esc(r.title)}</h2><p class="dim">Follow these ${esc(r.steps.length)} steps during an interview or product demonstration.</p></div><div class="demo-steps">${r.steps.map(step=>`<article class="card demo-step"><div class="chip info">Step ${step.id}</div><h3 class="demo-step-title">${esc(step.title)}</h3><p>${esc(step.message)}</p></article>`).join('')}</div>`;
   s.removeAttribute('aria-busy');
 }
 
@@ -574,17 +659,10 @@ function renderProofStrip(){
   set('#proof-coverage',b.package_coverage);
   set('#proof-experiments',b.chaos_experiments);
   set('#proof-version',b.version?'v'+b.version:null);
-  // Mirror the same served build facts into the console status bar so the
-  // masthead readout cannot drift from __version__ either.
-  set('#console-version',b.version?'v'+b.version:null);
-  set('#console-tests',b.automated_tests);
-  set('#console-coverage',b.package_coverage);
-  set('#console-experiments',b.chaos_experiments);
   const p=META.platform;
   if(p&&p.api_key_configured===false&&p.anonymous_writes_allowed){
     const note=document.createElement('div');
-    note.className='dim';
-    note.style.cssText='margin-top:6px';
+    note.className='dim proof-note';
     note.textContent='This deployment accepts anonymous, rate-limited writes. Uploads are not published.';
     $('#proof')?.appendChild(note);
   }

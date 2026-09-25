@@ -22,7 +22,7 @@ design).
 from __future__ import annotations
 
 from playwright.sync_api import Page, sync_playwright
-from test_landing import running_app
+from test_landing import launch_chromium, running_app
 
 #: (width, height) pairs the layout bugs were originally reported at.
 VIEWPORTS = ((1440, 1000), (1024, 800), (390, 844), (320, 700))
@@ -122,9 +122,35 @@ def _assert_tab_fits(page: Page, width: int, tab: str) -> None:
     assert not escapes, f"{width}px {tab}: content escapes its .card: {details}"
 
 
+#: Group button that reveals each section. Home stays outside the five-tab bar.
+SECTION_GROUP = {
+    "overview": "measure",
+    "filtered": "measure",
+    "chaos": "chaos",
+    "mitigations": "review",
+    "appeals": "review",
+    "upload": "data",
+    "history": "data",
+    "compare": "review",
+    "agent": "review",
+    "demo": "demo",
+}
+
+
+def open_section(page: Page, tab: str) -> None:
+    """Open a product section through the grouped navigation."""
+    if tab == "welcome":
+        page.locator("#home-tab").click()
+        return
+    page.locator(f'#tabs button[data-t="{SECTION_GROUP[tab]}"]').click()
+    sub = page.locator(f'#subnav button[data-t="{tab}"]')
+    if sub.count():
+        sub.click()
+
+
 def test_every_tab_fits_the_viewport_and_its_cards() -> None:
     with running_app() as url, sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        browser = launch_chromium(playwright)
         try:
             for width, height in VIEWPORTS:
                 context = browser.new_context(
@@ -132,9 +158,9 @@ def test_every_tab_fits_the_viewport_and_its_cards() -> None:
                 )
                 page = context.new_page()
                 page.goto(url, wait_until="load")
-                page.wait_for_selector("#tabs button[data-t='welcome']", timeout=15_000)
+                page.wait_for_selector("#tabs button[data-t='demo']", timeout=15_000)
                 for tab in TAB_IDS:
-                    page.locator(f'#tabs button[data-t="{tab}"]').click()
+                    open_section(page, tab)
                     page.wait_for_function(TAB_READY[tab], timeout=30_000)
                     _assert_tab_fits(page, width, tab)
                 context.close()

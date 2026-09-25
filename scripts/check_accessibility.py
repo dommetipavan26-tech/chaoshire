@@ -17,13 +17,13 @@ from playwright.sync_api import sync_playwright
 
 TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]
 PAGES = {
-    "Home": ("/", None),
-    "Dashboard": ("/", "Fairness Dashboard"),
-    "Upload": ("/", "Upload Your Model"),
-    "Appeals": ("/", "Appeals Portal"),
-    "Privacy": ("/privacy", None),
-    "Terms": ("/terms", None),
-    "404": ("/page-that-does-not-exist", None),
+    "Home": ("/", ()),
+    "Dashboard": ("/", ("Measure", "Fairness Dashboard")),
+    "Upload": ("/", ("Your data", "Upload Your Model")),
+    "Appeals": ("/", ("Review", "Appeals Portal")),
+    "Privacy": ("/privacy", ()),
+    "Terms": ("/terms", ()),
+    "404": ("/page-that-does-not-exist", ()),
 }
 
 
@@ -45,8 +45,8 @@ def main() -> None:
             for name, (route, tab) in PAGES.items():
                 page = context.new_page()
                 page.goto(f"{args.base_url.rstrip('/')}{route}", wait_until="networkidle")
-                if tab:
-                    page.get_by_role("button", name=tab).click()
+                for button_name in tab:
+                    page.get_by_role("button", name=button_name, exact=True).click()
                 # Script tags are correctly blocked by the site's CSP. DevTools
                 # evaluation runs the local audit without weakening that policy.
                 page.evaluate(source)
