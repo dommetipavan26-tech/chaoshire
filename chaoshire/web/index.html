@@ -30,11 +30,21 @@
 <body>
 <a class="skip" href="#main">Skip to main content</a>
 <header>
-  <div>
-    <h1>Chaos<span>Hire</span></h1>
-    <div class="tag">Chaos Simulator for Fair Hiring · break your hiring AI before it breaks someone's career</div>
+  <div class="masthead-row">
+    <div class="brand-block">
+      <h1>Chaos<span>Hire</span></h1>
+      <div class="tag">Chaos Simulator for Fair Hiring · break your hiring AI before it breaks someone's career</div>
+    </div>
+    <div class="modelsel" id="modelsel" role="group" aria-label="Audit model selector"></div>
   </div>
-  <div class="modelsel" id="modelsel" role="group" aria-label="Audit model selector"></div>
+  <div class="console-status">
+    <span class="lamp">Synthetic fixture</span>
+    <span class="cs-item">Build <b id="console-version">…</b></span>
+    <span class="cs-item">Tests <b id="console-tests">…</b></span>
+    <span class="cs-item">Coverage <b id="console-coverage">…</b></span>
+    <span class="cs-item">Experiments <b id="console-experiments">…</b></span>
+    <span class="lamp warn">Demo — not for real hiring decisions</span>
+  </div>
 </header>
 <nav id="tabs" aria-label="Product sections"></nav>
 <section class="consent-banner" id="consent-banner" aria-label="Optional analytics preference" hidden>
@@ -564,6 +574,12 @@ function renderProofStrip(){
   set('#proof-coverage',b.package_coverage);
   set('#proof-experiments',b.chaos_experiments);
   set('#proof-version',b.version?'v'+b.version:null);
+  // Mirror the same served build facts into the console status bar so the
+  // masthead readout cannot drift from __version__ either.
+  set('#console-version',b.version?'v'+b.version:null);
+  set('#console-tests',b.automated_tests);
+  set('#console-coverage',b.package_coverage);
+  set('#console-experiments',b.chaos_experiments);
   const p=META.platform;
   if(p&&p.api_key_configured===false&&p.anonymous_writes_allowed){
     const note=document.createElement('div');

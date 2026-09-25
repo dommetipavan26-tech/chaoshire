@@ -73,3 +73,39 @@ The three layout fixes in this revision (score-card text column, phone-width Upl
 3. Verify the deployed robots/sitemap and preview image, and inspect link previews in the target social networks. Check external URLs manually; the repository tests only validate same-site links and files.
 4. With consent rejected, inspect browser Network to confirm **no** `/api/analytics/view` call. With consent allowed, confirm a page-section count is visible to an operator via authenticated `GET /api/ops/analytics`. Keep `X-API-Key` out of the browser and published documentation.
 5. Repeat a real-device audit for contrast, touch targets, horizontal scrolling, keyboard navigation, and page load across a cold Render instance. Use an independent legal/security review before handling personal data or making production hiring decisions.
+
+## Direction B — intentional lab console (this revision)
+
+This revision restyles the public site as an instrument bench — squared panels
+with a signal top rule, hairline rules, monospace micro-labels, channel-indexed
+navigation (`01 HOME` … `11 GUIDED DEMO`), a console status bar whose build facts
+are served from `/api/meta` (never hardcoded), status lamps, and meter tracks with
+tick marks. Every feature, element ID, and accessibility contract is unchanged;
+the redesign lives in `chaoshire/web/static/chaoshire.css` plus small masthead /
+status-bar markup in the packaged pages. Before/after evidence:
+`docs/portfolio/assets/redesign-{before,after}-{desktop,mobile}.png`, captured by
+`scripts/capture_redesign.py` with identical settings for both labels.
+
+Measured locally on 25 September 2026 against a running Uvicorn app (headless
+Chromium 153, fresh context per page, service workers blocked):
+
+- Tests: `281 passed`, package coverage `94.8%` (`scripts/check_build_info.py` OK);
+  5 opt-in browser tests pass, including the every-tab sweep.
+- axe-core 4.10.3, 21 audits (Home/Dashboard/Upload/Appeals/Privacy/Terms/404 at
+  1440/390/320): **0 violations**. Untestable colour-contrast is now confined to
+  horizontally scrollable containers (the Upload `#schema` `<pre>` and the appeals
+  table) on 6 of 21 audits — the same manual-review class as before, not a
+  regression; decorative pseudo-overlays were converted to real borders and alpha
+  washes to opaque tints so all other text keeps a decidable background.
+- Token contrast re-verified: lowest pair `--rose` on `--card2` = 5.56:1; primary
+  button text `#062033` on `--blue` = 8.63:1 (all asserted pairs ≥ 4.5:1).
+- Layout: 0px horizontal overflow at 1440/1366/1024/768/390/320 across all eleven
+  tabs.
+- Page speed (median of 5): 1440px TTFB 5 ms / load 28 ms / FCP 68 ms / LCP 68 ms,
+  HTML 17,454 B on wire; 390px TTFB 5 ms / load 27 ms / FCP 60 ms / LCP 60 ms.
+
+Sandbox note: `cdn.playwright.dev` is unreachable from this workspace, so the
+verification ran on Chromium 153.0.8010.0 fetched from the reachable npm registry
+(`@sparticuz/chromium`, same major version Playwright pins) plus its bundled
+NSS/SwiftShader libraries, injected only through the throwaway virtualenv — the
+tests under `tests/browser` run byte-for-byte as committed.
