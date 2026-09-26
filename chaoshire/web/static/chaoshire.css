@@ -71,7 +71,7 @@ h1{font-size:28px;line-height:1;font-weight:600}
 .mbtn[data-grade="D"] .mgrade,.mbtn[data-grade="C"] .mgrade{color:var(--amber)}
 .mbtn[data-grade="A"] .mgrade,.mbtn[data-grade="B"] .mgrade{color:var(--txt)}
 
-/* ---------- navigation: five groups, then the section ---------- */
+/* ---------- navigation: Home and five groups, then the section ---------- */
 nav{display:flex;gap:2px;padding:0 22px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:var(--bg)}
 nav button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--dim);padding:10px 12px;border-radius:0;cursor:pointer;font:500 15px/1.3 var(--sans);min-height:44px}
 nav button:hover{color:var(--txt)}

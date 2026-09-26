@@ -50,6 +50,11 @@ def test_site_pages_have_distinct_titles_descriptions_and_legal_links() -> None:
             assert "__PUBLIC_ORIGIN__" not in response.text
             assert 'href="/privacy"' in response.text
             assert 'href="/terms"' in response.text
+        home = client.get("/").text
+        assert "while the resume stays still." in home
+        assert "résumé" not in home
+        assert 'id="home-tab"' not in home.split("</header>")[0]
+        assert 'id="home-tab" data-t="welcome"' in home
         assert "anonymous uploads" in client.get("/privacy").text.lower()
         assert "do not use this public service" in client.get("/terms").text.lower()
         compressed = client.get("/", headers={"Accept-Encoding": "gzip"})

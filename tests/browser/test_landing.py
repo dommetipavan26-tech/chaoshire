@@ -172,6 +172,22 @@ def test_audit_models_lead_every_tab_and_the_demo_cta_fits() -> None:
                 page = browser.new_page(viewport={"width": width, "height": height})
                 page.goto(url, wait_until="networkidle")
                 page.wait_for_selector("#modelsel .mbtn")
+                nav_buttons = page.locator("#tabs > button")
+                expect(nav_buttons.nth(0)).to_have_text("Home")
+                expect(nav_buttons.nth(1)).to_have_text("Guided Demo")
+                expect(nav_buttons.nth(0)).to_have_attribute("aria-current", "page")
+                home_box = nav_buttons.nth(0).bounding_box()
+                demo_box = nav_buttons.nth(1).bounding_box()
+                assert home_box is not None and demo_box is not None
+                assert home_box["x"] + home_box["width"] <= demo_box["x"]
+                assert abs(home_box["y"] - demo_box["y"]) < 2
+                expect(page.locator(".hero-title")).to_contain_text("resume")
+                assert "résumé" not in page.locator("#tab-welcome").inner_text()
+                nav_buttons.nth(1).click()
+                expect(nav_buttons.nth(0)).to_have_attribute("aria-current", "false")
+                nav_buttons.nth(0).click()
+                expect(nav_buttons.nth(0)).to_have_attribute("aria-current", "page")
+                expect(page.locator("#tab-welcome")).to_be_visible()
                 buttons = page.locator("#modelsel .mbtn")
                 expect(buttons).to_have_count(3)
                 expect(page.locator('#modelsel button[data-m="legacy"]')).to_contain_text("32 / F")
