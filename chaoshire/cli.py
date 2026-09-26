@@ -54,6 +54,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="experimental contrast fit that leaks protected attributes; never pinned",
     )
     train.add_argument(
+        "--holdout",
+        action="store_true",
+        help=(
+            "audit the pinned models on synthetic populations the trained model never "
+            "saw (no scikit-learn needed) and print the comparison"
+        ),
+    )
+    train.add_argument(
         "--out",
         default=str(CONTRAST_REPORT_PATH),
         help="where --include-protected writes its JSON report",
@@ -122,7 +130,18 @@ def run_train_command(
         )
         return 0
 
-    pinned = load_artifact() if ARTIFACT_PATH.exists() else None
+    pinned = None
+    replaced_invalid: str | None = None
+    if ARTIFACT_PATH.exists():
+        try:
+            pinned = load_artifact()
+        except ValueError as error:
+            # --write exists to replace an artifact that no longer satisfies the
+            # loader's rules (e.g. after a training-policy change); anything else
+            # must still fail loudly.
+            if not write:
+                raise
+            replaced_invalid = str(error)
     fresh = train_coefficients()
     agreement = decision_agreement(fresh, pinned["coefficients"]) if pinned is not None else 1.0
     report: dict[str, object] = {
@@ -137,6 +156,8 @@ def run_train_command(
     if write:
         save_artifact()
         report["written"] = True
+        if replaced_invalid:
+            report["replaced_invalid_artifact"] = replaced_invalid
         pinned = load_artifact()
         report["pinned_digest"] = pinned["coefficient_digest"]
     print(json.dumps(report, indent=2))
@@ -161,6 +182,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(result, indent=2))
         return 0 if result["passed"] else 1
+    if args.command == "train" and args.holdout:
+        from .training import holdout_comparison
+
+        print(json.dumps(holdout_comparison(), indent=2))
+        return 0
     if args.command == "train":
         return run_train_command(
             write=args.write,

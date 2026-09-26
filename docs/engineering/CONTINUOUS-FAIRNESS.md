@@ -27,9 +27,9 @@ The same model, policy, and results produce the same ID. Changing policy or mode
 The Privilege-Keyword Injection experiment submits deliberately weak,
 prestige-heavy synthetic résumés. It currently PASSES for **all three** bundled
 variants: the highest injected score is 0.4043 for `legacy`, 0.1997 for `fair`
-and 0.0498 for `trained`, all below the 0.5 decision threshold. LegacyCorp's
+and 0.0918 for `trained`, all below the 0.5 decision threshold. LegacyCorp's
 prestige weight (0.09) would need to reach at least 0.19 on this fixture before
-the experiment could fail; the merit-only fixture applies no prestige weight.
+the experiment could fail; MeritFirst and TalentFit apply no prestige weight.
 The experiment's detail string reports each variant's score headroom and
 required prestige weight. The regression suite verifies that a prestige-heavy
 variant (prestige weight 0.35) FAILS while the merit-only fixture PASSES. Because the fixture bounds what this test can
@@ -54,7 +54,8 @@ scope note next to the badge. On the shipped fixtures, MeritFirst and TalentFit
 each have four such passes and LegacyCorp has none. Like the fixture-limited
 label, this changes no verdict and no resilience point. It stops a 100/100 score
 from being read as evidence of equal outcomes, which the fairness risk score
-measures separately (TalentFit: 100/100 resilience, 66/C).
+measures separately (the original TalentFit v3 had 100/100 resilience and
+scored 66/C).
 
 ## Candidate-level evidence
 

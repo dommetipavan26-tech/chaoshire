@@ -86,12 +86,12 @@ MODEL_META = {
         "id": "trained",
         "title": "TalentFit v3 (trained)",
         "blurb": (
-            "Logistic regression fitted to this fixture's qualified label with "
-            "protected attributes withheld. The most accurate model here, yet 66/C: "
-            "worst disparate impact 0.73 (age band; gender 0.78). It learned group "
-            "gaps already in the label — a perfect copy of the label also fails the "
-            "four-fifths rule. Resilience 100/100 holds by construction: it has no "
-            "protected inputs to swap."
+            "Logistic regression on merit features only — protected attributes and "
+            "proxy signals withheld — with a cost-sensitive cutoff that treats "
+            "rejecting a qualified candidate as twice as costly as advancing an "
+            "unqualified one. 80/B, passes the four-fifths rule (worst disparate "
+            "impact 0.81), and wrongly rejects 21 qualified candidates versus 34 for "
+            "MeritFirst. Resilience 100/100 holds by construction."
         ),
     },
 }

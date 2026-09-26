@@ -12,9 +12,9 @@ overclaim at least once:
    result;
 5. TalentFit's four-fifths failure was blamed on retained proxy features and
    quoted as the gender-only disparate impact (0.78), while the score uses the
-   worst attribute (age band, 0.727) and retraining without the proxies makes
-   the result worse — the gap is inherited from the label
-   (tests/core/test_trained_model.py);
+   worst attribute (age band, 0.727) and the gap was inherited from the label.
+   The upgraded v3 (proxies dropped, cost-sensitive cutoff) is pinned with its
+   before/after and out-of-sample evidence in tests/core/test_trained_model.py;
 6. a 100/100 resilience score read as robustness even where the model carries
    no weight on the perturbed signal, so the experiment could not fail.
 
@@ -119,14 +119,16 @@ def test_the_fairness_review_is_not_marketed_as_an_ai_agent():
 
 def test_the_talentfit_blurb_reports_the_measured_outcome():
     blurb = MODEL_META["trained"]["blurb"]
-    # Pinned fixture results (tests/core/test_trained_model.py): 66/C, worst DI
-    # 0.727 on age band (gender 0.7798), resilience 100/100.
-    assert "66/C" in blurb
-    assert "0.73 (age band" in blurb
-    assert "gender 0.78" in blurb
+    # Pinned fixture results (tests/core/test_trained_model.py): 80/B, worst DI
+    # 0.8137 on age band, 21 qualified rejections vs 34, resilience 100/100.
+    assert "80/B" in blurb
+    assert "0.81" in blurb
+    assert "passes the four-fifths rule" in blurb
+    assert "21 qualified candidates" in blurb and "34" in blurb
+    assert "twice as costly" in blurb
+    assert "proxy signals withheld" in blurb
     assert "100/100" in blurb
     assert "by construction" in blurb
-    assert "label" in blurb
     assert not blurb.rstrip().endswith("?"), "the blurb must state results, not tease them"
     served = {model["id"]: model for model in client.get("/api/meta").json()["models"]}
     assert served["trained"]["blurb"] == blurb
@@ -163,10 +165,13 @@ def test_no_current_surface_blames_talentfit_disparity_on_proxies():
             assert claim.lower() not in lowered, f"{name}: {claim}"
 
 
-def test_guided_demo_quotes_the_worst_disparate_impact_and_the_label_ceiling():
+def test_guided_demo_quotes_the_upgrade_and_the_label_ceiling():
     step = next(step for step in guided_demo()["steps"] if step["id"] == 7)
-    assert "0.727 on age_band" in step["message"]
+    assert "80/B" in step["message"]
+    assert "0.8137 on age_band" in step["message"]
     assert "68/C" in step["message"]
+    assert "rejects 21 of 400" in step["message"]
+    assert "twice as costly" in step["message"]
     assert "by construction" in step["message"]
     assert step["evidence"]["diagnostics"]["label_ceiling"]["total"] == 68
 
@@ -186,7 +191,7 @@ def test_passes_that_cannot_fail_are_labelled_by_construction():
         for result in run_chaos_suite("trained", evidence_limit=0)["tests"]
         if result["id"] == "gap_stress"
     )
-    assert "+0.0298" in gap["by_construction"]
+    assert "gives a career gap no weight" in gap["by_construction"]
     # LegacyCorp penalises every perturbed signal, so none of its verdicts is
     # structural and its published 30/100 is untouched.
     legacy = run_chaos_suite("legacy", evidence_limit=0)

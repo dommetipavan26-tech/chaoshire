@@ -83,7 +83,8 @@ The eleven sections are five groups, with Guided Demo first. The three audit
 models are a persistent strip above the navigation — large cards on a wide
 screen (name, grade, one-line role), full-width rows on a phone — so they are
 not buried in the finding card. The selected model carries a brass rule and a
-check. LegacyCorp stays 32/F, MeritFirst 84/B, TalentFit 66/C. The landing
+check. LegacyCorp stays 32/F, MeritFirst 84/B, TalentFit 66/C (TalentFit has
+since been upgraded to 80/B; see `CHANGELOG.md`, Unreleased). The landing
 page still leads with one finding (Zara Garcia, C-1489, 169 gender flips)
 instead of four feature cards. Build facts
 stay in the footer and still come from `/api/meta`. The privacy choice is a

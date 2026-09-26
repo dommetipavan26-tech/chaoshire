@@ -117,19 +117,21 @@ def guided_demo() -> dict[str, Any]:
                 "id": 7,
                 "title": "Audit the model we trained ourselves",
                 "message": (
-                    f"TalentFit v3 — a logistic regression fitted to this fixture's "
-                    f"qualified label with protected attributes withheld — is the most "
-                    f"accurate model here ({trained_diagnostics['model']['accuracy']:.1%} "
-                    f"agreement with the label) and has resilience "
-                    f"{trained_chaos['resilience']}/100, yet scores "
+                    f"TalentFit v3 — a logistic regression on merit features only, "
+                    f"with protected attributes and proxy signals withheld — scores "
                     f"{trained_audit['certificate']['total']}"
-                    f"/{trained_audit['certificate']['grade']}: its worst disparate impact is "
-                    f"{trained_worst['disparate_impact']} on {trained_worst['attribute']}. "
-                    f"Training optimises agreement with the label, not fairness, and the "
-                    f"label itself is uneven across groups — accepting exactly the "
-                    f"qualified candidates scores {ceiling['total']}/{ceiling['grade']}. "
-                    f"The resilience is by construction: a model with no protected inputs "
-                    f"cannot flip on a swap, so it is not evidence of equal outcomes."
+                    f"/{trained_audit['certificate']['grade']} and its worst disparate "
+                    f"impact is {trained_worst['disparate_impact']} on "
+                    f"{trained_worst['attribute']}. Fitting the label alone was not "
+                    f"enough: the label itself is uneven across groups (accepting exactly "
+                    f"the qualified candidates scores {ceiling['total']}/{ceiling['grade']}). "
+                    f"The upgrade is a cost-sensitive cutoff, one for everyone, that "
+                    f"treats a wrongly rejected qualified candidate as twice as costly "
+                    f"as a wrongly advanced one: it rejects "
+                    f"{trained_diagnostics['model']['qualified_rejected']} of "
+                    f"{trained_diagnostics['qualified']} qualified candidates. Resilience "
+                    f"{trained_chaos['resilience']}/100 holds by construction: a model "
+                    f"with no protected inputs cannot flip on a swap."
                 ),
                 "evidence": {
                     "certificate": trained_audit["certificate"],

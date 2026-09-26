@@ -106,14 +106,16 @@ Closes the five items still visible on the v0.23.3 live deployment. Scores `32/F
 - [x] Verify `python -m pytest -q` (216), `--cov` (98.4%), `ruff format --check`/`ruff check`, `mypy` (3.11/3.12 clean), `check_build_info.py` (--coverage-json), and a local smoke of `/api/appeals`, `/api/chaos`, `/api/agent/review`, `/api/meta`, `HEAD /`
 - [ ] Push the v0.23.4 tag (and the still-missing v0.23.2 / v0.23.1 / v0.22.0 tags) — owner
 
-## Unreleased — why TalentFit v3 scores below MeritFirst v2
+## Unreleased — TalentFit v3: diagnose, then upgrade
 
-Corrects the explanation shipped with the trained model. Scores preserved: `32/F`, `84/B`, `66/C`; resilience `30`, `100`, `100`.
+Scores: LegacyCorp `32/F` and MeritFirst `84/B` preserved; TalentFit `66/C` → `80/B`; resilience `30`, `100`, `100`.
 
-- [x] Replace the disproven "proxy leakage / blind training" story with the measured cause: the label's group base rates (perfect predictor 68/C) and selection volume. Retraining without proxies scores 58/D
-- [x] Quote the worst disparate impact the score uses (0.727, age band), not the gender-only 0.78, in the blurb, landing page, guided demo, README and case study
+- [x] Replace the disproven "proxy leakage / blind training" story with the measured cause: the label's group base rates (perfect predictor 68/C) and the error-rate cutoff
+- [x] Quote the worst disparate impact the score uses, naming the attribute, instead of the gender-only 0.78
 - [x] Label chaos passes that cannot fail as `by_construction` (payload, suite `resilience_scope`, Chaos Lab chip); no verdict or resilience change
-- [x] `disparity_diagnostics()` runtime evidence, served in guided-demo step 7; pinned in `tests/core/test_trained_model.py` and `tests/core/test_review_honesty.py`
+- [x] Upgrade v3: merit features only (proxies rejected by the loader) plus one cost-sensitive cutoff (false rejection = 2× false acceptance, P ≥ 1/3), fixed as policy in `decision_policy`
+- [x] Check the upgrade on 49 unseen populations (`holdout_comparison()`, `train --holdout`): 74.1 vs MeritFirst 72.1 vs original 66.2
+- [x] Pin the before/after, the out-of-sample figures and the trade-offs in `tests/core/test_trained_model.py`; update the landing page, blurb, guided demo, README, METHODOLOGY, case study and browser assertions
 
 ## Future engineering
 

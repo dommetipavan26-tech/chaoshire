@@ -115,9 +115,8 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         expect(page.locator("#home-resilience")).to_have_text("100")
 
         page.get_by_role("button", name=models["trained"]["title"]).click()
-        expect(page.locator("#home-score")).to_have_text("66 / C")
-        # The most interesting result in the project: perfect counterfactual
-        # resilience alongside a failing disparate impact.
+        expect(page.locator("#home-score")).to_have_text("80 / B")
+        # Resilience 100 holds by construction (no protected inputs).
         expect(page.locator("#home-resilience")).to_have_text("100")
 
         page.get_by_role("button", name=models["legacy"]["title"]).click()
@@ -177,7 +176,7 @@ def test_audit_models_lead_every_tab_and_the_demo_cta_fits() -> None:
                 expect(buttons).to_have_count(3)
                 expect(page.locator('#modelsel button[data-m="legacy"]')).to_contain_text("32 / F")
                 expect(page.locator('#modelsel button[data-m="fair"]')).to_contain_text("84 / B")
-                expect(page.locator('#modelsel button[data-m="trained"]')).to_contain_text("66 / C")
+                expect(page.locator('#modelsel button[data-m="trained"]')).to_contain_text("80 / B")
                 boxes = [buttons.nth(i).bounding_box() for i in range(3)]
                 assert all(box is not None for box in boxes)
                 if width >= 900:

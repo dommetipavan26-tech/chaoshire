@@ -6,23 +6,33 @@ fitted to the deterministic demo fixture with scikit-learn.
 
 Design rules that keep the platform honest and reproducible:
 
-* Protected attributes (gender, ethnicity, age band) are **excluded** from the
-  training features. Two real-world "neutral" résumé signals — college
-  prestige and career gap — are offered to the fit as candidate proxies. On
-  this fixture they carry almost no signal: the ``qualified`` label is generated
-  from skills, experience, education and certifications only, so the fit gives
-  them near-zero weight and they do **not** explain the model's group
-  disparity. Retraining without them makes the audit slightly *worse*
-  (``tests/core/test_trained_model.py`` pins this).
-* The trained model's disparity comes from the label it learns. By sampling
-  chance the fixture's ``qualified`` rate differs between groups (e.g. 45% of
-  women vs 30% of non-binary candidates), so a model that predicts the label
-  well reproduces those gaps. Accepting exactly the qualified candidates — a
-  perfect predictor — itself fails the four-fifths rule.
-  :func:`disparity_diagnostics` reports this at runtime without scikit-learn.
+* **Blind and proxy-free inputs.** Protected attributes (gender, ethnicity, age
+  band) are excluded from the training features, and so are the two
+  "neutral" résumé signals that are known proxy risks — college prestige (a
+  socioeconomic proxy correlated with community) and career gap (a caregiver
+  proxy). The fixture's ``qualified`` label never uses them, so they carry no
+  predictive signal; the original v3 fit gave them near-zero weight, including
+  a meaningless *positive* weight on career gaps. Dropping them follows the
+  platform's own proxy-removal mitigation. The artifact loader rejects any
+  weight on either group of features.
+* **A cost-sensitive decision rule, fixed before looking at the audit.** A
+  first-round screen that wrongly rejects a qualified candidate loses them for
+  good, while a wrongly advanced candidate is caught at interview. The model
+  therefore treats a false rejection as :data:`FALSE_REJECTION_COST` times as
+  costly as a false acceptance, which gives the standard Bayes-optimal cutoff
+  ``P(qualified) >= 1 / (1 + cost)`` — one global cutoff for every candidate,
+  never a per-group threshold (42 U.S.C. § 2000e-2(l)). The original v3 used
+  the error-rate cutoff (probability 0.5), which treats both errors as equal.
+* **Why the upgrade was needed.** A model fitted to the label reproduces the
+  label's group gaps: by sampling chance the fixture's ``qualified`` rate
+  differs between groups, and a perfect predictor of it scores 68/C.
+  :func:`disparity_diagnostics` reports this at runtime without scikit-learn,
+  and :func:`holdout_comparison` checks the upgrade on synthetic populations
+  the model never saw, so the improvement cannot be an artefact of tuning on
+  the audited fixture.
 * Training is a **build-time tool**. The fitted coefficients are affinely
-  calibrated onto the platform's [0, 1] score convention (the logistic 0.5
-  probability boundary lands exactly on ``DECISION_THRESHOLD``) and pinned to
+  calibrated onto the platform's [0, 1] score convention (the cost-sensitive
+  probability cutoff lands exactly on ``DECISION_THRESHOLD``) and pinned to
   ``chaoshire/artifacts/trained_model.json`` with a SHA-256 digest.
 * Runtime code only ever loads the pinned artifact, so production keeps its
   lightweight dependency set and the published numbers cannot drift when
@@ -34,6 +44,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +58,7 @@ from .models import Coefficients, feature_components
 LABEL_COLUMN = "qualified"
 MERIT_FEATURES: tuple[str, ...] = ("skills", "experience", "education", "certs")
 PROXY_FEATURES: tuple[str, ...] = ("prestige", "gap")
-TRAIN_FEATURES: tuple[str, ...] = MERIT_FEATURES + PROXY_FEATURES
+TRAIN_FEATURES: tuple[str, ...] = MERIT_FEATURES
 PROTECTED_FEATURES: tuple[str, ...] = (
     "gender_M",
     "gender_NB",
@@ -56,12 +67,57 @@ PROTECTED_FEATURES: tuple[str, ...] = (
     "age_36-50",
     "age_50+",
 )
+#: Relative cost of rejecting a qualified candidate versus advancing an
+#: unqualified one. Chosen on product grounds (first-round screen, humans
+#: review everyone advanced), not by searching for the best audit score.
+FALSE_REJECTION_COST = 2.0
 ALGORITHM = "LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)"
+
+
+def probability_cutoff(false_rejection_cost: float = FALSE_REJECTION_COST) -> float:
+    """Bayes-optimal acceptance cutoff on P(qualified) for the given cost ratio."""
+    if false_rejection_cost <= 0:
+        raise ValueError("false_rejection_cost must be positive")
+    return 1.0 / (1.0 + false_rejection_cost)
+
+
+PROBABILITY_CUTOFF = probability_cutoff()
 CALIBRATION = (
-    "affine; the logistic decision boundary (probability 0.5) is mapped onto the "
-    f"platform decision threshold {DECISION_THRESHOLD} and the observed score "
-    "range is scaled to fit inside [0, 1]"
+    f"affine; the cost-sensitive cutoff P(qualified) >= {PROBABILITY_CUTOFF:.4f} "
+    f"(false rejection cost {FALSE_REJECTION_COST:g}x a false acceptance) is mapped "
+    f"onto the platform decision threshold {DECISION_THRESHOLD} and the observed "
+    "score range is scaled to fit inside [0, 1]"
 )
+DECISION_POLICY = {
+    "false_rejection_cost": FALSE_REJECTION_COST,
+    "probability_cutoff": round(PROBABILITY_CUTOFF, 6),
+    "cutoff_scope": "one global cutoff for every candidate; never per group",
+    "rationale": (
+        "First-round screen: a wrongly rejected qualified candidate is lost, a wrongly "
+        "advanced one is caught at interview. Fixed before auditing, not tuned to the score."
+    ),
+}
+#: The original v3 configuration (proxies kept, error-rate cutoff 0.5), kept
+#: reproducible as the before/after baseline. See :func:`original_v3_coefficients`.
+ORIGINAL_V3_FEATURES: tuple[str, ...] = MERIT_FEATURES + PROXY_FEATURES
+ORIGINAL_V3_FALSE_REJECTION_COST = 1.0
+#: The original v3 coefficients as pinned before the upgrade (sklearn 1.9.1).
+#: Stored so the before/after comparison runs at runtime without scikit-learn.
+ORIGINAL_V3_COEFFICIENTS: Coefficients = {
+    "skills": 0.550258,
+    "experience": 0.343499,
+    "education": 0.245529,
+    "certs": 0.161015,
+    "prestige": 0.011506,
+    "gap": 0.029778,
+    "intercept": -0.304035,
+    "gender_M": 0.0,
+    "gender_NB": 0.0,
+    "eth_G2": 0.0,
+    "eth_G3": 0.0,
+    "age_36-50": 0.0,
+    "age_50+": 0.0,
+}
 # Fresh training must reproduce at least this share of the pinned decisions,
 # otherwise `train --check` reports drift. Loose enough to tolerate optimizer
 # jitter across scikit-learn versions, tight enough to catch data changes.
@@ -85,7 +141,10 @@ def _round6(value: float) -> float:
 
 
 def train_coefficients(
-    data: pd.DataFrame | None = None, include_protected: bool = False
+    data: pd.DataFrame | None = None,
+    include_protected: bool = False,
+    features: tuple[str, ...] | None = None,
+    false_rejection_cost: float = FALSE_REJECTION_COST,
 ) -> Coefficients:
     """Fit the trained model and return platform-shaped coefficients.
 
@@ -93,26 +152,31 @@ def train_coefficients(
     deterministic: fixed data, fixed hyper-parameters, and the quasi-Newton
     ``lbfgs`` solver has no random component.
 
-    ``include_protected=True`` is an experimental contrast fit that leaks the
-    protected attributes into training; it is never pinned to the artifact.
+    ``features`` and ``false_rejection_cost`` default to the shipped model;
+    :func:`original_v3_coefficients` re-fits the original v3 for comparison. ``include_protected=True`` is an experimental contrast fit that
+    leaks the protected attributes into training; it is never pinned.
     """
     from sklearn.linear_model import LogisticRegression
 
-    features = TRAIN_FEATURES + (PROTECTED_FEATURES if include_protected else ())
+    chosen = TRAIN_FEATURES if features is None else tuple(features)
+    fitted_features = chosen + (PROTECTED_FEATURES if include_protected else ())
     frame = DEMO_DATA if data is None else data
-    matrix = build_design_matrix(frame, features)
+    matrix = build_design_matrix(frame, fitted_features)
     labels = frame[LABEL_COLUMN].to_numpy(dtype=int)
 
     classifier = LogisticRegression(C=1.0, solver="lbfgs", max_iter=1000)
     classifier.fit(matrix.to_numpy(), labels)
 
     weights = classifier.coef_[0]
-    bias = float(classifier.intercept_[0])
+    # Accept when P(qualified) >= cutoff  <=>  logit >= log(cutoff / (1 - cutoff)).
+    # Shifting the bias by that log-odds puts the cutoff at decision value 0.
+    cutoff = probability_cutoff(false_rejection_cost)
+    bias = float(classifier.intercept_[0]) - float(np.log(cutoff / (1.0 - cutoff)))
     decision = matrix.to_numpy() @ weights + bias
     low, high = float(decision.min()), float(decision.max())
 
-    # Scale so the probability-0.5 boundary lands on DECISION_THRESHOLD and the
-    # observed extremes stay inside the platform's [0, 1] score range.
+    # Scale so the cutoff lands on DECISION_THRESHOLD and the observed extremes
+    # stay inside the platform's [0, 1] score range.
     bounds = []
     if low < 0:
         bounds.append(DECISION_THRESHOLD / -low)
@@ -121,13 +185,23 @@ def train_coefficients(
     scale = min(bounds) if bounds else 1.0
 
     coefficients: Coefficients = {
-        feature: _round6(scale * weight) for feature, weight in zip(features, weights, strict=True)
+        feature: _round6(scale * weight)
+        for feature, weight in zip(fitted_features, weights, strict=True)
     }
     coefficients["intercept"] = _round6(DECISION_THRESHOLD + scale * bias)
-    if not include_protected:
-        for feature in PROTECTED_FEATURES:
-            coefficients[feature] = 0.0
+    # Every platform feature is present in the mapping; unused ones weigh 0.
+    for feature in PROXY_FEATURES + PROTECTED_FEATURES:
+        coefficients.setdefault(feature, 0.0)
     return coefficients
+
+
+def original_v3_coefficients(data: pd.DataFrame | None = None) -> Coefficients:
+    """Re-fit the pre-upgrade v3 (proxies kept, probability-0.5 cutoff)."""
+    return train_coefficients(
+        data,
+        features=ORIGINAL_V3_FEATURES,
+        false_rejection_cost=ORIGINAL_V3_FALSE_REJECTION_COST,
+    )
 
 
 def coefficient_digest(coefficients: Coefficients) -> str:
@@ -147,6 +221,8 @@ def build_artifact(coefficients: Coefficients | None = None) -> dict[str, Any]:
         "algorithm": ALGORITHM,
         "train_features": list(TRAIN_FEATURES),
         "excluded_protected_features": list(PROTECTED_FEATURES),
+        "excluded_proxy_features": list(PROXY_FEATURES),
+        "decision_policy": DECISION_POLICY,
         "calibration": CALIBRATION,
         "rows": int(len(DEMO_DATA)),
         "sklearn_version": sklearn.__version__,
@@ -178,6 +254,8 @@ def load_artifact(path: Path | None = None) -> dict[str, Any]:
         raise ValueError(f"Trained-model artifact at {target} failed its digest check.")
     if any(coefficients.get(feature, 0.0) != 0.0 for feature in PROTECTED_FEATURES):
         raise ValueError(f"Trained-model artifact at {target} carries protected-attribute weight.")
+    if any(coefficients.get(feature, 0.0) != 0.0 for feature in PROXY_FEATURES):
+        raise ValueError(f"Trained-model artifact at {target} carries proxy-feature weight.")
     artifact["coefficients"] = coefficients
     return artifact
 
@@ -205,6 +283,22 @@ def _accuracy(decisions: pd.DataFrame) -> float:
     return float(np.mean(decisions["accepted"].to_numpy() == decisions[LABEL_COLUMN].astype(int)))
 
 
+def decision_summary(result: dict[str, Any], decisions: pd.DataFrame) -> dict[str, Any]:
+    from .metrics import worst_disparate_impact
+
+    qualified = decisions[LABEL_COLUMN].astype(bool).to_numpy()
+    accepted = decisions["accepted"].to_numpy().astype(bool)
+    return {
+        "total": result["certificate"]["total"],
+        "grade": result["certificate"]["grade"],
+        "worst_disparate_impact": worst_disparate_impact(result),
+        "accuracy": round(_accuracy(decisions), 4),
+        "recall": round(float(accepted[qualified].mean()), 4) if qualified.any() else None,
+        "qualified_rejected": int((qualified & ~accepted).sum()),
+        "selected": int(accepted.sum()),
+    }
+
+
 def disparity_diagnostics(
     coefficients: Coefficients | None = None, data: pd.DataFrame | None = None
 ) -> dict[str, Any]:
@@ -226,7 +320,7 @@ def disparity_diagnostics(
     "more accurate" and "fairer" are different claims and can move in opposite
     directions when the label's base rates differ between groups.
     """
-    from .metrics import audit, worst_disparate_impact
+    from .metrics import audit
     from .models import build_decisions
 
     frame = DEMO_DATA if data is None else data
@@ -255,13 +349,7 @@ def disparity_diagnostics(
     }
 
     def summary(result: dict[str, Any], decisions: pd.DataFrame) -> dict[str, Any]:
-        return {
-            "total": result["certificate"]["total"],
-            "grade": result["certificate"]["grade"],
-            "worst_disparate_impact": worst_disparate_impact(result),
-            "accuracy": round(_accuracy(decisions), 4),
-            "selected": int(decisions["accepted"].sum()),
-        }
+        return decision_summary(result, decisions)
 
     model_summary = summary(model_audit, model_decisions)
     ceiling = summary(oracle_audit, oracle)
@@ -288,8 +376,56 @@ def disparity_diagnostics(
                 if ceiling_fails
                 else "The qualified label passes the four-fifths rule. "
             )
-            + "A model fitted to that label tends to reproduce its group gaps the "
-            "more closely it predicts it; the proxy features change "
-            f"{changed} of {len(frame)} decisions and do not account for the gap."
+            + "A model fitted to that label at the error-rate cutoff reproduces its "
+            "group gaps; the shipped model instead applies a cost-sensitive cutoff "
+            f"(P(qualified) >= {PROBABILITY_CUTOFF:.3f}) that rejects fewer qualified "
+            f"candidates ({model_summary['qualified_rejected']} of {int(frame[LABEL_COLUMN].sum())}). "
+            f"Proxy features change {changed} of {len(frame)} decisions."
         ),
     }
+
+
+def holdout_comparison(
+    seeds: Iterable[int] = range(1, 51),
+    coefficients: dict[str, Coefficients] | None = None,
+) -> dict[str, Any]:
+    """Audit fixed coefficients on synthetic populations the model never saw.
+
+    Every model here is fitted (or hand-written) against the seed-29 fixture, so
+    its fixture score can flatter it. This re-draws whole populations from the
+    same generator with other seeds and audits the *unchanged* coefficients on
+    each, which is the honest test of whether an upgrade generalises. The
+    fixture seed itself is skipped. Runtime-safe (no scikit-learn).
+    """
+    from .config import DEMO_SEED
+    from .data import generate_demo_data
+    from .metrics import audit
+    from .models import FAIR, build_decisions
+
+    models = coefficients or {
+        "fair": FAIR,
+        "original_v3": ORIGINAL_V3_COEFFICIENTS,
+        "trained": trained_coefficients(),
+    }
+    used = [seed for seed in seeds if seed != DEMO_SEED]
+    rows: dict[str, list[dict[str, Any]]] = {name: [] for name in models}
+    for seed in used:
+        population = generate_demo_data(seed=seed)
+        for name, model in models.items():
+            decisions = build_decisions(model, data=population)
+            rows[name].append(decision_summary(audit(decisions), decisions))
+
+    def mean(name: str, key: str) -> float:
+        return round(float(np.mean([row[key] for row in rows[name]])), 4)
+
+    summary = {
+        name: {
+            "mean_total": round(float(np.mean([row["total"] for row in rows[name]])), 2),
+            "mean_accuracy": mean(name, "accuracy"),
+            "mean_recall": mean(name, "recall"),
+            "mean_qualified_rejected": mean(name, "qualified_rejected"),
+            "mean_selected": mean(name, "selected"),
+        }
+        for name in models
+    }
+    return {"populations": len(used), "seeds": used, "models": summary}
