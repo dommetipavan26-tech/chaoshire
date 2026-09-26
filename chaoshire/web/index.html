@@ -5,22 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1c1714">
 <title>ChaosHire | Stress-test hiring AI fairly</title>
-<meta name="description" content="A synthetic hiring-model audit. Swap one fact on a résumé and see whether the decision flips.">
+<meta name="description" content="A synthetic hiring-model audit. Swap one fact on a resume and see whether the decision flips.">
 <link rel="canonical" href="__PUBLIC_ORIGIN__/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ChaosHire">
 <meta property="og:url" content="__PUBLIC_ORIGIN__/">
 <meta property="og:title" content="ChaosHire | Stress-test hiring AI fairly">
-<meta property="og:description" content="A synthetic hiring-model audit. Same résumé, different decision.">
+<meta property="og:description" content="A synthetic hiring-model audit. Same resume, different decision.">
 <meta property="og:image" content="__PUBLIC_ORIGIN__/social-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="ChaosHire: stress-test hiring AI while the résumé stays still.">
+<meta property="og:image:alt" content="ChaosHire: stress-test hiring AI while the resume stays still.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="ChaosHire | Stress-test hiring AI fairly">
-<meta name="twitter:description" content="A synthetic hiring-model audit. Same résumé, different decision.">
+<meta name="twitter:description" content="A synthetic hiring-model audit. Same resume, different decision.">
 <meta name="twitter:image" content="__PUBLIC_ORIGIN__/social-preview.png">
-<meta name="twitter:image:alt" content="ChaosHire: stress-test hiring AI while the résumé stays still.">
+<meta name="twitter:image:alt" content="ChaosHire: stress-test hiring AI while the resume stays still.">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
@@ -35,7 +35,6 @@
       <h1>ChaosHire</h1>
       <p class="tag">A hiring-model audit. Not a hiring tool.</p>
     </div>
-    <button type="button" class="text-button" id="home-tab" data-t="welcome" aria-current="page">Home</button>
   </div>
 </header>
 <div class="audit-strip">
@@ -48,8 +47,8 @@
   <section id="tab-welcome">
     <div class="hero">
       <div class="hero-copy">
-        <h2 class="hero-title">Stress-test hiring AI while the résumé stays still.</h2>
-        <p class="lede">I built this because a fairness chart can look fine while one qualified person is rejected only because a form said female. The résumé does not change. The decision does.</p>
+        <h2 class="hero-title">Stress-test hiring AI while the resume stays still.</h2>
+        <p class="lede">I built this because a fairness chart can look fine while one qualified person is rejected only because a form said female. The resume does not change. The decision does.</p>
         <div class="hero-actions"><button type="button" class="btn" id="startdemo">Start the 3-minute demo</button></div>
         <div class="linkrow"><a href="https://github.com/dommetipavan26-tech/chaoshire" target="_blank" rel="noreferrer">GitHub repository</a><a href="/docs" target="_blank">API documentation</a><a href="https://github.com/dommetipavan26-tech/chaoshire/releases/latest" target="_blank" rel="noreferrer">Latest release</a></div>
       </div>
@@ -57,7 +56,7 @@
         <p class="entry-label">One person in the fixture</p>
         <p class="entry-name">Zara Garcia <span class="dim">C-1489</span></p>
         <p class="entry-meta">Qualified. Skills 87. Community C. Age 50+.</p>
-        <p id="home-finding" class="entry-body">Marked female, LegacyCorp scores her 0.485 and rejects her. The same résumé marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.</p>
+        <p id="home-finding" class="entry-body">Marked female, LegacyCorp scores her 0.485 and rejects her. The same resume marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.</p>
         <hr class="hero-divider">
         <div id="home-score" class="hero-score">32 / F</div>
         <div id="home-model">LegacyCorp fairness risk score</div>
@@ -152,7 +151,7 @@ function resolveSection(id){
   return group?group.sections[0]:id;
 }
 function renderNav(){
-  $('#tabs').innerHTML=GROUPS.map(g=>`<button type="button" data-t="${esc(g.id)}">${esc(g.label)}</button>`).join('');
+  $('#tabs').innerHTML='<button type="button" id="home-tab" data-t="welcome" class="on" aria-current="page">Home</button>'+GROUPS.map(g=>`<button type="button" data-t="${esc(g.id)}">${esc(g.label)}</button>`).join('');
 }
 function renderSubnav(section){
   const nav=$('#subnav');
@@ -228,9 +227,9 @@ $('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')show
 // tests/core/test_trained_model.py. If these drift, the tests fail first.
 const HOME_MODELS={
   legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',role:'Biased vendor screen',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30,
-    finding:'Marked female, LegacyCorp scores her 0.485 and rejects her. The same résumé marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.'},
+    finding:'Marked female, LegacyCorp scores her 0.485 and rejects her. The same resume marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.'},
   fair:{name:'MeritFirst',score:'84 / B',grade:'B',role:'Skills-only reference',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
-    finding:'The same résumé does not flip under MeritFirst. Gender flips: 0. Community flips: 0. Resilience 100. Fairness risk score 84 / B. Skills-only scoring removes this particular failure. It is a reference, not a claim that hiring is solved.'},
+    finding:'The same resume does not flip under MeritFirst. Gender flips: 0. Community flips: 0. Resilience 100. Fairness risk score 84 / B. Skills-only scoring removes this particular failure. It is a reference, not a claim that hiring is solved.'},
   trained:{name:'TalentFit',score:'80 / B',grade:'B',role:'Trained, cost-sensitive',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
     finding:'TalentFit keeps her decision when gender is swapped. It has no gender input, so it cannot flip: resilience 100 holds by construction. Trained on merit only, with one cutoff for everyone that counts a wrongly rejected qualified candidate as twice as costly. Score 80 / B. It passes the four-fifths rule and wrongly rejects 21 qualified candidates, against 34 for MeritFirst.'}
 };
@@ -321,7 +320,7 @@ async function loadOverview(dataset='demo'){
 
 /* ---------------- CHAOS ---------------- */
 const chaosIntro=()=>`<div class="card"><h3>Chaos lab</h3>
-  <p class="fs-base">I swap one fact on a résumé and ask the model to decide again. If the decision flips, the model was using that fact. The suite also runs adversarial résumés and demographic stress tests, on synthetic people only.</p>
+  <p class="fs-base">I swap one fact on a resume and ask the model to decide again. If the decision flips, the model was using that fact. The suite also runs adversarial resumes and demographic stress tests, on synthetic people only.</p>
   <button class="btn" id="runchaos">Run full chaos suite</button>
   <div id="chaosout" class="row-mt-lg"></div></div>`;
 $('#tab-chaos').innerHTML=chaosIntro();

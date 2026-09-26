@@ -122,7 +122,7 @@ def _assert_tab_fits(page: Page, width: int, tab: str) -> None:
     assert not escapes, f"{width}px {tab}: content escapes its .card: {details}"
 
 
-#: Group button that reveals each section. Home stays outside the five-tab bar.
+#: Group button that reveals each section. Home precedes the five product groups.
 SECTION_GROUP = {
     "overview": "measure",
     "filtered": "measure",
