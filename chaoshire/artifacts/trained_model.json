@@ -6,9 +6,7 @@
     "skills",
     "experience",
     "education",
-    "certs",
-    "prestige",
-    "gap"
+    "certs"
   ],
   "excluded_protected_features": [
     "gender_M",
@@ -18,18 +16,28 @@
     "age_36-50",
     "age_50+"
   ],
-  "calibration": "affine; the logistic decision boundary (probability 0.5) is mapped onto the platform decision threshold 0.5 and the observed score range is scaled to fit inside [0, 1]",
+  "excluded_proxy_features": [
+    "prestige",
+    "gap"
+  ],
+  "decision_policy": {
+    "false_rejection_cost": 2.0,
+    "probability_cutoff": 0.333333,
+    "cutoff_scope": "one global cutoff for every candidate; never per group",
+    "rationale": "First-round screen: a wrongly rejected qualified candidate is lost, a wrongly advanced one is caught at interview. Fixed before auditing, not tuned to the score."
+  },
+  "calibration": "affine; the cost-sensitive cutoff P(qualified) >= 0.3333 (false rejection cost 2x a false acceptance) is mapped onto the platform decision threshold 0.5 and the observed score range is scaled to fit inside [0, 1]",
   "rows": 1000,
   "sklearn_version": "1.9.1",
-  "coefficient_digest": "sha256:744bb1dcb8d07e3c5785521406ebc2765be18e47cced39f90c2415e4fce44684",
+  "coefficient_digest": "sha256:39b7114a3ae3105669f8bc6a785a6013316304985aec1c75dca7fca955220b84",
   "coefficients": {
-    "skills": 0.550258,
-    "experience": 0.343499,
-    "education": 0.245529,
-    "certs": 0.161015,
-    "prestige": 0.011506,
-    "gap": 0.029778,
-    "intercept": -0.304035,
+    "skills": 0.560542,
+    "experience": 0.345054,
+    "education": 0.248977,
+    "certs": 0.165299,
+    "intercept": -0.257049,
+    "prestige": 0.0,
+    "gap": 0.0,
     "gender_M": 0.0,
     "gender_NB": 0.0,
     "eth_G2": 0.0,

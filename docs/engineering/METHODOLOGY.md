@@ -170,3 +170,79 @@ establish legal compliance and does not by itself prove or disprove
 discrimination. Per-group threshold calibration is deliberately **not** part of
 it and not available as a mitigation; see `SECURITY.md` and
 [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2).
+
+## Why a more accurate model can score lower
+
+The fairness risk score and model accuracy measure different things, and a
+fitted model optimises only the second. TalentFit v3's history shows this
+directly. Every figure below is computed at runtime by
+`chaoshire.training.disparity_diagnostics()` / `holdout_comparison()` and pinned
+in `tests/core/test_trained_model.py`.
+
+| Decisions (fixture) | Agreement with `qualified` | Accepted | Qualified rejected | Worst disparate impact | Score |
+|---|---:|---:|---:|---:|---:|
+| MeritFirst v2 (hand-written) | 87.3% | 459 | 34 | 0.873 (age band) | 84/B |
+| Original v3 (proxies kept, cutoff 0.5) | 89.4% | 376 | 65 | 0.727 (age band) | 66/C |
+| Upgraded v3 (merit only, cutoff 1/3) | 87.6% | 482 | 21 | 0.814 (age band) | 80/B |
+| Perfect predictor (accept exactly the qualified) | 100% | 400 | 0 | 0.663 (gender) | 68/C |
+
+**Base rates.** Disparate impact and the parity gap compare selection rates
+only. When the ground-truth label's positive rate differs between groups, an
+accurate model must select those groups at different rates. It then loses
+disparate-impact and parity points even though its equal-opportunity gap can be
+small. This is the standard incompatibility between demographic parity and
+accuracy under unequal base rates; it is not a defect in the model. On this
+fixture the base-rate differences are sampling noise: the merit formula never
+reads identity, but 1,000 draws give 45% of women, 37% of men and 30% of 57
+non-binary candidates a qualified label. The original v3, fitted closely to that
+label at the error-rate cutoff, inherited the gap.
+
+**Decision cost, not threshold tuning.** The probability-0.5 cutoff minimises
+the error rate, which treats a wrongly rejected qualified candidate and a
+wrongly advanced unqualified one as equally bad. For a first-round screen they
+are not: the first is lost for good, the second is caught at interview. With a
+false rejection costing *k* times a false acceptance, the Bayes-optimal rule
+accepts when P(qualified) ≥ 1/(1+*k*). The upgraded v3 fixes *k* = 2 (cutoff 1/3)
+as policy, recorded in the artifact's `decision_policy`, and applies it as **one
+global cutoff**. Per-group cutoffs remain refused (42 U.S.C. § 2000e-2(l)).
+
+Why *k* was fixed in advance rather than chosen from the results: the fixture
+score is noisy in the cutoff, while the unseen-population mean is not.
+
+| Cutoff P(qualified) ≥ | Cost *k* | Fixture score | Fixture qualified rejected | Unseen mean score | Unseen mean accuracy |
+|---|---:|---:|---:|---:|---:|
+| 0.50 | 1.00 | 58 | 63 | 65.3 | 88.7% |
+| 0.45 | 1.22 | 55 | 53 | 68.1 | 88.4% |
+| 0.40 | 1.50 | 65 | 42 | 71.4 | 87.4% |
+| 0.35 | 1.86 | 76 | 26 | 73.4 | 85.8% |
+| **0.333** | **2.00** | **80** | **21** | **74.1** | **85.0%** |
+| 0.30 | 2.33 | 82 | 15 | 75.5 | 83.7% |
+| 0.25 | 3.00 | 84 | 11 | 77.2 | 80.9% |
+
+(Merit features only; 49 unseen populations drawn with seeds 1–50 excluding the
+fixture seed 29.) Lower cutoffs trade accuracy and precision for recall and a
+higher fairness score. Part of that score gain is mechanical: accepting more
+candidates narrows ratios between selection rates, which is one reason
+four-fifths results should be compared at matched acceptance rates. A cost of 3
+would tie MeritFirst's 84 on the fixture; picking it *because* it ties would be
+tuning to the audit.
+
+**Proxies.** The original v3 was offered college prestige and career gap. The
+label never uses them, so they received near-zero weight (+0.012 and +0.030,
+the positive gap weight a chance correlation) and zeroing them changed 23
+decisions. The upgrade drops them (the platform's own proxy-removal mitigation),
+and re-adding them under the new cutoff scores lower (69 vs 80). On real data,
+where proxies can carry signal, this has to be measured, not assumed.
+
+**Resilience.** A counterfactual swap can only flip a decision if the model
+reads the swapped signal. MeritFirst and TalentFit carry no weight on gender,
+community or age, and no penalty for a career gap, so four of their five chaos
+experiments pass **by construction**. The `/api/chaos` payload labels them
+(`by_construction`, `passes_by_construction`, `resilience_scope`). A 100/100
+resilience score shows what a model does not read directly. It is not evidence
+of equal outcomes.
+
+Training for accuracy therefore gives no reason to expect a better fairness
+score. If a release policy needs one, the decision rule has to encode it
+explicitly (here, the cost of false rejections), the label has to be audited
+first, and the result has to be checked on data the model was not tuned on.

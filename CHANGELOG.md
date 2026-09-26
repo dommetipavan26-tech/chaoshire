@@ -8,11 +8,75 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **TalentFit v3 upgraded: 66/C → 80/B.** The original v3 was the most accurate
+  model (89.4% agreement with `qualified`) yet failed the four-fifths rule
+  (worst disparate impact 0.727). It reproduced group gaps already present in
+  its label: by sampling chance the fixture's qualified rate differs between
+  groups, and a perfect predictor of it scores 68/C. The upgrade changes two
+  things, both fixed on product grounds before auditing:
+  - **Proxy-free inputs.** College prestige and career gap are dropped (the
+    platform's own proxy-removal mitigation). The label never uses them, and the
+    original fit weighted them near zero, with a meaningless positive weight on
+    career gaps. `load_artifact()` now rejects any proxy weight, as it already
+    did for protected attributes.
+  - **A cost-sensitive decision rule.** A wrongly rejected qualified candidate
+    counts as 2× as costly as a wrongly advanced one, giving the Bayes-optimal
+    cutoff P(qualified) ≥ 1/3. It is one global cutoff, never per group
+    (42 U.S.C. § 2000e-2(l)), recorded in the artifact as `decision_policy`.
+
+  Result on the fixture: **80/B**, worst disparate impact **0.814** (passes on
+  every attribute), **21** qualified candidates wrongly rejected (original 65,
+  MeritFirst 34), recall 94.8%, accuracy 87.6%. On 49 synthetic populations it
+  never saw (`python -m chaoshire train --holdout`) it averages **74.1**
+  against MeritFirst's 72.1 and the original's 66.2. Stated trade-offs: it is
+  slightly less accurate than MeritFirst out of sample (85.0% vs 85.7%), it
+  advances more candidates, and MeritFirst still scores 4 points higher on the
+  fixture. The cutoff was not tuned to close that gap. The release gate now
+  passes LegacyCorp → TalentFit and blocks MeritFirst → TalentFit on that
+  regression. Resilience stays 100/100, by construction. LegacyCorp **32/F**
+  and MeritFirst **84/B** are unchanged.
+- `train_coefficients()` takes `features` and `false_rejection_cost`;
+  `original_v3_coefficients()` re-fits the pre-upgrade model exactly, and
+  `ORIGINAL_V3_COEFFICIENTS` keeps it available without scikit-learn. New
+  `holdout_comparison()` and `train --holdout`. `train --write` may replace an
+  artifact that fails the current loader rules and reports that it did;
+  `--check` still fails loudly.
 - The three audit models sit above the navigation on every tab, not inside the
   finding card. A wide screen shows three large cards (name, grade, one-line
   role); a phone shows three full-width rows so the names do not wrap into
   narrow columns. The selected model carries a brass rule and a check.
-  LegacyCorp stays **32 / F**, MeritFirst **84 / B**, TalentFit **66 / C**.
+  LegacyCorp stays **32 / F**, MeritFirst **84 / B**, TalentFit **66 / C**
+  (before the upgrade above).
+
+### Fixed
+
+- **TalentFit's result is now explained by what was measured.** The blurb,
+  landing page, guided demo, README, case study and `training.py` said the
+  original v3 failed the four-fifths rule because it kept proxy features
+  ("blind training did not make blind decisions"). The measurements contradict
+  that: zeroing the proxies changed 23 of 1,000 decisions, and retraining
+  without them at the same cutoff scored 58/D. The actual cause was the label's
+  group base rates, plus the error-rate cutoff that rejected 65 qualified
+  candidates. `METHODOLOGY.md` has a new section, "Why a more accurate model
+  can score lower", with a cutoff sweep on the fixture and on unseen
+  populations.
+- **The quoted disparate impact is the one the score uses.** "Disparate impact
+  0.78" was gender only; the fairness risk score uses the worst attribute (age
+  band, 0.727 for the original v3). New `metrics.worst_disparate_impact()`. The
+  `train --include-protected` contrast report adds `worst_disparate_impact`
+  and `blind_worst_disparate_impact` (0.641 vs 0.814: blinding still helps).
+
+### Added
+
+- **`by_construction` chaos labels.** A PASS that cannot fail for the model
+  under test (no weight on the swapped signal, or a non-negative gap or 50+
+  weight) carries a scope note, and the suite reports `passes_by_construction`
+  and `resilience_scope`. The Chaos Lab shows a chip and a note. MeritFirst and
+  TalentFit each have four such passes; LegacyCorp has none. No verdict or
+  resilience point changes.
+- `chaoshire.training.disparity_diagnostics()`: runtime, scikit-learn-free
+  evidence (label ceiling, label base rates, proxy contribution, recall and
+  wrongful rejections), served as guided-demo step 7 evidence.
 
 ## [0.24.0] - 2026-09-21
 

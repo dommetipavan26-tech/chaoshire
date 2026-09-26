@@ -57,5 +57,10 @@ reference model (TalentFit v3) is a `LogisticRegression` fitted to the demo
 fixture by `chaoshire/training.py` and pinned to
 `chaoshire/artifacts/trained_model.json`. Regenerate it with
 `python -m chaoshire train --write` (development dependency: scikit-learn) and
-verify reproducibility with `python -m chaoshire train --check`. See
-`METHODOLOGY.md` for the calibration and the audit findings.
+verify reproducibility with `python -m chaoshire train --check`. The model uses
+merit features only (protected attributes and proxy features are rejected by the
+artifact loader) and a cost-sensitive decision policy — one global cutoff at
+P(qualified) ≥ 1/3, i.e. a false rejection costs 2× a false acceptance — pinned
+in the artifact as `decision_policy`. `python -m chaoshire train --holdout`
+audits it against the original v3 and MeritFirst on 49 synthetic populations it
+never saw. See `METHODOLOGY.md` for the calibration and the audit findings.

@@ -86,10 +86,12 @@ MODEL_META = {
         "id": "trained",
         "title": "TalentFit v3 (trained)",
         "blurb": (
-            "Fitted on this fixture with protected attributes withheld but proxy "
-            "signals kept. Counterfactual resilience 100/100 — yet 66/C, failing "
-            "the four-fifths rule (disparate impact 0.78): blind training did not "
-            "make blind decisions."
+            "Logistic regression on merit features only — protected attributes and "
+            "proxy signals withheld — with a cost-sensitive cutoff that treats "
+            "rejecting a qualified candidate as twice as costly as advancing an "
+            "unqualified one. 80/B, passes the four-fifths rule (worst disparate "
+            "impact 0.81), and wrongly rejects 21 qualified candidates versus 34 for "
+            "MeritFirst. Resilience 100/100 holds by construction."
         ),
     },
 }

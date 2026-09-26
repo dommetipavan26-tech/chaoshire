@@ -27,9 +27,9 @@ The same model, policy, and results produce the same ID. Changing policy or mode
 The Privilege-Keyword Injection experiment submits deliberately weak,
 prestige-heavy synthetic résumés. It currently PASSES for **all three** bundled
 variants: the highest injected score is 0.4043 for `legacy`, 0.1997 for `fair`
-and 0.0498 for `trained`, all below the 0.5 decision threshold. LegacyCorp's
+and 0.0918 for `trained`, all below the 0.5 decision threshold. LegacyCorp's
 prestige weight (0.09) would need to reach at least 0.19 on this fixture before
-the experiment could fail; the merit-only fixture applies no prestige weight.
+the experiment could fail; MeritFirst and TalentFit apply no prestige weight.
 The experiment's detail string reports each variant's score headroom and
 required prestige weight. The regression suite verifies that a prestige-heavy
 variant (prestige weight 0.35) FAILS while the merit-only fixture PASSES. Because the fixture bounds what this test can
@@ -40,6 +40,22 @@ way", not "résumé-gaming resistant". The label changes no verdict and no
 resilience point. Re-tuning the shipped fixture would change the
 published resilience constants, so it is tracked as an owner decision rather
 than a silent change.
+
+## Passes that hold by construction
+
+Some PASS verdicts cannot fail for a given model. A gender or community swap
+cannot flip a model that assigns no weight to those signals. Adding a career gap
+cannot reject anyone under a model whose gap weight is zero or positive. Moving a
+candidate into the 50+ band cannot hurt a model with no age penalty. Each chaos
+result therefore carries a model-dependent `by_construction` note (empty when the
+test can genuinely fail), and the suite reports `passes_by_construction` and a
+`resilience_scope` sentence. The Chaos Lab shows a **by construction** chip and
+scope note next to the badge. On the shipped fixtures, MeritFirst and TalentFit
+each have four such passes and LegacyCorp has none. Like the fixture-limited
+label, this changes no verdict and no resilience point. It stops a 100/100 score
+from being read as evidence of equal outcomes, which the fairness risk score
+measures separately (the original TalentFit v3 had 100/100 resilience and
+scored 66/C).
 
 ## Candidate-level evidence
 

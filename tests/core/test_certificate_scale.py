@@ -93,7 +93,9 @@ def test_a_perfect_group_fairness_result_scores_100_not_85():
 def test_canonical_model_scores_are_unchanged_by_the_rescale():
     assert (cert(LEGACY)["total"], cert(LEGACY)["grade"]) == (32, "F")
     assert (cert(FAIR)["total"], cert(FAIR)["grade"]) == (84, "B")
-    assert (cert(TRAINED)["total"], cert(TRAINED)["grade"]) == (66, "C")
+    # TalentFit was 66/C under this scale; the v3 upgrade (proxy-free inputs and a
+    # cost-sensitive cutoff, tests/core/test_trained_model.py) moved it to 80/B.
+    assert (cert(TRAINED)["total"], cert(TRAINED)["grade"]) == (80, "B")
     # ...but each is now 15 points lower than the inflated figure it replaced.
     assert cert(FAIR)["total"] < 99
 

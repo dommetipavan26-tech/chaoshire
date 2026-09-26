@@ -2,7 +2,7 @@
 
 ## 20-second recruiter summary
 
-ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. The current repository baseline has 281 tests and 94.8% package coverage, measured from a real local run and guarded by a CI job that fails on drift. The hand-managed public Render deployment may lag until the owner deploys this revision.
+ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. The current repository baseline has 294 tests and 95.0% package coverage, measured from a real local run and guarded by a CI job that fails on drift. The hand-managed public Render deployment may lag until the owner deploys this revision.
 
 ## Three-minute live-demo script
 
@@ -56,12 +56,12 @@ Open **Release Gate** and compare LegacyCorp with MeritFirst.
 
 ### One line
 
-Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **281 tests and 94.8% coverage**.
+Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **294 tests and 95.0% coverage**.
 
 ### Two bullets
 
 - Engineered a deterministic hiring-AI audit platform with group/intersectional metrics, Wilson confidence intervals, counterfactual identity swaps, mitigation simulations, appeals, tamper-evident evidence, and automated model-release policy.
-- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, and scikit-learn adapter example; the current repository baseline adds browser/mobile automation, **281 tests**, and **94.8% package coverage**. Verify the live revision before citing these figures for the deployed site.
+- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, and scikit-learn adapter example; the current repository baseline adds browser/mobile automation, **294 tests**, and **95.0% package coverage**. Verify the live revision before citing these figures for the deployed site.
 
 ## Evidence checklist
 
