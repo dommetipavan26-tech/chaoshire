@@ -33,6 +33,15 @@ threshold at the fixtures' prestige weight, so the PASS records how much
 headroom exists rather than general resistance to résumé gaming. The label
 changes no verdict and no resilience point.
 
+Passes that **cannot fail** for the model under test are labelled **by
+construction** in the same way. If a model carries no weight on gender markers,
+a gender swap cannot change a single score, so its PASS shows the model does not
+read gender directly. It says nothing about whether groups receive equal
+outcomes. MeritFirst and TalentFit each have four such passes. Every
+`/api/chaos` payload reports `by_construction` per test plus
+`passes_by_construction` and a `resilience_scope` sentence for the suite. These
+labels change no verdict and no resilience point either.
+
 ## Demonstration results
 
 The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and **three selectable model variants**. `legacy` and `fair` are hand-authored scoring fixtures; `trained` is fitted with scikit-learn at build time and loaded from a pinned artifact at runtime (no scikit-learn runtime dependency).
@@ -41,7 +50,7 @@ The built-in demonstration uses a deterministic synthetic population of 1,000 ca
 |---|---|---:|---:|
 | **LegacyCorp Screen v1** (`legacy`) | Intentionally biased test fixture | **32 / F** | **30 / 100** |
 | **MeritFirst v2** (`fair`) | Merit-based control fixture | **84 / B** | **100 / 100** |
-| **TalentFit v3 (trained)** (`trained`) | Fitted merit features with proxy signals retained | **66 / C** | **100 / 100** |
+| **TalentFit v3 (trained)** (`trained`) | Logistic regression fitted to the `qualified` label, protected attributes withheld | **66 / C** | **100 / 100** |
 
 All three appear in the dashboard's model selector. With the app running locally, audit each variant by its ID:
 
@@ -59,16 +68,54 @@ The LegacyCorp fixture produces:
 - **42** qualified candidates incorrectly rejected
 - A simulated mitigation improvement from **32/F to 80/B** using blind screening plus proxy removal
 
-TalentFit v3 is the more interesting fixture, because it defeats a naive reading of
-the Chaos Lab: it was trained on the same synthetic population, it reproduces the
-merit-only model's decisions on every counterfactual and stress test
-(**resilience 100/100**), and it still fails the four-fifths rule
-(**disparate impact 0.78**). Perfect counterfactual resilience alongside failing
-disparate impact is the whole argument for measuring both — a model can be
-robust to every perturbation ChaosHire can generate and still screen a protected
-group out at 78% of the rate of the favoured group. Its coefficients are pinned
-in `chaoshire/training.py` with a SHA-256 digest; `python -m chaoshire train --check`
-re-derives them and fails CI if they drift (agreement floor 0.90).
+TalentFit v3 is the more interesting fixture because it defeats a naive reading of
+the leaderboard. It is the **most accurate** of the three models (it agrees with
+the `qualified` label on 89.4% of candidates, against 87.3% for MeritFirst and
+75.7% for LegacyCorp) and has **resilience 100/100**. Yet it scores **66/C** and
+fails the four-fifths rule, with a **worst disparate impact of 0.727** (age band:
+50+ candidates are selected at 73% of the 26–35 rate; gender is 0.78). Its
+coefficients are pinned in `chaoshire/artifacts/trained_model.json` with a
+SHA-256 digest; `python -m chaoshire train --check` re-derives them and fails CI
+if they drift (agreement floor 0.90).
+
+### Why the trained model scores below MeritFirst
+
+"Trained" does not mean "fairer". The logistic regression is fitted to agree with
+the `qualified` label, and nothing in its objective mentions fairness. On this
+fixture, predicting the label well and scoring well on group fairness pull in
+different directions:
+
+1. **The label itself is uneven across groups.** `qualified` is the top 40% of a
+   merit formula built only from skills, experience, education and
+   certifications. Those are drawn independently of identity, but with 1,000
+   candidates the groups end up with different qualified rates by sampling
+   chance: 45% of women, 37% of men and 30% of the 57 non-binary candidates. A
+   **perfect predictor** that accepts exactly the qualified candidates scores
+   **68/C**, with worst disparate impact **0.663**. The more closely a model
+   copies the label, the more of that gap it inherits.
+2. **The score mostly rewards equal selection rates.** Sixty of the 85 points
+   (disparate impact plus the parity gap) compare selection rates only. When
+   base rates differ, a model cannot be both perfectly accurate and give every
+   group the same selection rate.
+3. **How many candidates a model selects moves the score.** There are 400
+   qualified candidates. MeritFirst accepts 459 and TalentFit 376, and accepting
+   more narrows the ratios between groups. With both held to the same number the
+   gap mostly closes: MeritFirst at 376 accepted scores 75, TalentFit at 459
+   scores 73.
+
+The retained "neutral" features do **not** explain the result. College prestige
+and career gap get near-zero weights (+0.012 and +0.030; the positive gap weight
+is a chance correlation, not a signal) because the label never uses them.
+Zeroing them changes 23 of 1,000 decisions, and **retraining without them makes
+the audit worse (58/D)**. The resilience is also structural: a model with no
+protected inputs cannot flip on a protected-attribute swap. That is why
+measuring both matters. A model can pass every perturbation ChaosHire generates
+and still select one group at 73% of another's rate.
+
+All of this is computed at runtime by `chaoshire.training.disparity_diagnostics()`,
+served in step 7 of the guided demo (`/api/demo`), and pinned by
+`tests/core/test_trained_model.py`. See
+[METHODOLOGY.md](docs/engineering/METHODOLOGY.md#why-a-more-accurate-model-can-score-lower).
 
 These are reproducible **synthetic demonstration results**, not findings about a real employer. The model names are fictional.
 
@@ -236,7 +283,7 @@ commands are in the [documentation index](docs/README.md). GitHub Actions runs
 linting, type checking, the trained-model drift check and the default test suite
 on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
 quality gate requires at least 90% package coverage; the **current source
-baseline**, measured locally, contains **281 tests with 94.8% package coverage**
+baseline**, measured locally, contains **289 tests with 94.9% package coverage**
 (the configured source set excludes the synthetic fixture module
 `chaoshire/data.py`). The tagged release and live site may lag this revision.
 
@@ -318,7 +365,7 @@ The original schema remains backward-compatible. Download a compatible synthetic
 3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
 4. Apply both mitigations and compare **32/F with 80/B**. Note the panel explaining why per-group threshold "calibration" is *not* one of them, with the statute cited.
 5. Switch to **MeritFirst v2** (**84/B**, resilience 100/100) to show a cleaner synthetic fixture under the same tests; these results are not a certification.
-6. Switch to **TalentFit v3** (**66/C**, resilience 100/100, disparate impact 0.78): it passes every counterfactual ChaosHire can throw at it and still fails the four-fifths rule. This is the step that shows why resilience alone is not a fairness result.
+6. Switch to **TalentFit v3** (**66/C**, resilience 100/100, worst disparate impact 0.727 on age band). It is the most accurate model of the three and still fails the four-fifths rule, because it learned group gaps already present in its training label, and a perfect copy of that label scores 68/C. Its passes are labelled *by construction*: with no protected inputs it cannot flip on a swap. This step shows why neither accuracy nor resilience is a fairness result.
 7. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
 
 ## Methodology and limitations

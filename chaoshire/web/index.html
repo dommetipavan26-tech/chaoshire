@@ -231,8 +231,8 @@ const HOME_MODELS={
     finding:'Marked female, LegacyCorp scores her 0.485 and rejects her. The same résumé marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.'},
   fair:{name:'MeritFirst',score:'84 / B',grade:'B',role:'Skills-only reference',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
     finding:'The same résumé does not flip under MeritFirst. Gender flips: 0. Community flips: 0. Resilience 100. Fairness risk score 84 / B. Skills-only scoring removes this particular failure. It is a reference, not a claim that hiring is solved.'},
-  trained:{name:'TalentFit',score:'66 / C',grade:'C',role:'Trained, proxies kept',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
-    finding:'TalentFit keeps her decision when gender is swapped. Gender flips: 0. Resilience 100. It still fails the four-fifths rule: disparate impact 0.78. Score 66 / C. Withholding the gender column did not make the decisions blind.'}
+  trained:{name:'TalentFit',score:'66 / C',grade:'C',role:'Trained on the label',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
+    finding:'TalentFit keeps her decision when gender is swapped. It has no gender input, so it cannot flip: resilience 100 holds by construction. It still fails the four-fifths rule, with worst disparate impact 0.73 (age band). Score 66 / C. It is the most accurate model here. It learned group gaps that are already in its training label.'}
 };
 function renderHomeModel(){
   const d=HOME_MODELS[MODEL], risky=MODEL==='legacy';
@@ -333,14 +333,15 @@ $('#tab-chaos').addEventListener('click',async e=>{
   const rcol=r.resilience>=80?'var(--green)':r.resilience>=50?'var(--amber)':'var(--rose)';
   let html=`<div class="card" data-style="background:var(--card2)"><div class="grow"><span class="lbl lbl-auto-nw">Chaos Resilience Score</span>
     <div class="bar"><i data-style="width:${r.resilience}%;background:${rcol}"></i></div><b data-style="color:${rcol}">${r.resilience}/100</b></div>
-    <div class="dim">Model under test: ${esc(r.model.title)}</div></div><div class="grid g2 row-mt-lg">`;
+    <div class="dim">Model under test: ${esc(r.model.title)}</div>${r.resilience_scope?`<div class="dim scope-note"><b>What this score can show:</b> ${esc(r.resilience_scope)}</div>`:''}</div><div class="grid g2 row-mt-lg">`;
   for(const t of r.tests){
     html+=`<div class="card"><div class="flex-row-between">
-      <h3>${esc(t.name)}</h3><div>${vChip(t.verdict)}${t.fixture_limit?'<span class="chip warn chip-fl">fixture-limited</span>':''}</div></div>
+      <h3>${esc(t.name)}</h3><div>${vChip(t.verdict)}${t.fixture_limit?'<span class="chip warn chip-fl">fixture-limited</span>':''}${t.by_construction?'<span class="chip warn chip-fl">by construction</span>':''}</div></div>
       <p class="dim fs-body grow-mt">${esc(t.story)}</p>
       <div><span class="dim">${esc(t.metric)}:</span> <b>${esc(t.value)}</b></div>
       <div class="dim fs-xs row-mt">${esc(t.detail)}</div>
       ${t.fixture_limit?`<div class="dim scope-note"><b>Scope note:</b> ${esc(t.fixture_limit)}</div>`:''}
+      ${t.by_construction?`<div class="dim scope-note"><b>Scope note:</b> ${esc(t.by_construction)}</div>`:''}
       ${t.evidence_count?`<details class="details-evidence"><summary class="details-evidence-summary">View ${Math.min(t.evidence.length,t.evidence_count)} of ${t.evidence_count} affected candidates</summary><div class="details-evidence-inner"><table><tr><th>ID</th><th>Before</th><th>After</th><th>Δ score</th></tr>${t.evidence.map(x=>`<tr><td>${esc(x.candidate_id)}</td><td>${x.before_score??'n/a'} ${x.before_decision||''}</td><td>${x.after_score??x.score??'n/a'} ${x.after_decision||x.decision||''}</td><td>${x.score_delta??'n/a'}</td></tr>`).join('')}</table></div></details>`:''}</div>`;
   }
   $('#chaosout').innerHTML=html+'</div>';

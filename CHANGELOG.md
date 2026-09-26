@@ -6,6 +6,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **TalentFit v3's result is now explained by what was measured.** The blurb,
+  landing page, guided demo, README, case study and `training.py` said v3 fails
+  the four-fifths rule because it kept proxy features ("blind training did not
+  make blind decisions"). The measurements contradict that. Prestige and career
+  gap get near-zero weights (+0.012, +0.030), zeroing them changes 23 of 1,000
+  decisions, and **retraining without them scores 58/D**, worse than the shipped
+  66/C. The actual cause is the training label. v3 is the most accurate model
+  (89.4% agreement with `qualified`, vs 87.3% for MeritFirst), and the label's
+  qualified rate differs between groups by sampling chance, so accepting exactly
+  the qualified candidates already scores **68/C** (worst disparate impact
+  0.663). MeritFirst also accepts more candidates (459 vs 376), which narrows
+  selection-rate ratios. `METHODOLOGY.md` has a new section, "Why a more
+  accurate model can score lower".
+- **The quoted disparate impact is the one the score uses.** "Disparate impact
+  0.78" was gender only; the fairness risk score uses the worst attribute, age
+  band, at **0.727**. Surfaces now quote 0.727 (or 0.73) and name the attribute.
+  New `metrics.worst_disparate_impact()`. The `train --include-protected`
+  contrast report adds `worst_disparate_impact` and
+  `blind_worst_disparate_impact` (0.678 vs 0.727; blinding still helps).
+
+### Added
+
+- **`by_construction` chaos labels.** A PASS that cannot fail for the model
+  under test (no weight on the swapped signal, or a non-negative gap or 50+
+  weight) carries a scope note, and the suite reports `passes_by_construction`
+  and `resilience_scope`. The Chaos Lab shows a chip and a note. MeritFirst and
+  TalentFit each have four such passes; LegacyCorp has none. No verdict or
+  resilience point changes.
+- `chaoshire.training.disparity_diagnostics()`: runtime, scikit-learn-free
+  evidence (label ceiling, label base rates, proxy contribution), served as
+  guided-demo step 7 evidence.
+
 ### Changed
 
 - The three audit models sit above the navigation on every tab, not inside the

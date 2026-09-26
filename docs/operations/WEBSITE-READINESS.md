@@ -53,7 +53,7 @@ A site still serving an older build is reported as a warning, not a failure. Res
 
 ## Live verification snapshot — 24 September 2026
 
-[Live site checks run #1](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/35996308542) (the push after PR #38) passed **every** check against the hand-deployed Render service, which reported this release's build facts (v0.24.0, 281 tests, 94.8%, stylesheet digest matching that commit):
+[Live site checks run #1](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/35996308542) (the push after PR #38) passed **every** check against the hand-deployed Render service, which reported that release's build facts (v0.24.0, the test count and coverage committed at the time, stylesheet digest matching that commit):
 
 - all 11 routes returned the expected status and content type; privacy, terms and 404 pages carried their titles; robots.txt and sitemap.xml advertised the `https://chaoshire.onrender.com` origin; the social card is a 1200×630 PNG declared as `og:image`;
 - `http://chaoshire.onrender.com/privacy` redirected with 301 to the HTTPS origin, HTTPS `/api/ready` returned 200, HSTS was `max-age=31536000`, and the CSP (no `unsafe-inline`, `frame-ancestors 'none'`), `x-frame-options`, `nosniff` and `no-referrer` headers were all in place;
@@ -64,7 +64,7 @@ A site still serving an older build is reported as a warning, not a failure. Res
 
 The cold-start job did **not** capture a real cold start: the free instance stayed awake through the 17 idle minutes and answered the "cold" `GET /` in 0.33 s (the warm control answered in 0.28 s). Run **Actions → Live site checks → Run workflow** with **measure cold start** after Render logs a spin-down if a boot figure is needed; do not quote the 0.33 s as a cold start.
 
-The three layout fixes in this revision (score-card text column, phone-width Upload cards, narrow grid cards) landed after run #1 and will be covered by the next live run after the following deploy. Against this revision locally the full suite still passes 281 tests / 94.8% coverage, the opt-in browser suite passes five tests — including a new sweep that opens every tab at 1440/1024/390/320px and fails on sideways scrolling or content escaping a card — and 21 local axe audits report no violations (6 pages keep clipped elements that need manual contrast review).
+The three layout fixes in this revision (score-card text column, phone-width Upload cards, narrow grid cards) landed after run #1 and will be covered by the next live run after the following deploy. Against that revision locally the full suite passed at the test count and coverage then committed, the opt-in browser suite passes five tests — including a new sweep that opens every tab at 1440/1024/390/320px and fails on sideways scrolling or content escaping a card — and 21 local axe audits report no violations (6 pages keep clipped elements that need manual contrast review).
 
 ## Owner checks before the live rollout
 

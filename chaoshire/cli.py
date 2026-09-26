@@ -7,7 +7,7 @@ from pathlib import Path
 from .agent import review_audit
 from .chaos import run_chaos_suite
 from .evidence import build_evidence_bundle
-from .metrics import audit
+from .metrics import audit, worst_disparate_impact
 from .models import build_decisions, get_model
 from .pdf_reporting import render_pdf_report
 from .quality import evaluate_fairness_gate
@@ -86,12 +86,16 @@ def run_train_command(
         contrast_coefficients = train_coefficients(include_protected=True)
         result = audit(build_decisions(contrast_coefficients))
         gender = next(a for a in result["attributes"] if a["attribute"] == "gender")
+        blind = audit(build_decisions(load_artifact()["coefficients"]))
         contrast_report = {
             "mode": "with-protected-attributes",
             "pinned": False,
             "coefficients": contrast_coefficients,
             "certificate": result["certificate"],
             "gender_disparate_impact": gender["disparate_impact"],
+            # The score uses the worst attribute, so compare like with like.
+            "worst_disparate_impact": worst_disparate_impact(result),
+            "blind_worst_disparate_impact": worst_disparate_impact(blind),
             "note": (
                 "Experimental contrast fit. Never pinned to the artifact; "
                 "compare against `python -m chaoshire train` for the blind model."

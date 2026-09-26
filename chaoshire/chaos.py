@@ -46,9 +46,14 @@ class ChaosTest:
     #: itself. Shown next to the verdict so a green badge cannot imply more than
     #: the experiment can actually falsify. Empty for tests without such a limit.
     fixture_limit: str = ""
+    #: Model-dependent check: returns a scope note when the model under test
+    #: cannot fail this experiment because it carries no (or only a favourable)
+    #: weight on the perturbed feature. Empty when the test can genuinely fail.
+    construction_check: Callable[[Coefficients], str] | None = None
 
     def execute(self, coefficients: Coefficients, threshold: dict[str, float], limit: int) -> dict:
         observation = self.experiment(coefficients, limit)
+        by_construction = self.construction_check(coefficients) if self.construction_check else ""
         verdict = (
             "PASS"
             if observation.rate <= threshold["warn"]
@@ -66,6 +71,7 @@ class ChaosTest:
             "detail": observation.detail,
             "verdict": verdict,
             "fixture_limit": self.fixture_limit,
+            "by_construction": by_construction if verdict == "PASS" else "",
             "threshold": threshold,
             "evidence": observation.evidence[:limit],
             "evidence_count": len(observation.evidence),
@@ -266,6 +272,42 @@ INJECTION_FIXTURE_LIMIT = (
     "to FAIL (tests/api/test_verification_fixes.py)."
 )
 
+BY_CONSTRUCTION_SCOPE = (
+    "It shows the model does not read this signal directly; it says nothing about "
+    "outcome disparity between groups, which the fairness risk score measures."
+)
+
+
+def _weights(coefficients: Coefficients, features: tuple[str, ...]) -> list[float]:
+    return [float(coefficients.get(feature, 0.0)) for feature in features]
+
+
+def _no_weight_check(features: tuple[str, ...], signal: str) -> Callable[[Coefficients], str]:
+    def check(coefficients: Coefficients) -> str:
+        if any(weight != 0.0 for weight in _weights(coefficients, features)):
+            return ""
+        return (
+            f"PASS by construction: this model assigns no weight to {signal}, so the "
+            f"swap cannot change any score. {BY_CONSTRUCTION_SCOPE}"
+        )
+
+    return check
+
+
+def _non_negative_check(feature: str, signal: str) -> Callable[[Coefficients], str]:
+    def check(coefficients: Coefficients) -> str:
+        weight = float(coefficients.get(feature, 0.0))
+        if weight < 0.0:
+            return ""
+        applied = "no weight" if weight == 0.0 else f"a non-negative weight ({weight:+.4f})"
+        return (
+            f"PASS by construction: this model gives {signal} {applied}, so the "
+            f"perturbation cannot lower any score. {BY_CONSTRUCTION_SCOPE}"
+        )
+
+    return check
+
+
 CHAOS_TESTS = [
     ChaosTest(
         "gender_swap",
@@ -277,6 +319,7 @@ CHAOS_TESTS = [
         ),
         "Decisions flipped",
         gender_swap_experiment,
+        construction_check=_no_weight_check(("gender_M", "gender_NB"), "gender markers"),
     ),
     ChaosTest(
         "ethnicity_swap",
@@ -288,6 +331,7 @@ CHAOS_TESTS = [
         ),
         "Decisions flipped",
         community_swap_experiment,
+        construction_check=_no_weight_check(("eth_G2", "eth_G3"), "community signals"),
     ),
     ChaosTest(
         "adversarial",
@@ -311,6 +355,7 @@ CHAOS_TESTS = [
         ),
         "Qualified hires newly rejected",
         gap_stress_experiment,
+        construction_check=_non_negative_check("gap", "a career gap"),
     ),
     ChaosTest(
         "age_stress",
@@ -322,6 +367,9 @@ CHAOS_TESTS = [
         ),
         "Hires newly rejected",
         age_stress_experiment,
+        # Candidates move from 18-25/26-35 (no age feature) into 50+, so only
+        # the 50+ weight can change their score.
+        construction_check=_non_negative_check("age_50+", "the 50+ age band"),
     ),
 ]
 
@@ -349,6 +397,18 @@ def run_chaos_suite(
     ]
     score_map = {"PASS": 1.0, "WARN": 0.5, "FAIL": 0.0}
     resilience = int(round(100 * np.mean([score_map[test["verdict"]] for test in tests])))
+    structural = sum(1 for test in tests if test["by_construction"])
+    limited = sum(1 for test in tests if test["fixture_limit"] and test["verdict"] == "PASS")
+    resilience_scope = (
+        f"{structural} of {len(tests)} PASS verdicts hold by construction: this model "
+        "carries no penalising weight on those perturbed signals, so those experiments "
+        "cannot fail"
+        + (f" ({limited} more is fixture-limited)" if limited else "")
+        + ". Resilience here shows what the model does not read directly; it is not "
+        "evidence of equal outcomes — check the fairness risk score."
+        if structural
+        else ""
+    )
     fingerprint = json.dumps(
         {
             "model": model,
@@ -362,6 +422,8 @@ def run_chaos_suite(
         "experiment_id": experiment_id,
         "tests": tests,
         "resilience": resilience,
+        "passes_by_construction": structural,
+        "resilience_scope": resilience_scope,
         "model": MODEL_META[model],
         "configuration": {"thresholds": configured, "evidence_limit": evidence_limit},
     }

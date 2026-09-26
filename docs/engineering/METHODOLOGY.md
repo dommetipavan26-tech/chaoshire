@@ -170,3 +170,54 @@ establish legal compliance and does not by itself prove or disprove
 discrimination. Per-group threshold calibration is deliberately **not** part of
 it and not available as a mitigation; see `SECURITY.md` and
 [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2).
+
+## Why a more accurate model can score lower
+
+The fairness risk score and model accuracy measure different things, and a
+fitted model optimises only the second. The bundled fixtures show this
+directly. Every figure below is computed at runtime by
+`chaoshire.training.disparity_diagnostics()` and pinned in
+`tests/core/test_trained_model.py`.
+
+| Decisions | Agreement with `qualified` | Accepted | Worst disparate impact | Score |
+|---|---:|---:|---:|---:|
+| MeritFirst v2 (hand-written) | 87.3% | 459 | 0.873 (age band) | 84/B |
+| TalentFit v3 (fitted to the label) | 89.4% | 376 | 0.727 (age band) | 66/C |
+| Perfect predictor (accept exactly the qualified) | 100% | 400 | 0.663 (gender) | 68/C |
+
+**Base rates.** Disparate impact and the parity gap compare selection rates
+only. When the ground-truth label's positive rate differs between groups, an
+accurate model must select those groups at different rates. It then loses
+disparate-impact and parity points even though its equal-opportunity gap can be
+small. This is the standard incompatibility between demographic parity and
+accuracy under unequal base rates; it is not a defect in the model. On this
+fixture the base-rate differences are sampling noise: the merit formula never
+reads identity, but 1,000 draws give 45% of women, 37% of men and 30% of 57
+non-binary candidates a qualified label.
+
+**Selection volume.** Ratios of selection rates narrow as more candidates are
+accepted. MeritFirst accepts 459 candidates and TalentFit 376, against 400
+qualified. Holding both to the same volume removes most of the gap (MeritFirst at
+376 accepted: 75; TalentFit at 459: 73). Compare models at matched acceptance
+rates before reading a score difference as a difference in fairness.
+
+**Proxies.** TalentFit is offered college prestige and career gap as candidate
+proxies. The label never uses them, so they receive near-zero weight (+0.012 and
++0.030). Zeroing them changes 23 decisions, and refitting without them lowers
+the score to 58/D. The four-fifths failure is inherited from the label, not
+leaked through proxies. On real data, where proxies can carry signal, this has
+to be measured, not assumed; the same diagnostics apply.
+
+**Resilience.** A counterfactual swap can only flip a decision if the model
+reads the swapped signal. MeritFirst and TalentFit carry no weight on gender,
+community or age, and no penalty for a career gap, so four of their five chaos
+experiments pass **by construction**. The `/api/chaos` payload labels them
+(`by_construction`, `passes_by_construction`, `resilience_scope`). A 100/100
+resilience score shows what a model does not read directly. It is not evidence
+of equal outcomes.
+
+Training for accuracy therefore gives no reason to expect a better fairness
+score. If the release policy requires one, it has to be an explicit objective or
+constraint, and the label has to be audited first, because a model cannot be
+fairer than the target it is trained to reproduce without trading away
+agreement with that target.

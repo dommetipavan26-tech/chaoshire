@@ -8,8 +8,18 @@ Design rules that keep the platform honest and reproducible:
 
 * Protected attributes (gender, ethnicity, age band) are **excluded** from the
   training features. Two real-world "neutral" résumé signals — college
-  prestige and career gap — are kept, so the model demonstrates proxy leakage
-  instead of pretending feature selection alone removes bias.
+  prestige and career gap — are offered to the fit as candidate proxies. On
+  this fixture they carry almost no signal: the ``qualified`` label is generated
+  from skills, experience, education and certifications only, so the fit gives
+  them near-zero weight and they do **not** explain the model's group
+  disparity. Retraining without them makes the audit slightly *worse*
+  (``tests/core/test_trained_model.py`` pins this).
+* The trained model's disparity comes from the label it learns. By sampling
+  chance the fixture's ``qualified`` rate differs between groups (e.g. 45% of
+  women vs 30% of non-binary candidates), so a model that predicts the label
+  well reproduces those gaps. Accepting exactly the qualified candidates — a
+  perfect predictor — itself fails the four-fifths rule.
+  :func:`disparity_diagnostics` reports this at runtime without scikit-learn.
 * Training is a **build-time tool**. The fitted coefficients are affinely
   calibrated onto the platform's [0, 1] score convention (the logistic 0.5
   probability boundary lands exactly on ``DECISION_THRESHOLD``) and pinned to
@@ -189,3 +199,97 @@ def decision_agreement(
     if not len(first):
         return 1.0
     return float(np.mean(first == second))
+
+
+def _accuracy(decisions: pd.DataFrame) -> float:
+    return float(np.mean(decisions["accepted"].to_numpy() == decisions[LABEL_COLUMN].astype(int)))
+
+
+def disparity_diagnostics(
+    coefficients: Coefficients | None = None, data: pd.DataFrame | None = None
+) -> dict[str, Any]:
+    """Explain where the trained model's group disparity comes from.
+
+    Runtime-safe (no scikit-learn). It answers the question a reader naturally
+    asks — *"the trained model should be the best one, so why does it score
+    below the hand-written merit model?"* — with three measurements:
+
+    * ``label_ceiling``: the audit of a perfect predictor that accepts exactly
+      the candidates labelled qualified. If that already fails the four-fifths
+      rule, any model that learns the label well inherits the gap.
+    * ``label_base_rates``: the qualified rate per protected group, i.e. the
+      gap the model is being trained to reproduce.
+    * ``proxy_contribution``: the proxy weights and how many decisions change
+      when they are zeroed, bounding what proxy leakage could explain.
+
+    A fitted model optimises agreement with its label, not a fairness metric, so
+    "more accurate" and "fairer" are different claims and can move in opposite
+    directions when the label's base rates differ between groups.
+    """
+    from .metrics import audit, worst_disparate_impact
+    from .models import build_decisions
+
+    frame = DEMO_DATA if data is None else data
+    fitted = trained_coefficients() if coefficients is None else dict(coefficients)
+
+    model_decisions = build_decisions(fitted, data=frame)
+    model_audit = audit(model_decisions)
+
+    oracle = frame.copy()
+    oracle["accepted"] = oracle[LABEL_COLUMN].astype(int)
+    oracle_audit = audit(oracle)
+
+    without_proxies = dict(fitted)
+    for feature in PROXY_FEATURES:
+        without_proxies[feature] = 0.0
+    no_proxy_decisions = build_decisions(without_proxies, data=frame)
+    no_proxy_audit = audit(no_proxy_decisions)
+    changed = int((no_proxy_decisions["accepted"] != model_decisions["accepted"]).sum())
+
+    base_rates = {
+        attribute: {
+            str(group): round(float(rate), 4)
+            for group, rate in frame.groupby(attribute)[LABEL_COLUMN].mean().items()
+        }
+        for attribute in model_audit["configuration"]["protected_attributes"]
+    }
+
+    def summary(result: dict[str, Any], decisions: pd.DataFrame) -> dict[str, Any]:
+        return {
+            "total": result["certificate"]["total"],
+            "grade": result["certificate"]["grade"],
+            "worst_disparate_impact": worst_disparate_impact(result),
+            "accuracy": round(_accuracy(decisions), 4),
+            "selected": int(decisions["accepted"].sum()),
+        }
+
+    model_summary = summary(model_audit, model_decisions)
+    ceiling = summary(oracle_audit, oracle)
+    ceiling_fails = ceiling["worst_disparate_impact"]["di_pass"] is False
+    return {
+        "model": model_summary,
+        "label_ceiling": {
+            "decisions": "accept exactly the candidates labelled qualified (a perfect predictor)",
+            **ceiling,
+        },
+        "label_base_rates": base_rates,
+        "qualified": int(frame[LABEL_COLUMN].sum()),
+        "proxy_contribution": {
+            "weights": {feature: float(fitted.get(feature, 0.0)) for feature in PROXY_FEATURES},
+            "decisions_changed_when_zeroed": changed,
+            "without_proxies": summary(no_proxy_audit, no_proxy_decisions),
+        },
+        "finding": (
+            (
+                "The qualified label itself fails the four-fifths rule "
+                f"(perfect predictor: {ceiling['total']}/{ceiling['grade']}, worst "
+                f"disparate impact {ceiling['worst_disparate_impact']['disparate_impact']} "
+                f"on {ceiling['worst_disparate_impact']['attribute']}). "
+                if ceiling_fails
+                else "The qualified label passes the four-fifths rule. "
+            )
+            + "A model fitted to that label tends to reproduce its group gaps the "
+            "more closely it predicts it; the proxy features change "
+            f"{changed} of {len(frame)} decisions and do not account for the gap."
+        ),
+    }

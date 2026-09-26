@@ -10,7 +10,7 @@ from typing import Any
 
 from .agent import review_audit
 from .chaos import run_chaos_suite
-from .metrics import audit
+from .metrics import audit, worst_disparate_impact
 from .models import FAIR, LEGACY, build_decisions, get_model
 from .quality import compare_models, evaluate_fairness_gate
 from .services import (
@@ -19,6 +19,7 @@ from .services import (
     filtered_candidates,
     mitigate,
 )
+from .training import disparity_diagnostics
 
 
 @lru_cache(maxsize=1)
@@ -39,7 +40,9 @@ def guided_demo() -> dict[str, Any]:
     refused = mitigate([], threshold_contrast_acknowledged=False)
     trained_audit = audit(build_decisions(get_model("trained")))
     trained_chaos = run_chaos_suite("trained", evidence_limit=0)
-    trained_gender = next(a for a in trained_audit["attributes"] if a["attribute"] == "gender")
+    trained_worst = worst_disparate_impact(trained_audit)
+    trained_diagnostics = disparity_diagnostics()
+    ceiling = trained_diagnostics["label_ceiling"]
     return {
         "title": "From hidden hiring bias to a release decision",
         "duration_minutes": 3,
@@ -114,19 +117,26 @@ def guided_demo() -> dict[str, Any]:
                 "id": 7,
                 "title": "Audit the model we trained ourselves",
                 "message": (
-                    f"TalentFit v3 — a logistic regression fitted to this fixture with "
-                    f"protected attributes withheld — scores "
+                    f"TalentFit v3 — a logistic regression fitted to this fixture's "
+                    f"qualified label with protected attributes withheld — is the most "
+                    f"accurate model here ({trained_diagnostics['model']['accuracy']:.1%} "
+                    f"agreement with the label) and has resilience "
+                    f"{trained_chaos['resilience']}/100, yet scores "
                     f"{trained_audit['certificate']['total']}"
-                    f"/{trained_audit['certificate']['grade']} with resilience "
-                    f"{trained_chaos['resilience']}/100, yet its gender disparate impact is "
-                    f"{trained_gender['disparate_impact']}, below the four-fifths rule: blind "
-                    "training does not guarantee blind decisions. Perfect counterfactual "
-                    "resilience and a failing disparate impact at the same time."
+                    f"/{trained_audit['certificate']['grade']}: its worst disparate impact is "
+                    f"{trained_worst['disparate_impact']} on {trained_worst['attribute']}. "
+                    f"Training optimises agreement with the label, not fairness, and the "
+                    f"label itself is uneven across groups — accepting exactly the "
+                    f"qualified candidates scores {ceiling['total']}/{ceiling['grade']}. "
+                    f"The resilience is by construction: a model with no protected inputs "
+                    f"cannot flip on a swap, so it is not evidence of equal outcomes."
                 ),
                 "evidence": {
                     "certificate": trained_audit["certificate"],
                     "attributes": trained_audit["attributes"],
                     "chaos_resilience": trained_chaos["resilience"],
+                    "resilience_scope": trained_chaos["resilience_scope"],
+                    "diagnostics": trained_diagnostics,
                 },
             },
             {

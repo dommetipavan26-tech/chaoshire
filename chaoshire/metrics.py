@@ -380,3 +380,22 @@ def audit(
         },
         "certificate": certificate(results, assessable, reasons),
     }
+
+
+def worst_disparate_impact(result: dict[str, Any]) -> dict[str, Any]:
+    """Return the lowest per-attribute disparate impact in an audit result.
+
+    This is the figure the fairness risk score actually uses (``certificate``
+    takes ``min`` over every primary attribute). Quoting a single attribute
+    instead — e.g. gender only — can overstate how close a model is to the
+    four-fifths threshold when another attribute is worse.
+    """
+    attributes = result.get("attributes") or []
+    if not attributes:
+        return {"attribute": None, "disparate_impact": None, "di_pass": None}
+    worst = min(attributes, key=lambda item: item["disparate_impact"])
+    return {
+        "attribute": worst["attribute"],
+        "disparate_impact": worst["disparate_impact"],
+        "di_pass": worst["di_pass"],
+    }

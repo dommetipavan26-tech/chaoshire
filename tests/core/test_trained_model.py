@@ -6,14 +6,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from chaoshire.app import app
-from chaoshire.models import FEATURE_LABELS, build_decisions, get_model
+from chaoshire.metrics import audit, worst_disparate_impact
+from chaoshire.models import FAIR, FEATURE_LABELS, build_decisions, get_model
 from chaoshire.training import (
     AGREEMENT_FLOOR,
     ARTIFACT_PATH,
+    MERIT_FEATURES,
     PROTECTED_FEATURES,
     TRAIN_FEATURES,
     coefficient_digest,
     decision_agreement,
+    disparity_diagnostics,
     load_artifact,
     train_coefficients,
 )
@@ -85,6 +88,11 @@ def test_trained_model_keeps_its_published_numbers():
     assert (result["certificate"]["total"], result["certificate"]["grade"]) == (66, "C")
     gender = next(a for a in result["attributes"] if a["attribute"] == "gender")
     assert gender["disparate_impact"] == pytest.approx(0.7798, abs=1e-4)
+    # The score uses the *worst* attribute, which is age band, not gender.
+    worst = worst_disparate_impact(result)
+    assert worst["attribute"] == "age_band"
+    assert worst["disparate_impact"] == pytest.approx(0.727, abs=1e-4)
+    assert worst["di_pass"] is False
 
 
 def test_retraining_stays_close_to_the_pinned_artifact():
@@ -219,9 +227,14 @@ def test_cli_include_protected_reports_but_refuses_to_pin(capsys, tmp_path, monk
     assert any(report["coefficients"][feature] != 0.0 for feature in PROTECTED_FEATURES)
     assert report["certificate"]["total"] >= 0
     # The contrast is the point: a fit allowed to see gender, ethnicity and age
-    # scores *worse* on disparate impact than the blind fit's 0.78, which is the
-    # argument for blinding rather than an excuse to skip it.
-    assert 0 < report["gender_disparate_impact"] < 0.78
+    # scores *worse* on disparate impact than the blind fit, which is the
+    # argument for blinding rather than an excuse to skip it. Compare worst
+    # attribute with worst attribute (the figure the score uses): 0.678 on
+    # gender for the contrast fit vs 0.727 on age band for the blind fit.
+    blind_worst = report["blind_worst_disparate_impact"]["disparate_impact"]
+    assert blind_worst == pytest.approx(0.727, abs=1e-4)
+    assert 0 < report["worst_disparate_impact"]["disparate_impact"] < blind_worst
+    assert 0 < report["gender_disparate_impact"] < 0.7798
 
     # Without --out the report lands at the documented default, created if needed.
     default_target = tmp_path / "generated" / "protected-contrast.json"
@@ -234,3 +247,83 @@ def test_cli_include_protected_reports_but_refuses_to_pin(capsys, tmp_path, monk
     assert main(["train", "--include-protected", "--write"]) == 2
     assert "Refusing" in capsys.readouterr().out
     assert not (tmp_path / "never.json").exists()
+
+
+# --- Why the trained model scores below MeritFirst -------------------------
+#
+# A trained model is fitted to agree with its label, not to maximise a fairness
+# score. These tests pin the evidence for the explanation the README and model
+# blurb give, so the published narrative cannot drift from the measurements.
+
+
+def _accuracy(coefficients):
+    decisions = build_decisions(coefficients)
+    return float((decisions["accepted"] == decisions["qualified"].astype(int)).mean())
+
+
+def test_trained_model_is_the_most_accurate_yet_scores_below_meritfirst():
+    trained, fair, legacy = get_model("trained"), FAIR, get_model("legacy")
+    assert _accuracy(trained) == pytest.approx(0.894, abs=1e-3)
+    assert _accuracy(fair) == pytest.approx(0.873, abs=1e-3)
+    assert _accuracy(trained) > _accuracy(fair) > _accuracy(legacy)
+    trained_total = audit(build_decisions(trained))["certificate"]["total"]
+    fair_total = audit(build_decisions(fair))["certificate"]["total"]
+    assert trained_total < fair_total
+
+
+def test_the_label_itself_fails_the_four_fifths_rule():
+    """A perfect predictor of `qualified` is not a fair model on this fixture."""
+    diagnostics = disparity_diagnostics()
+    ceiling = diagnostics["label_ceiling"]
+    assert ceiling["accuracy"] == 1.0
+    assert (ceiling["total"], ceiling["grade"]) == (68, "C")
+    assert ceiling["worst_disparate_impact"]["di_pass"] is False
+    assert ceiling["worst_disparate_impact"]["disparate_impact"] == pytest.approx(0.6627, abs=1e-4)
+    # The label's gender base rates differ by sampling chance alone.
+    rates = diagnostics["label_base_rates"]["gender"]
+    assert rates["F"] > rates["M"] > rates["NB"]
+    assert rates["NB"] / rates["F"] < 0.8
+    assert "label itself fails the four-fifths rule" in diagnostics["finding"]
+
+
+def test_proxy_features_barely_move_the_trained_model():
+    diagnostics = disparity_diagnostics()
+    proxies = diagnostics["proxy_contribution"]
+    assert abs(proxies["weights"]["prestige"]) < 0.02
+    assert abs(proxies["weights"]["gap"]) < 0.05
+    # Positive, not a penalty: a chance correlation in this sample.
+    assert proxies["weights"]["gap"] > 0
+    assert proxies["decisions_changed_when_zeroed"] == 23
+    # Zeroing them does not bring the model to the four-fifths threshold.
+    assert proxies["without_proxies"]["worst_disparate_impact"]["di_pass"] is False
+    assert proxies["without_proxies"]["total"] <= diagnostics["model"]["total"]
+
+
+def test_retraining_without_proxies_does_not_repair_the_disparity(monkeypatch):
+    """Refutes the old claim that retained proxies caused the four-fifths failure."""
+    pytest.importorskip("sklearn")
+    import chaoshire.training as training
+
+    monkeypatch.setattr(training, "TRAIN_FEATURES", MERIT_FEATURES)
+    merit_only = train_coefficients()
+    assert "prestige" not in merit_only and "gap" not in merit_only
+    shipped = audit(build_decisions(get_model("trained")))
+    retrained = audit(build_decisions(merit_only))
+    assert retrained["certificate"]["total"] <= shipped["certificate"]["total"]
+    assert worst_disparate_impact(retrained)["di_pass"] is False
+    assert (
+        worst_disparate_impact(retrained)["disparate_impact"]
+        <= worst_disparate_impact(shipped)["disparate_impact"]
+    )
+
+
+def test_label_is_generated_without_proxies_or_protected_attributes():
+    """The fixture's merit formula never reads prestige, gap or identity."""
+    import inspect
+
+    from chaoshire import data
+
+    source = inspect.getsource(data.generate_demo_data)
+    merit_block = source[source.index("merit = (") : source.index("qualified =")]
+    for column in ("prestige", "career_gap", "genders", "communities", "ages"):
+        assert column not in merit_block, column

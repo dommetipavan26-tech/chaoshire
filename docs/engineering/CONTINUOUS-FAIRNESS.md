@@ -41,6 +41,21 @@ resilience point. Re-tuning the shipped fixture would change the
 published resilience constants, so it is tracked as an owner decision rather
 than a silent change.
 
+## Passes that hold by construction
+
+Some PASS verdicts cannot fail for a given model. A gender or community swap
+cannot flip a model that assigns no weight to those signals. Adding a career gap
+cannot reject anyone under a model whose gap weight is zero or positive. Moving a
+candidate into the 50+ band cannot hurt a model with no age penalty. Each chaos
+result therefore carries a model-dependent `by_construction` note (empty when the
+test can genuinely fail), and the suite reports `passes_by_construction` and a
+`resilience_scope` sentence. The Chaos Lab shows a **by construction** chip and
+scope note next to the badge. On the shipped fixtures, MeritFirst and TalentFit
+each have four such passes and LegacyCorp has none. Like the fixture-limited
+label, this changes no verdict and no resilience point. It stops a 100/100 score
+from being read as evidence of equal outcomes, which the fairness risk score
+measures separately (TalentFit: 100/100 resilience, 66/C).
+
 ## Candidate-level evidence
 
 Counterfactual and stress tests return the affected synthetic candidate IDs with before/after scores, decisions, and score deltas. API callers can cap evidence from 0–50 records. The public GET endpoint defaults to 10.
