@@ -400,6 +400,10 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass);box-shadow:0 0
 .mbtn>*{position:relative;z-index:1}
 .btn:active,.mbtn:active,nav button:active{transform:scale(.97) translateY(1px);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:inset 0 1px rgba(255,255,255,.28),0 2px 7px #0004}
 .mbtn.on::after,nav button.on::after,.btn:active::after,.mbtn:active::after,nav button:active::after,.btn:focus-visible::after,.mbtn:focus-visible::after,nav button:focus-visible::after{opacity:1}
+@media(max-width:600px){
+  /* Give the mobile hero back the vertical space used by the rounded nav pills. */
+  nav{padding-top:0;padding-bottom:0}
+}
 @media(max-width:760px){
   .proof{gap:0}
   .proof .card{border-radius:0}
