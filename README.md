@@ -118,10 +118,16 @@ audits the unchanged coefficients on each:
 
 | On 49 unseen populations (mean) | MeritFirst v2 | Original v3 | **Upgraded v3** |
 |---|---:|---:|---:|
-| Fairness risk score | 72.1 | 66.2 | **74.1** |
+| Fairness risk score | 74.4 | 69.5 | **76.0** |
 | Qualified candidates wrongly rejected | 23.9 | 53.4 | **18.1** |
 | Recall on qualified candidates | 94.0% | 86.7% | **95.5%** |
 | Accuracy | 85.7% | **88.6%** | 85.0% |
+
+All three means were re-derived after the equal-opportunity gap started
+excluding groups with too few *qualified* people to estimate a true-positive
+rate from; each model moved up by about two points and the ranking is unchanged
+(see [METHODOLOGY.md](docs/engineering/METHODOLOGY.md#minimum-group-size)).
+Fixture scores, accuracy, recall and the rejection counts above are unaffected.
 
 **The trade-offs, stated plainly.** The upgrade buys fairness and recall with
 precision. It advances more candidates to interview (482 vs 459 for
@@ -155,8 +161,8 @@ These are reproducible **synthetic demonstration results**, not findings about a
 | Disparate impact (four-fifths rule) | 40 |
 | Demographic parity gap | 20 |
 | Equal opportunity gap | 25 |
-| **Available with ground-truth qualification labels** | **85** |
-| **Available without them** (equal opportunity is not measurable) | **60** |
+| **Available when the equal-opportunity gap is measurable** | **85** |
+| **Available when it is not** — no qualification labels, or no two groups hold enough qualified people | **60** |
 
 Two properties follow, and both are stated in every `certificate` payload rather
 than left for a reader to infer:
@@ -184,7 +190,7 @@ than left for a reader to infer:
 - 95% Wilson confidence intervals for selection and true-positive rates
 - Exploratory highest-vs-lowest two-proportion significance tests
 - Pairwise intersectional audits such as gender × age band
-- Minimum-cell-size warnings for unreliable group comparisons
+- Minimum-cell-size warnings for unreliable group comparisons, applied to a group's rows **and** to the qualified people behind its true-positive rate
 - Strict reference-model and dataset validation: unknown identifiers return HTTP 400, never a substituted audit
 - Explicit "not assessable" verdicts when decisions show no variation or groups are too small to compare
 - Reusable counterfactual and stress-test framework with configurable thresholds
@@ -308,7 +314,7 @@ commands are in the [documentation index](docs/README.md). GitHub Actions runs
 linting, type checking, the trained-model drift check and the default test suite
 on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
 quality gate requires at least 90% package coverage; the **current source
-baseline**, measured locally, contains **300 tests with 95.0% package coverage**
+baseline**, measured locally, contains **312 tests with 95.1% package coverage**
 (the configured source set excludes the synthetic fixture module
 `chaoshire/data.py`). The tagged release and live site may lag this revision.
 

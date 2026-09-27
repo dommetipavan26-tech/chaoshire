@@ -38,10 +38,14 @@ def _report_lines(audit: dict[str, Any], chaos: dict[str, Any] | None) -> list[s
         lines.append("Not assessable: " + " ".join(certificate.get("reasons") or []))
     lines.extend(["", "Primary attributes"])
     for attribute in audit["attributes"]:
+        gap = attribute["eq_opp_gap"]
         lines.append(
             f"- {attribute['attribute']}: DI {attribute['disparate_impact']}; "
-            f"parity gap {attribute['parity_gap']}; equal opportunity {attribute['eq_opp_gap']}"
+            f"parity gap {attribute['parity_gap']}; "
+            f"equal opportunity {gap if gap is not None else 'n/a'}"
         )
+        if attribute.get("eq_opp_note"):
+            lines.append(f"  {attribute['eq_opp_note']}")
     if audit.get("intersections"):
         lines.extend(["", "Intersectional analysis"])
         for attribute in audit["intersections"]:

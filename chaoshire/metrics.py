@@ -55,6 +55,33 @@ def two_proportion_test(
     }
 
 
+def _equal_opportunity_note(
+    counted: list[dict[str, Any]],
+    excluded: list[dict[str, Any]],
+    minimum_group_size: int,
+) -> str | None:
+    """Explain which groups the equal-opportunity gap rests on, and which it drops.
+
+    ``None`` when nothing was excluded: an unqualified silence would otherwise
+    hide the fact that a headline number was computed from a subset.
+    """
+    if not excluded:
+        return None
+    named = ", ".join(
+        f"{group['group']} ({group['qualified_count']} qualified)" for group in excluded
+    )
+    if len(counted) < 2:
+        return (
+            f"No equal-opportunity gap: after excluding {named}, fewer than two groups "
+            f"have at least {minimum_group_size} qualified people, so there is nothing "
+            "reliable to compare."
+        )
+    return (
+        f"Equal-opportunity gap excludes {named}: a true-positive rate estimated from "
+        f"fewer than {minimum_group_size} qualified people is too noisy to compare."
+    )
+
+
 def attribute_metrics(
     data: pd.DataFrame,
     attribute: str,
@@ -76,11 +103,18 @@ def attribute_metrics(
             "tpr": None,
             "tpr_ci": None,
             "fpr": None,
+            # A true-positive rate is a proportion *of the qualified people in the
+            # group*, so group size alone does not bound how noisy it is. Both are
+            # reported, and both are checked before the gap is computed below.
+            "qualified_count": None,
+            "low_qualified_n": None,
         }
         if has_truth:
             qualified = subset["qualified"].astype(bool)
             qualified_count = int(qualified.sum())
             qualified_selected = int(subset.loc[qualified, "accepted"].sum())
+            row["qualified_count"] = qualified_count
+            row["low_qualified_n"] = qualified_count < minimum_group_size
             row["tpr"] = round4(qualified_selected / qualified_count) if qualified_count else None
             row["tpr_ci"] = (
                 wilson_interval(qualified_selected, qualified_count) if qualified_count else None
@@ -97,7 +131,17 @@ def attribute_metrics(
     rates = [group["selection_rate"] for group in reliable_groups]
     highest_rate = max(rates) if rates else 0.0
     disparate_impact = min(rates) / highest_rate if highest_rate > 0 else 1.0
-    true_positive_rates = [group["tpr"] for group in reliable_groups if group["tpr"] is not None]
+    # Equal opportunity compares TPRs, and a TPR's denominator is the group's
+    # qualified count — not its size. A group of 149 people with 19 qualified ones
+    # (the Amer-Indian-Eskimo cell of the UCI Adult audit) clears the group-size
+    # check yet yields a true-positive rate estimated from 19 observations, whose
+    # Wilson 95% interval spans 0.15-0.54 on the naive Adult model. Such cells are
+    # excluded rather than allowed to dominate the gap, and the exclusion is stated
+    # in the payload.
+    with_truth = [group for group in reliable_groups if group["tpr"] is not None]
+    counted_groups = [group for group in with_truth if not group["low_qualified_n"]]
+    excluded_groups = [group for group in with_truth if group["low_qualified_n"]]
+    true_positive_rates = [group["tpr"] for group in counted_groups]
     parity_gap = max(rates) - min(rates) if rates else 0.0
     opportunity_gap = (
         max(true_positive_rates) - min(true_positive_rates)
@@ -129,6 +173,22 @@ def attribute_metrics(
         "disparate_impact": round4(disparate_impact),
         "parity_gap": round4(parity_gap),
         "eq_opp_gap": round4(opportunity_gap) if opportunity_gap is not None else None,
+        "eq_opp_groups": [group["group"] for group in counted_groups],
+        "eq_opp_excluded": [
+            {
+                "group": group["group"],
+                "n": group["n"],
+                "qualified_count": group["qualified_count"],
+                "minimum_group_size": minimum_group_size,
+                "reason": (
+                    f"{group['qualified_count']} qualified people is below the minimum "
+                    f"group size of {minimum_group_size}, so its true-positive rate is "
+                    "too unreliable to compare"
+                ),
+            }
+            for group in excluded_groups
+        ],
+        "eq_opp_note": _equal_opportunity_note(counted_groups, excluded_groups, minimum_group_size),
         "di_pass": bool(disparate_impact >= 0.8),
         "parity_pass": bool(parity_gap <= 0.1),
         "eq_pass": bool(opportunity_gap <= 0.1) if opportunity_gap is not None else None,
@@ -244,6 +304,34 @@ def _grade(total: int) -> str:
     return "F"
 
 
+#: Why equal opportunity can be unmeasurable even when the labels exist. Kept in
+#: one place because it appears in ``unmeasured_components`` and in ``basis_note``.
+NO_TRUTH_CLAUSE = "the dataset has no ground-truth qualification labels"
+THIN_TRUTH_CLAUSE = "no group has enough qualified people for a reliable true-positive rate"
+NO_TRUTH_REASON = "No ground-truth qualification column, so true-positive rates are unknown."
+THIN_TRUTH_REASON = (
+    "Ground-truth qualification labels exist, but no group has at least the minimum "
+    "number of qualified people, so no true-positive rate is reliable enough to compare."
+)
+
+
+def _equal_opportunity_unmeasurable(attribute_results: list[dict[str, Any]]) -> tuple[str, str]:
+    """Return the ``(basis_note clause, unmeasured-component reason)`` pair.
+
+    The two cases must not read alike: missing labels and labels too thin to use
+    are different findings, and a reviewer comparing two selection-rate-only
+    scores needs to know which one applies.
+    """
+    has_truth = any(
+        group.get("tpr") is not None
+        for result in attribute_results
+        for group in result.get("groups") or []
+    )
+    if has_truth:
+        return THIN_TRUTH_CLAUSE, THIN_TRUTH_REASON
+    return NO_TRUTH_CLAUSE, NO_TRUTH_REASON
+
+
 def certificate(
     attribute_results: list[dict[str, Any]],
     assessable: bool = True,
@@ -251,12 +339,14 @@ def certificate(
 ) -> dict[str, Any]:
     """Score group-fairness outcomes on a 0-100 scale over measured components.
 
-    The total is ``measured / available * 100``. ``available`` is 85 when ground
-    truth exists (disparate impact + parity + equal opportunity) and 60 when it
-    does not (disparate impact + parity only), so a score computed without
-    qualification labels rests on strictly less evidence. That is reported
-    explicitly through ``basis`` and ``comparable_with_full_basis`` rather than
-    being hidden behind an identical-looking number.
+    The total is ``measured / available * 100``. ``available`` is 85 when the
+    equal-opportunity gap could be measured (ground truth exists **and** at least
+    two groups have enough qualified people for a reliable true-positive rate) and
+    60 when it could not (disparate impact + parity only), so a score computed
+    without a usable qualification label rests on strictly less evidence. That is
+    reported explicitly through ``basis``, ``basis_note`` and
+    ``unmeasured_components`` rather than being hidden behind an identical-looking
+    number.
     """
     if not assessable or not attribute_results:
         return {
@@ -313,11 +403,12 @@ def certificate(
             "measurable: the dataset carries ground-truth qualification labels."
         )
     else:
+        clause, reason = _equal_opportunity_unmeasurable(attribute_results)
         unmeasured.append(
             {
                 "label": "Equal opportunity gap",
                 "max": OPPORTUNITY_POINTS,
-                "reason": "No ground-truth qualification column, so true-positive rates are unknown.",
+                "reason": reason,
             }
         )
         measured = impact_points + parity_points
@@ -325,7 +416,7 @@ def certificate(
         basis = "selection-rate-only"
         basis_note = (
             "Only selection-rate components were measurable; equal opportunity was "
-            "excluded because the dataset has no ground-truth qualification labels. "
+            f"excluded because {clause}. "
             "This score rests on less evidence than a full-basis score and the two "
             "must not be ranked against each other."
         )

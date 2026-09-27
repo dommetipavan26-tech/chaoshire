@@ -226,13 +226,18 @@ def summarise(name: str, decisions: pd.DataFrame, result: dict[str, Any]) -> dic
                 "four_fifths_pass": item["di_pass"],
                 "parity_gap": item["parity_gap"],
                 "equal_opportunity_gap": item["eq_opp_gap"],
+                "equal_opportunity_note": item["eq_opp_note"],
+                "equal_opportunity_excluded": item["eq_opp_excluded"],
                 "groups": {
                     group["group"]: {
                         "n": group["n"],
                         "selection_rate": group["selection_rate"],
                         "selection_rate_ci": group["selection_rate_ci"],
                         "tpr": group["tpr"],
+                        "tpr_ci": group["tpr_ci"],
+                        "qualified_count": group["qualified_count"],
                         "low_n": group["low_n"],
+                        "low_qualified_n": group["low_qualified_n"],
                     }
                     for group in item["groups"]
                 },
@@ -314,7 +319,13 @@ def print_report(report: dict[str, Any]) -> None:
         for attribute, values in summary["attributes"].items():
             verdict = "PASS" if values["four_fifths_pass"] else "FAIL"
             rates = ", ".join(
-                f"{group} {data['selection_rate']:.1%}" + (" (low n)" if data["low_n"] else "")
+                f"{group} {data['selection_rate']:.1%}"
+                + (" (low n)" if data["low_n"] else "")
+                + (
+                    f" (TPR from {data['qualified_count']} qualified, excluded)"
+                    if data["low_qualified_n"]
+                    else ""
+                )
                 for group, data in values["groups"].items()
             )
             eq_gap = values["equal_opportunity_gap"]
@@ -324,6 +335,8 @@ def print_report(report: dict[str, Any]) -> None:
                 f"eq-opp gap {eq_gap if eq_gap is None else f'{eq_gap:.3f}'}"
             )
             print(f"           selection rates: {rates}")
+            if values.get("equal_opportunity_note"):
+                print(f"           {values['equal_opportunity_note']}")
     print()
     print("Interpretation: screening evidence on a public income benchmark, not a hiring")
     print("model and not a legal finding. See docs/engineering/REAL-DATA-AUDIT.md.")
