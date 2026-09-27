@@ -113,6 +113,12 @@ const gchar={M:'Male',F:'Female',NB:'Non-binary'},geth={G1:'Community A',G2:'Com
 const attrTitle={gender:'Gender',ethnicity:'Ethnicity / Community',age_band:'Age band'};
 const glabel=(a,v)=>a==='gender'?(gchar[v]||v):a==='ethnicity'?(geth[v]||v):v;
 const chipFor=(ok,label)=>ok===null?`<span class="chip warn">${label}: n/a</span>`:`<span class="chip ${ok?'ok':'bad'}">${label}</span>`;
+// A true-positive rate is only as reliable as the qualified people behind it: a
+// group can clear the minimum group size yet hold a handful of qualified people
+// (149 rows but 19 qualified in the UCI Adult race attribute). Those cells are
+// excluded from the equal-opportunity gap, and the exclusion is labelled here
+// instead of being visible only in the JSON.
+const tprNote=g=>g.tpr===null?'':(g.low_qualified_n?`, TPR ${pc(g.tpr)} (from ${g.qualified_count} qualified — excluded from ΔEqOpp)`:', TPR '+pc(g.tpr));
 const gradeColor=g=>({A:'var(--txt)',B:'var(--txt)',C:'var(--amber)',D:'var(--amber)',F:'var(--rose)'}[g]||'var(--txt)');
 const vChip=v=>`<span class="chip ${v==='PASS'?'ok':v==='WARN'?'warn':'bad'}">${esc(v==='PASS'?'Pass':v==='FAIL'?'Fail':v)}</span>`;
 const svg=d=>`<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${d}</svg>`;
@@ -287,7 +293,7 @@ async function loadOverview(dataset='demo'){
   for(const at of a.attributes){
     html+=`<div class="card"><h3>${esc(attrTitle[at.attribute]||at.attribute)}</h3>`;
     for(const g of at.groups){
-      html+=`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}${g.low_n?` <span title="Small sample. Interpret with caution.">${WARN}</span>`:''}</span>
+      html+=`<div class="grow"><span class="lbl">${esc(glabel(at.attribute,g.group))}${g.low_n?` <span title="Small sample. Interpret with caution.">${WARN}</span>`:''}${g.low_qualified_n?` <span title="${esc('Only '+g.qualified_count+' qualified people, below the minimum group size, so this true-positive rate is too noisy to compare and is excluded from the equal-opportunity gap.')}">${WARN}</span>`:''}</span>
         <div class="bar"><i data-style="width:${g.selection_rate*100}%"></i></div>
         <span class="val">${pc(g.selection_rate)}</span></div>`;
     }
@@ -295,7 +301,8 @@ async function loadOverview(dataset='demo'){
       ${chipFor(at.di_pass,'DI '+at.disparate_impact)}
       ${chipFor(at.parity_pass,'ΔParity '+at.parity_gap)}
       ${chipFor(at.eq_pass,at.eq_opp_gap===null?'ΔEqOpp':'ΔEqOpp '+at.eq_opp_gap)}</div>
-      <div class="dim row-mt-md">${at.groups.map(g=>`${esc(glabel(at.attribute,g.group))}: ${g.selected}/${g.n} selected · 95% CI ${pc(g.selection_rate_ci.low)}–${pc(g.selection_rate_ci.high)}${g.tpr!==null?`, TPR ${pc(g.tpr)}`:''}`).join('<br>')}</div>
+      <div class="dim row-mt-md">${at.groups.map(g=>`${esc(glabel(at.attribute,g.group))}: ${g.selected}/${g.n} selected · 95% CI ${pc(g.selection_rate_ci.low)}–${pc(g.selection_rate_ci.high)}${tprNote(g)}`).join('<br>')}</div>
+      ${at.eq_opp_note?`<div class="dim row-mt-sm">${WARN} ${esc(at.eq_opp_note)}</div>`:''}
       ${at.statistical_test?`<div class="dim row-mt-md" data-style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">Highest vs lowest selection rate: <b data-style="color:${at.statistical_test.significant_at_0_05?'var(--rose)':'var(--green)'}">${pval(at.statistical_test.p_value)} · ${at.statistical_test.significant_at_0_05?'statistically significant':'not significant'}</b><br>Exploratory two-proportion test; formal studies should correct for multiple comparisons.</div>`:''}
       </div>`;
   }

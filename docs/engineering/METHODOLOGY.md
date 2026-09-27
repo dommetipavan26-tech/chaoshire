@@ -32,8 +32,16 @@ When a qualification or ground-truth label is supplied, ChaosHire calculates eac
 
 ```text
 TPR(g) = selected_and_qualified(g) / qualified(g)
-equal_opportunity_gap = maximum_TPR - minimum_TPR
+equal_opportunity_gap = maximum_TPR - minimum_TPR   over the reliable groups
 ```
+
+A group is *reliable* for this metric only when it holds at least
+`minimum_group_size` rows **and** at least `minimum_group_size` qualified rows;
+see [Minimum group size](#minimum-group-size). Groups that fail the
+qualified-count check keep their own TPR and interval in the report but are
+excluded from the gap, and the exclusion is published as `eq_opp_excluded` and
+`eq_opp_note`. If fewer than two groups remain, the gap is `null` and the
+component is dropped from the score rather than computed from one noisy cell.
 
 This metric is only as trustworthy as the supplied ground truth. Historical performance ratings or previous human decisions may themselves contain bias.
 
@@ -72,6 +80,26 @@ The dashboard labels `p < 0.05` as statistically significant. This indicator is 
 The default minimum reliable group size is 30 and can be configured from 2 to 500 for uploaded datasets. Groups below the threshold are marked `low_n`. They remain visible, but ChaosHire excludes them from worst-case aggregation whenever at least one reliable group exists.
 
 This rule prevents tiny cells from dominating the score; it does not make larger cells automatically representative.
+
+**The same minimum applies to the qualified count.** A true-positive rate's
+denominator is the qualified people inside a group, not the group's size, so a
+cell can clear `low_n` and still be far too thin to compare. The UCI Adult audit
+found exactly that: the Amer-Indian-Eskimo cell has 149 rows but **19** qualified
+people, giving a true-positive rate with a Wilson 95% interval of 0.15–0.54, and
+the `Other` cell has 122 rows with **24** qualified. ChaosHire's own fixture has
+the same shape (57 non-binary candidates, 17 qualified).
+
+Each group therefore reports two independent flags:
+
+| Field | Bounds | Used by |
+|---|---|---|
+| `n`, `low_n` | rows in the group | disparate impact, parity gap, the significance test |
+| `qualified_count`, `low_qualified_n` | qualified rows in the group | the equal-opportunity gap |
+
+A group with `low_qualified_n: true` stays in the report — its rate, interval and
+row count are still printed, flagged — but does not enter the equal-opportunity
+gap. Selection-rate metrics are untouched, because those are estimated from the
+whole group.
 
 ## Assessability guards
 
@@ -116,9 +144,9 @@ total = measured_points / available_points × 100
 |---|---:|---|
 | Disparate impact (four-fifths rule) | 40 | group selection rates |
 | Demographic parity gap | 20 | group selection rates |
-| Equal opportunity gap | 25 | ground-truth qualification labels |
-| **`available_points` with ground truth (`basis: "full"`)** | **85** | |
-| **`available_points` without it (`basis: "selection-rate-only"`)** | **60** | |
+| Equal opportunity gap | 25 | ground-truth qualification labels, and at least two groups holding `minimum_group_size` qualified people |
+| **`available_points` when the gap is measurable (`basis: "full"`)** | **85** | |
+| **`available_points` when it is not (`basis: "selection-rate-only"`)** | **60** | |
 
 Component points scale linearly from the measured gap: disparate impact awards
 `40 × min(DI / 0.8, 1)`, parity awards `20 × max(0, 1 − gap / 0.15)`, and equal
@@ -143,11 +171,15 @@ as `platform_disclosure` text carrying `scored: false` and
 ### The denominator is part of the result
 
 Equal opportunity needs true-positive rates, which need ground-truth
-qualification labels. Without them the component is not measured at zero — it is
-excluded, and `available_points` drops from 85 to 60. Two scores printed side by
-side on different bases are therefore **not** measuring the same thing, and a
-higher selection-rate-only score does not mean a fairer model. Every `certificate`
-payload states this explicitly:
+qualification labels — and enough qualified people per group for those rates to
+mean anything. When either is missing the component is not measured at zero; it
+is excluded, and `available_points` drops from 85 to 60. Two scores printed side
+by side on different bases are therefore **not** measuring the same thing, and a
+higher selection-rate-only score does not mean a fairer model. The two reasons
+are worded differently in the payload — "no ground-truth qualification labels"
+versus "no group has enough qualified people for a reliable true-positive rate" —
+because they are different findings. Every `certificate` payload states this
+explicitly:
 
 | Key | Meaning |
 |---|---|
@@ -211,21 +243,24 @@ score is noisy in the cutoff, while the unseen-population mean is not.
 
 | Cutoff P(qualified) ≥ | Cost *k* | Fixture score | Fixture qualified rejected | Unseen mean score | Unseen mean accuracy |
 |---|---:|---:|---:|---:|---:|
-| 0.50 | 1.00 | 58 | 63 | 65.3 | 88.7% |
-| 0.45 | 1.22 | 55 | 53 | 68.1 | 88.4% |
-| 0.40 | 1.50 | 65 | 42 | 71.4 | 87.4% |
-| 0.35 | 1.86 | 76 | 26 | 73.4 | 85.8% |
-| **0.333** | **2.00** | **80** | **21** | **74.1** | **85.0%** |
-| 0.30 | 2.33 | 82 | 15 | 75.5 | 83.7% |
-| 0.25 | 3.00 | 84 | 11 | 77.2 | 80.9% |
+| 0.50 | 1.00 | 58 | 63 | 69.2 | 88.7% |
+| 0.45 | 1.22 | 55 | 53 | 71.9 | 88.4% |
+| 0.40 | 1.50 | 65 | 42 | 74.7 | 87.4% |
+| 0.35 | 1.86 | 76 | 26 | 75.9 | 85.8% |
+| **0.333** | **2.00** | **80** | **21** | **76.0** | **85.0%** |
+| 0.30 | 2.33 | 82 | 15 | 77.0 | 83.7% |
+| 0.25 | 3.00 | 85 | 11 | 78.6 | 80.9% |
 
 (Merit features only; 49 unseen populations drawn with seeds 1–50 excluding the
 fixture seed 29.) Lower cutoffs trade accuracy and precision for recall and a
 higher fairness score. Part of that score gain is mechanical: accepting more
 candidates narrows ratios between selection rates, which is one reason
-four-fifths results should be compared at matched acceptance rates. A cost of 3
-would tie MeritFirst's 84 on the fixture; picking it *because* it ties would be
-tuning to the audit.
+four-fifths results should be compared at matched acceptance rates. Every
+unseen-population mean here was re-derived after the equal-opportunity
+qualified-count check was added, which raised all three models by about two
+points (see [Minimum group size](#minimum-group-size)); the ordering is
+unchanged. A cost of 3 now scores 85 on the fixture, one point *above*
+MeritFirst's 84; picking it *because* it wins would be tuning to the audit.
 
 **Proxies.** The original v3 was offered college prestige and career gap. The
 label never uses them, so they received near-zero weight (+0.012 and +0.030,

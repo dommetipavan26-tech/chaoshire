@@ -329,15 +329,23 @@ def test_before_and_after_on_the_fixture():
 
 
 def test_the_upgrade_generalises_to_unseen_populations():
-    """Fixed coefficients audited on 49 synthetic populations the model never saw."""
+    """Fixed coefficients audited on 49 synthetic populations the model never saw.
+
+    Means moved up by ~2 points across all three models when the equal-opportunity
+    gap started excluding groups with too few *qualified* people
+    (``tests/core/test_equal_opportunity_reliability.py``): several of the 49
+    populations draw a group whose qualified count falls below the minimum, and
+    the gap used to be set by those noisy cells. Ranking and every non-score
+    statistic are unchanged.
+    """
     report = holdout_comparison()
     assert report["populations"] == 49
     assert DEMO_SEED not in report["seeds"]
     models = report["models"]
     trained, original, fair = models["trained"], models["original_v3"], models["fair"]
-    assert trained["mean_total"] == pytest.approx(74.06, abs=0.01)
-    assert original["mean_total"] == pytest.approx(66.18, abs=0.01)
-    assert fair["mean_total"] == pytest.approx(72.06, abs=0.01)
+    assert trained["mean_total"] == pytest.approx(76.04, abs=0.01)
+    assert original["mean_total"] == pytest.approx(69.49, abs=0.01)
+    assert fair["mean_total"] == pytest.approx(74.39, abs=0.01)
     assert trained["mean_total"] > fair["mean_total"] > original["mean_total"]
     assert trained["mean_qualified_rejected"] < fair["mean_qualified_rejected"]
     assert trained["mean_recall"] > fair["mean_recall"] > original["mean_recall"]

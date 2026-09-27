@@ -27,8 +27,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   Result on the fixture: **80/B**, worst disparate impact **0.814** (passes on
   every attribute), **21** qualified candidates wrongly rejected (original 65,
   MeritFirst 34), recall 94.8%, accuracy 87.6%. On 49 synthetic populations it
-  never saw (`python -m chaoshire train --holdout`) it averages **74.1**
-  against MeritFirst's 72.1 and the original's 66.2. Stated trade-offs: it is
+  never saw (`python -m chaoshire train --holdout`) it averages **76.0**
+  against MeritFirst's 74.4 and the original's 69.5 (means re-derived after the
+  equal-opportunity qualified-count fix below; all three moved up by ~2 points
+  and the ranking is unchanged). Stated trade-offs: it is
   slightly less accurate than MeritFirst out of sample (85.0% vs 85.7%), it
   advances more candidates, and MeritFirst still scores 4 points higher on the
   fixture. The cutoff was not tuned to close that gap. The release gate now
@@ -50,6 +52,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **The equal-opportunity gap no longer rests on a handful of qualified
+  people.** `low_n` bounded a group's *rows*, but a true-positive rate's
+  denominator is the qualified people inside it. The UCI Adult audit
+  (`docs/engineering/REAL-DATA-AUDIT.md`) found the consequence: the
+  Amer-Indian-Eskimo cell has 149 rows — above the minimum group size of 30 —
+  but only **19** qualified people, so its true-positive rate (Wilson 95%
+  interval 0.15–0.54) set the race equal-opportunity gap for every model
+  audited. `Other` (122 rows, **24** qualified) did the same, and so does the
+  platform's own fixture, whose 57 non-binary candidates include 17 qualified.
+  `attribute_metrics()` now applies the minimum-size check to the qualified
+  count as well: each group reports `qualified_count` and `low_qualified_n`,
+  thin cells are excluded from the gap while staying visible in the report and
+  in the selection-rate metrics (which are estimated from the whole group), and
+  the exclusion is published as `eq_opp_groups`, `eq_opp_excluded` and
+  `eq_opp_note` rather than applied silently. If fewer than two groups survive,
+  the gap is `null`, the component drops out of the score
+  (`basis: "selection-rate-only"`, 60 available points) and the stated reason
+  distinguishes "no qualification labels" from "labels too thin to use". The
+  HTML report gains a Qualified column and a reliability notice; the dashboard
+  flags the affected true-positive rates. On Adult the race gap falls from
+  0.345/0.248/0.342 to **0.161/0.089/0.074** (naive/blind/blind_no_age), the
+  fixture's gender gap from 0.196 to 0.127, and unseen-population means rise by
+  ~2 points for all three models. Fixture grades are unchanged: LegacyCorp
+  **32/F**, MeritFirst **84/B**, TalentFit **80/B**.
+  (`tests/core/test_equal_opportunity_reliability.py`)
 - **TalentFit's result is now explained by what was measured.** The blurb,
   landing page, guided demo, README, case study and `training.py` said the
   original v3 failed the four-fifths rule because it kept proxy features

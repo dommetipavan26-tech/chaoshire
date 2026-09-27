@@ -8,13 +8,31 @@ def _percent(value: float | None) -> str:
     return "n/a" if value is None else f"{value * 100:.1f}%"
 
 
+def _thin_tpr_notice(group: dict[str, Any]) -> str:
+    """Why a group's true-positive rate is not allowed into the equal-opportunity gap."""
+    return (
+        f"Only {group.get('qualified_count')} qualified people, below the minimum group "
+        "size: this true-positive rate is too unreliable to compare, so it is excluded "
+        "from the equal-opportunity gap."
+    )
+
+
+def _tpr_cell(group: dict[str, Any]) -> str:
+    rate = _percent(group["tpr"])
+    if group.get("low_qualified_n"):
+        return f"<span class='warn'>{rate} ⚠</span>"
+    return rate
+
+
 def _attribute_table(attribute: dict[str, Any]) -> str:
     rows = "".join(
         f"<tr><td>{escape(str(group['group']))}{' ⚠' if group['low_n'] else ''}</td>"
-        f"<td>{group['n']}</td><td>{group['selected']}</td>"
+        f"<td>{group['n']}</td>"
+        f"<td>{'n/a' if group.get('qualified_count') is None else group['qualified_count']}</td>"
+        f"<td>{group['selected']}</td>"
         f"<td>{_percent(group['selection_rate'])}</td>"
         f"<td>{_percent(group['selection_rate_ci']['low'])}–{_percent(group['selection_rate_ci']['high'])}</td>"
-        f"<td>{_percent(group['tpr'])}</td></tr>"
+        f"<td>{_tpr_cell(group)}</td></tr>"
         for group in attribute["groups"]
     )
     test = attribute.get("statistical_test")
@@ -23,14 +41,23 @@ def _attribute_table(attribute: dict[str, Any]) -> str:
         if test
         else "not available"
     )
+    thin = [group for group in attribute["groups"] if group.get("low_qualified_n")]
+    thin_html = ""
+    if thin:
+        named = "; ".join(
+            f"<b>{escape(str(group['group']))}</b> — {escape(_thin_tpr_notice(group))}"
+            for group in thin
+        )
+        thin_html = f"<p class='notice'><b>Equal-opportunity reliability:</b> {named}</p>"
     return (
         f"<section><h2>{escape(attribute['attribute'].replace('_', ' ').title())}</h2>"
         f"<div class='chips'><b>DI {attribute['disparate_impact']}</b>"
         f"<b>Parity gap {attribute['parity_gap']}</b>"
         f"<b>Eq. opportunity {attribute['eq_opp_gap'] if attribute['eq_opp_gap'] is not None else 'n/a'}</b>"
         f"<b>{escape(significance)}</b></div>"
-        "<table><thead><tr><th>Group</th><th>n</th><th>Selected</th><th>Rate</th>"
-        f"<th>95% CI</th><th>TPR</th></tr></thead><tbody>{rows}</tbody></table></section>"
+        "<table><thead><tr><th>Group</th><th>n</th><th>Qualified</th><th>Selected</th>"
+        f"<th>Rate</th><th>95% CI</th><th>TPR</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>{thin_html}</section>"
     )
 
 
