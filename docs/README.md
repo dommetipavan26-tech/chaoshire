@@ -9,6 +9,7 @@ are relative to the **repository root**.
 - [Methodology](engineering/METHODOLOGY.md) — metrics, assumptions, and responsible-use limits.
 - [Continuous fairness](engineering/CONTINUOUS-FAIRNESS.md) — experiments and release-gate policy.
 - [scikit-learn integration](engineering/SCIKIT-LEARN-INTEGRATION.md) — decision-adapter example.
+- [Real-data audit (UCI Adult)](engineering/REAL-DATA-AUDIT.md) — the audit engine on a real public benchmark, with findings.
 
 ## Operations
 

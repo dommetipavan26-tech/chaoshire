@@ -308,7 +308,7 @@ commands are in the [documentation index](docs/README.md). GitHub Actions runs
 linting, type checking, the trained-model drift check and the default test suite
 on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
 quality gate requires at least 90% package coverage; the **current source
-baseline**, measured locally, contains **294 tests with 95.0% package coverage**
+baseline**, measured locally, contains **300 tests with 95.0% package coverage**
 (the configured source set excludes the synthetic fixture module
 `chaoshire/data.py`). The tagged release and live site may lag this revision.
 
@@ -330,6 +330,21 @@ A runnable example trains a deterministic logistic-regression pipeline on synthe
 python -m pip install -r requirements-examples.txt
 python -m examples.sklearn_decision_adapter
 ```
+
+### Audit real-world data (UCI Adult)
+
+The same audit engine runs on a real public benchmark, the 1994 US Census
+income data (15,060 held-out people), comparing a naive model, a blind model
+with proxies removed, and the true label itself:
+
+```bash
+python -m examples.adult_income_audit
+```
+
+Headline: even a *perfect* predictor of the real label fails the four-fifths
+rule on sex, race and age (51/D), and blinding sex and race made the age gap
+worse until age was removed too. Full results, trade-offs and a limitation this
+audit uncovered are in [REAL-DATA-AUDIT.md](docs/engineering/REAL-DATA-AUDIT.md).
 
 See the [scikit-learn integration guide](docs/engineering/SCIKIT-LEARN-INTEGRATION.md) for the data contract, adaptation steps, and responsible-use limits.
 
