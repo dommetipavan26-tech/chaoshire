@@ -345,3 +345,71 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   main{padding-top:12px}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+/* Rounded Night Ledger: warm original palette with glass and smooth control feedback. */
+:root{--primary:#f3ebdf;--secondary:#3a3228;--tertiary:#5a4c3c;--neutral:#c6a15b;--radius:14px;--radius-lg:20px;--focus:2px solid var(--brass)}
+html,body{background:var(--bg)}
+body{border-top-color:var(--brass);background:radial-gradient(ellipse at 85% 0%,#30261d 0,transparent 34%),var(--bg)}
+header,nav,.audit-strip,footer{background:transparent}
+header,.audit-strip{border-bottom-color:var(--line)}
+nav{gap:8px;padding-top:9px;padding-bottom:9px;border-bottom-color:var(--line)}
+nav button{border:1px solid transparent;border-radius:999px;padding:9px 16px;transition:background .18s ease,color .18s ease,border-color .18s ease}
+nav button:hover{background:var(--card2)}
+nav button.on{background:rgba(58,50,40,.82);border-color:rgba(198,161,91,.68);color:var(--txt);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:inset 0 1px rgba(255,255,255,.16),0 4px 14px #0003}
+#subnav{background:transparent}
+#subnav button.on{background:rgba(58,50,40,.82);border-color:var(--brass)}
+.mbtn{border-radius:14px;border-left:1px solid var(--line);box-shadow:0 8px 22px #0002;transition:transform .18s ease,border-color .18s ease,background .18s ease}
+.mbtn:hover{transform:translateY(-2px);border-color:var(--secondary)}
+.mbtn.on{background:linear-gradient(140deg,rgba(58,50,40,.86),rgba(44,36,30,.68));border-color:var(--brass);border-left:4px solid var(--brass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px rgba(255,255,255,.20),0 0 0 1px rgba(198,161,91,.28),0 10px 26px #0004}
+.card,.hero-panel,.grade-ring,.grade-ring-inner,.mit{border-radius:14px}
+.card,.hero-panel{box-shadow:0 8px 24px #0002}
+.card{border-color:var(--line);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.card:hover{border-color:#695539;box-shadow:0 12px 30px #0003}
+.hero-panel{border-left:1px solid var(--brass);background:linear-gradient(145deg,#302820,#241e19 58%);box-shadow:0 10px 28px #0003}
+.hero-title{max-width:15ch;text-wrap:balance}
+.entry-label,.kicker,code{color:var(--brass)}
+.proof{border:0;gap:10px;overflow:visible}
+.proof .card{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px 16px;box-shadow:0 6px 18px #0002}
+.proof .card:first-child{border-left:1px solid var(--line)}
+.proof .card:nth-child(n){border-top:1px solid var(--line)}
+.proof .card b{color:var(--txt)}
+.proof-note{border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.btn{border-radius:10px;box-shadow:0 3px 10px #0002;transition:transform .28s cubic-bezier(.2,.8,.2,1),background-color .24s ease,border-color .24s ease,color .2s ease,box-shadow .3s ease,backdrop-filter .25s ease;-webkit-backdrop-filter:blur(0);will-change:transform;position:relative;isolation:isolate;overflow:hidden}
+.btn:hover{transform:translateY(-1px)}
+.btn.secondary{background:var(--secondary);border-color:#5a4c3c;color:var(--txt)}
+.btn.secondary:hover{background:#514537;border-color:var(--brass)}
+.btn.tertiary{background:#3a3228;border-color:#5a4c3c;color:var(--txt)}
+.btn.tertiary:hover{background:#514537;border-color:var(--brass)}
+.btn.neutral{background:var(--brass);border-color:var(--brass);color:#1c1714}
+.btn.neutral:hover{background:#d3b474;border-color:#d3b474}
+.btn.ghost{box-shadow:none;border-radius:10px}
+.btn.ghost:hover{background:#3a3228;border-color:var(--brass);color:var(--txt)}
+#startdemo{background:var(--blue);border-color:var(--blue);color:#1c1714;padding:13px 20px;border-radius:12px;box-shadow:0 8px 20px rgba(198,161,91,.20)}
+#startdemo:hover{background:#fff6ea;border-color:#fff6ea}
+.chip{border-radius:999px;padding:3px 10px}
+.bar{height:8px;border-radius:999px}
+.bar>i{border-radius:999px;background:var(--brass)}
+.grade-ring{border-color:#3a3228;background:var(--card)}
+input,textarea,select{border-radius:10px}
+input:focus,textarea:focus,select:focus{border-color:var(--brass);box-shadow:0 0 0 3px rgba(198,161,91,.22)}
+.mit{border-color:var(--line)}
+.consent-banner{border:1px solid var(--brass);border-radius:16px 16px 0 0;box-shadow:0 -8px 30px #0004}
+.consent-banner p,.consent-link,.consent-actions,.consent-banner .btn.ghost{background:var(--card)}
+.btn::after,.mbtn::after,nav button::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;background:linear-gradient(125deg,rgba(255,255,255,.24),rgba(255,255,255,.035) 38%,rgba(198,161,91,.12));opacity:0;transition:opacity .28s ease}
+.mbtn,nav button{position:relative;isolation:isolate;overflow:hidden}
+.mbtn>*{position:relative;z-index:1}
+.btn:active,.mbtn:active,nav button:active{transform:scale(.97) translateY(1px);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:inset 0 1px rgba(255,255,255,.28),0 2px 7px #0004}
+.mbtn.on::after,nav button.on::after,.btn:active::after,.mbtn:active::after,nav button:active::after,.btn:focus-visible::after,.mbtn:focus-visible::after,nav button:focus-visible::after{opacity:1}
+@media(max-width:600px){
+  /* Give the mobile hero back the vertical space used by the rounded nav pills. */
+  nav{padding-top:0;padding-bottom:0}
+}
+@media(max-width:760px){
+  .proof{gap:0}
+  .proof .card{border-radius:0}
+  .proof .card:first-child{border-top-left-radius:12px}
+  .proof .card:nth-child(2){border-top-right-radius:12px}
+  .proof .card:nth-child(3){border-bottom-left-radius:12px}
+  .proof .card:nth-child(4){border-bottom-right-radius:12px}
+}
+@media(prefers-reduced-motion:reduce){.btn,.mbtn,nav button,.card,.btn::after,.mbtn::after,nav button::after{transition:none}.btn:hover,.mbtn:hover,.card:hover,.btn:active,.mbtn:active,nav button:active{transform:none}}

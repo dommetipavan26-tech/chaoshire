@@ -48,6 +48,15 @@ def test_external_css_has_responsive_rules():
 def test_external_css_has_root_variables():
     assert ":root{" in CSS_CONTENT or ":root {" in CSS_CONTENT
     assert "--bg:#1c1714" in CSS_CONTENT
+    assert "--card:#241e19" in CSS_CONTENT
+    assert "--brass:#c6a15b" in CSS_CONTENT
+    assert "--primary:#f3ebdf" in CSS_CONTENT
+    assert "transition:transform .28s cubic-bezier(.2,.8,.2,1)" in CSS_CONTENT
+    assert ".btn:active,.mbtn:active,nav button:active{transform:scale(.97)" in CSS_CONTENT
+    assert ".mbtn.on::after" in CSS_CONTENT
+    assert "prefers-reduced-motion:reduce" in CSS_CONTENT
+    assert "#1F2937" not in CSS_CONTENT
+    assert "#7E22CE" not in CSS_CONTENT
 
 
 def test_external_css_has_data_style_utility_classes():

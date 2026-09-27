@@ -106,7 +106,11 @@ def test_design_token_text_contrast_meets_wcag_aa() -> None:
             assert ratio(colors[foreground], colors[background]) >= 4.5, (foreground, background)
     primary_text = re.search(r"\.btn\{[^}]*color:(#[a-fA-F0-9]{6})", css)
     assert primary_text is not None
-    assert ratio(primary_text.group(1), colors["--blue"]) >= 4.5
+    assert ratio(primary_text.group(1), colors["--primary"]) >= 4.5
+    assert "--bg:#1c1714" in css
+    assert "--primary:#f3ebdf" in css
+    assert "--brass:#c6a15b" in css
+    assert "transition:transform .28s cubic-bezier(.2,.8,.2,1)" in css
 
 
 def test_robots_and_sitemap_use_canonical_https_not_untrusted_host(monkeypatch) -> None:
