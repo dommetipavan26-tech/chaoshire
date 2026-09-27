@@ -173,7 +173,9 @@ def test_the_certificate_says_which_kind_of_missing_evidence_it_is():
     """No labels and unusable labels must not read alike in the payload."""
     data = frame({"small-a": (60, 12, 6), "small-b": (80, 20, 4)})
     thin = certificate(audit(data, attributes=["race"])["attributes"])
-    missing = certificate(audit(data.drop(columns=["qualified"]), attributes=["race"])["attributes"])
+    missing = certificate(
+        audit(data.drop(columns=["qualified"]), attributes=["race"])["attributes"]
+    )
 
     for c in (thin, missing):
         assert c["basis"] == "selection-rate-only"
