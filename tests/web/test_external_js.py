@@ -2,6 +2,7 @@
 
 import re
 from hashlib import sha256
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -15,14 +16,42 @@ WEB_DIR = Path(__file__).resolve().parents[2] / "chaoshire" / "web"
 SCRIPT = WEB_DIR / "static" / "chaoshire.js"
 
 
+class ScriptTags(HTMLParser):
+    """Inspect markup structurally; HTML tag/attribute names are case-insensitive."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.scripts: list[tuple[dict[str, str | None], list[str]]] = []
+        self.in_script = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script":
+            self.scripts.append((dict(attrs), []))
+            self.in_script = True
+
+    def handle_endtag(self, tag):
+        if tag == "script":
+            self.in_script = False
+
+    def handle_data(self, data):
+        if self.in_script:
+            self.scripts[-1][1].append(data)
+
+
 def test_markup_has_one_external_deferred_script_and_no_inline_application_code():
     html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
-    scripts = re.findall(r"<script\b([^>]*)>(.*?)</script>", html, re.DOTALL)
-    assert len(scripts) == 1
-    attrs, body = scripts[0]
-    assert 'src="/static/chaoshire.js?v=__JS_VERSION__"' in attrs
+    parser = ScriptTags()
+    parser.feed(html)
+    assert len(parser.scripts) == 1
+    attrs, body = parser.scripts[0]
+    assert attrs["src"] == "/static/chaoshire.js?v=__JS_VERSION__"
     assert "defer" in attrs
-    assert body.strip() == ""
+    assert "".join(body).strip() == ""
+    # These used to be missed by the case-sensitive HTML regexp. Exercise both
+    # mixed-case attributes/tags and whitespace before the closing delimiter.
+    probe = ScriptTags()
+    probe.feed('<ScRiPt SRC="/unexpected.js">inline()</sCrIpT >')
+    assert probe.scripts == [({"src": "/unexpected.js"}, ["inline()"])]
     assert "const esc=" not in html
     assert "const esc=" in SCRIPT.read_text(encoding="utf-8")
     templates = ("index.html", "privacy.html", "terms.html", "404.html")
