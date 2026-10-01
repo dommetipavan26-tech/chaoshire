@@ -1,5 +1,6 @@
 """FastAPI route layer for ChaosHire."""
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -18,10 +19,11 @@ from .agent import review_audit
 from .build_info import SERVICE_WORKER_CACHE, build_info
 from .chaos import run_chaos_suite
 from .config import FAIRNESS_THRESHOLDS
+from .decisions import normalise_decisions
 from .demo import guided_demo
 from .evidence import build_evidence_bundle, verify_evidence_bundle
 from .explain import shap_batch, shap_explanation
-from .loghook import log_shipping_status, webhook_enabled
+from .loghook import log_shipping_status, shutdown_log_shipping, webhook_enabled
 from .loghook import ship as ship_event
 from .metrics import audit
 from .models import (
@@ -37,6 +39,7 @@ from .platform import (
     LIMITER,
     LIMITER_SCOPE,
     OPERATIONS,
+    RequestBodyLimitMiddleware,
     WriteAccess,
     anonymous_appeals_per_minute,
     anonymous_uploads_published,
@@ -84,7 +87,7 @@ from .services import (
     upload_decisions,
     uploaded_audit,
 )
-from .site import SITE_ANALYTICS, css_version, public_origin, site_html
+from .site import SITE_ANALYTICS, css_version, html_version, js_version, public_origin, site_html
 
 #: Upstream failure detail is logged, never echoed into a response body.
 logger = logging.getLogger(__name__)
@@ -92,6 +95,7 @@ logger = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).resolve().parent / "web"
 STATIC_DIR = WEB_DIR / "static"
 STATIC_CSS = STATIC_DIR / "chaoshire.css"
+STATIC_JS = STATIC_DIR / "chaoshire.js"
 ICON_FILES = ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "favicon-32.png")
 FONT_FILES = ("besley-latin.woff2",)
 FAVICON = STATIC_DIR / "icons" / "favicon.ico"
@@ -180,7 +184,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
     if webhook_enabled():
         logger.info("chaoshire log-shipping webhook configured")
-    yield
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(shutdown_log_shipping)
 
 
 app = FastAPI(
@@ -192,8 +199,9 @@ app = FastAPI(
     ),
     lifespan=lifespan,
 )
-# Compress the 55 KB HTML shell and JSON on mobile networks; tiny assets remain uncompressed.
-app.add_middleware(GZipMiddleware, minimum_size=10_000)
+# Compress the HTML shell, content-versioned assets, and larger JSON payloads.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(RequestBodyLimitMiddleware)
 app.middleware("http")(platform_middleware)
 
 
@@ -250,6 +258,16 @@ def readiness_head() -> dict[str, str]:
 @app.get("/api/metrics", tags=["system"])
 def operational_metrics() -> dict:
     return OPERATIONS.snapshot()
+
+
+@app.get("/api/ops/metrics", tags=["system"], dependencies=[Depends(require_operator)])
+def operator_resource_metrics() -> dict:
+    """Bounded-resource telemetry without URLs, credentials or client identities."""
+    return {
+        **OPERATIONS.snapshot(),
+        "rate_limiter": LIMITER.snapshot(),
+        "log_shipping": log_shipping_status(),
+    }
 
 
 @app.get("/api/ops/posture", tags=["system"], dependencies=[Depends(require_operator)])
@@ -320,6 +338,18 @@ def static_css(request: Request) -> Response:
     )
 
 
+@app.get("/static/chaoshire.js", include_in_schema=False)
+def static_js(request: Request) -> Response:
+    """Serve dashboard behavior separately from markup, with a content-hashed URL."""
+    version = request.query_params.get("v")
+    cache = "public, max-age=31536000, immutable" if version == js_version() else "no-cache"
+    return Response(
+        STATIC_JS.read_bytes(),
+        media_type="application/javascript",
+        headers={"Cache-Control": cache},
+    )
+
+
 @app.get("/static/fonts/{name}", include_in_schema=False)
 def static_font(name: str) -> Response:
     """Serve the self-hosted heading face. CSP default-src 'self' blocks CDNs."""
@@ -367,13 +397,18 @@ def social_preview() -> Response:
 def service_worker() -> Response:
     # The cache name is derived from the package version so a release cannot ship
     # a service worker that keeps serving the previous version's precached shell.
-    script = """const CACHE='__CACHE_NAME__';
-const PAGES=['/','/privacy','/terms','/manifest.webmanifest','/static/chaoshire.css?v=__CSS_VERSION__','/static/fonts/besley-latin.woff2','/icons/icon-192.png','/icons/icon-512.png','/icons/favicon-32.png'];
+    script = (
+        """const CACHE='__CACHE_NAME__';
+const PAGES=['/','/privacy','/terms','/manifest.webmanifest','/static/chaoshire.css?v=__CSS_VERSION__','/static/chaoshire.js?v=__JS_VERSION__','/static/fonts/besley-latin.woff2','/icons/icon-192.png','/icons/icon-512.png','/icons/favicon-32.png'];
 self.addEventListener('install',e=>e.waitUntil(Promise.all([caches.open(CACHE).then(c=>c.addAll(PAGES)),self.skipWaiting()])));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))),self.clients.claim()])));
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.startsWith('/api/'))return;e.respondWith(fetch(e.request).then(r=>{if(r.ok&&PAGES.includes(u.pathname+u.search)){const x=r.clone();caches.open(CACHE).then(c=>c.put(e.request,x))}return r}).catch(()=>caches.match(e.request)))});""".replace(
-        "__CACHE_NAME__", f"{SERVICE_WORKER_CACHE}-{css_version()}"
-    ).replace("__CSS_VERSION__", css_version())
+            "__CACHE_NAME__",
+            f"{SERVICE_WORKER_CACHE}-{css_version()}-{js_version()}-{html_version()}",
+        )
+        .replace("__CSS_VERSION__", css_version())
+        .replace("__JS_VERSION__", js_version())
+    )
     return Response(
         script,
         media_type="application/javascript",
@@ -383,7 +418,7 @@ self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.me
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request) -> HTMLResponse:
-    # The per-request nonce allows the one inline application script under CSP.
+    # Dashboard behavior lives in a same-origin asset; the nonce policy stays strict.
     return HTMLResponse(
         content=site_html("index.html", request.state.csp_nonce),
         headers={"Cache-Control": "no-cache"},
@@ -476,7 +511,13 @@ def adapters() -> dict:
 )
 def audit_remote_connector(request: ConnectorAuditRequest) -> Any:
     """Fetch decisions from an operator-configured remote model and audit them."""
-    adapter = find_remote_adapter(request.model_id)
+    try:
+        adapter = find_remote_adapter(request.model_id)
+    except ValueError:
+        logger.warning("remote connector configuration is invalid")
+        return JSONResponse(
+            status_code=503, content={"error": "Remote connector configuration is invalid."}
+        )
     if adapter is None:
         return JSONResponse(
             status_code=404,
@@ -486,13 +527,17 @@ def audit_remote_connector(request: ConnectorAuditRequest) -> Any:
             },
         )
     try:
-        frame = adapter.decisions()
+        frame = normalise_decisions(
+            adapter.decisions(), request.protected_attributes, require_groups=True
+        )
+        result = audit(frame, attributes=request.protected_attributes)
+        description = adapter.describe()
     except Exception as error:
         # Upstream, network, credential, and normalisation failures are a bad
         # gateway, not a ChaosHire server error. The raw exception text can carry
         # the upstream URL, proxy details or a credential-adjacent fragment, so it
-        # is logged here and only the failure category is returned to the caller.
-        logger.warning("remote model %r audit failed: %r", request.model_id, error)
+        # is omitted from logs as well as responses; keep the failure class only.
+        logger.warning("remote model %r audit failed (%s)", request.model_id, type(error).__name__)
         return JSONResponse(
             status_code=502,
             content={
@@ -500,7 +545,7 @@ def audit_remote_connector(request: ConnectorAuditRequest) -> Any:
                 "reason": type(error).__name__,
             },
         )
-    return {"model_id": request.model_id, "adapter": adapter.describe(), "audit": audit(frame)}
+    return {"model_id": request.model_id, "adapter": description, "audit": result}
 
 
 @app.get("/api/demo", tags=["guided demo"])

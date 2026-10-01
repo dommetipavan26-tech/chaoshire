@@ -25,6 +25,18 @@ def css_version() -> str:
     return sha256((WEB_DIR / "static" / "chaoshire.css").read_bytes()).hexdigest()[:12]
 
 
+def js_version() -> str:
+    """Cache-bust dashboard behavior independently of the stylesheet/version tag."""
+    return sha256((WEB_DIR / "static" / "chaoshire.js").read_bytes()).hexdigest()[:12]
+
+
+def html_version() -> str:
+    """Invalidate offline pages when any HTML template changes, not just CSS/JS."""
+    pages = ("index.html", "privacy.html", "terms.html", "404.html")
+    content = b"\0".join((WEB_DIR / page).read_bytes() for page in pages)
+    return sha256(content).hexdigest()[:12]
+
+
 ANALYTICS_PAGES = frozenset(
     {
         "welcome",
@@ -72,8 +84,8 @@ def site_html(filename: str, nonce: str = "") -> str:
     html = (WEB_DIR / filename).read_text(encoding="utf-8")
     html = html.replace("__PUBLIC_ORIGIN__", escape(public_origin(), quote=True))
     html = html.replace("__CSS_VERSION__", css_version())
-    if nonce:
-        html = html.replace("<script>", f'<script nonce="{nonce}">', 1)
+    html = html.replace("__JS_VERSION__", js_version())
+    html = html.replace("__CSP_NONCE__", escape(nonce, quote=True))
     return html
 
 

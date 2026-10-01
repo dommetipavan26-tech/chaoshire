@@ -16,13 +16,13 @@
 <main id="main" class="legal-page" tabindex="-1">
 <p class="kicker">About this demonstration</p>
 <h1>Privacy Policy</h1>
-<p class="dim">Effective 24 September 2026 · Applies to this public prototype, not to a real employer's hiring system.</p>
+<p class="dim">Effective 1 October 2026 · Applies to this public prototype, not to a real employer's hiring system.</p>
 <p><strong>Do not submit real applicant or employee information.</strong> ChaosHire is a demonstration using synthetic data. The public site has no user accounts or identity verification.</p>
 <h2>What the site processes</h2>
 <ul>
 <li><strong>Audits:</strong> Built-in fixtures are synthetic. A visitor can upload a CSV of decisions; its raw rows and candidate IDs remain in process memory while an audit is computed. Anonymous uploads are returned to the uploader and discarded, not added to public history. An operator authenticated with a server-side key can publish <em>aggregate</em> results and an audit name to a shared SQLite history visible to visitors; raw CSV rows are not written to that database.</li>
 <li><strong>Appeals:</strong> Messages and application IDs are kept in a capped in-memory queue and may be displayed in a public review queue after basic redaction. That redaction can miss unusual identifiers. The queue is evicted or cleared on restart. Do not include real names, contact details, or sensitive data.</li>
-<li><strong>Operational logs and rate limits:</strong> Requests may be logged by the hosting provider and the server. In-memory IP-based rate-limit buckets protect the public API; bucket keys may remain until the process restarts. Retention of hosting-provider access logs is outside this app's control.</li>
+<li><strong>Operational logs and rate limits:</strong> Requests may be logged by the hosting provider and the server. In-memory IP-based rate-limit buckets protect the public API; at most 4,096 bucket keys are kept. Expired windows are lazily removed on limiter activity or operator snapshots; inactivity alone does not immediately erase them. Retention of hosting-provider access logs is outside this app's control.</li>
 <li><strong>Optional analytics:</strong> Only after you choose “Allow analytics” does the browser send a page-section name to this site's own API. The app stores daily aggregate view counts for up to 30 UTC days in process memory; they reset on restart. It does not store an analytics identifier, referrer, IP address, or user agent with those counts. Only a server-side operator can read the counts.</li>
 </ul>
 <h2>Cookies, storage, and your choice</h2>

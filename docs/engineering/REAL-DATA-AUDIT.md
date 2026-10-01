@@ -13,7 +13,7 @@ python -m examples.adult_income_audit --json adult.json --csv adult-decisions.cs
 
 The script downloads `adult.data` and `adult.test` from UCI once into
 `data/adult/` (git-ignored) and checks them against pinned SHA-256 digests.
-If the digests don't match, it prints a warning. Use `--data-dir` to point at a
+If the digests do not match, the default run **stops before training**. Download bytes are capped at 8 MiB per file and the cache is replaced atomically only after verification. `--allow-unverified` is an explicit experimental opt-in: mismatches remain marked and must not be quoted as pinned UCI benchmark evidence. Use `--data-dir` to point at a
 local copy, or `--no-download` to fail instead of fetching. The code is in
 [`examples/adult_income_audit.py`](../../examples/adult_income_audit.py) and is
 tested offline by `tests/core/test_adult_example.py`.

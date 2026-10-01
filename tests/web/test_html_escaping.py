@@ -13,7 +13,7 @@ These tests lock both layers:
    template literals the page is built from), and every interpolation inside a
    breakout-capable attribute goes through ``esc()``/``encodeURIComponent()``.
 2. The CSP forbids ``'unsafe-inline'`` for scripts and carries a fresh per-request
-   nonce that the served document's single ``<script>`` tag presents.
+   nonce that the served document's single external ``<script>`` tag presents.
 3. No inline event handlers survive in the page (they would be blocked anyway,
    and their presence would mean the nonce fix was only half-applied).
 """
@@ -31,6 +31,9 @@ from chaoshire.services import upload_decisions
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 INDEX_HTML = (PROJECT_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
+JS_CONTENT = (PROJECT_ROOT / "chaoshire" / "web" / "static" / "chaoshire.js").read_text(
+    encoding="utf-8"
+)
 
 NONCE_RE = re.compile(r"script-src 'self' 'nonce-([^']+)'")
 ATTR_INTERPOLATION = re.compile(r'([a-zA-Z-]+)\s*=\s*"([^"]*\$\{[^"]*)"')
@@ -107,7 +110,7 @@ REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
 
 def _interpolations() -> dict[str, set[str]]:
     found: dict[str, set[str]] = {}
-    for match in ATTR_INTERPOLATION.finditer(INDEX_HTML):
+    for match in ATTR_INTERPOLATION.finditer(JS_CONTENT):
         attribute, value = match.group(1), match.group(2)
         for expression in re.findall(r"\$\{([^}]*)\}", value):
             found.setdefault(attribute, set()).add(expression.strip())
@@ -115,7 +118,7 @@ def _interpolations() -> dict[str, set[str]]:
 
 
 def test_esc_covers_attribute_quotes_and_the_template_backtick():
-    definition = re.search(r"const esc=s=>String\(s\?\?''\)\.replace\((.*?);\n", INDEX_HTML)
+    definition = re.search(r"const esc=s=>String\(s\?\?''\)\.replace\((.*?);\n", JS_CONTENT)
     assert definition, "esc() definition not found or changed shape"
     body = definition.group(1)
     for character in ("&", "<", ">", '"', "'", "`"):
@@ -155,9 +158,9 @@ def test_presentational_interpolations_are_reviewed():
 
 
 def test_no_inline_event_handlers_remain():
-    handlers = re.findall(r"\son[a-z]+\s*=\s*[\"']", INDEX_HTML)
+    handlers = re.findall(r"\son[a-z]+\s*=\s*[\"']", INDEX_HTML + JS_CONTENT)
     assert not handlers, f"inline event handlers are blocked by the nonce CSP: {handlers}"
-    assert "onclick" not in INDEX_HTML
+    assert "onclick" not in INDEX_HTML + JS_CONTENT
 
 
 def test_page_has_exactly_one_script_tag():
@@ -188,7 +191,7 @@ def test_csp_is_nonce_based_and_fresh_per_request():
     second_nonce = NONCE_RE.search(second.headers["content-security-policy"])
     assert first_nonce and second_nonce
     assert first_nonce.group(1) != second_nonce.group(1), "nonce was reused across requests"
-    assert f'<script nonce="{first_nonce.group(1)}">' in first.text
+    assert f'<script nonce="{first_nonce.group(1)}" src="/static/chaoshire.js?v=' in first.text
     assert "<script>" not in first.text
 
 

@@ -92,8 +92,8 @@ def test_blind_models_exclude_protected_and_proxy_columns(adult) -> None:
 
 
 def test_run_end_to_end_offline(adult, fake_dir: Path) -> None:
-    report = adult.run(fake_dir, download=False)
-    # Fake files cannot match the pinned UCI digests; that is reported, not hidden.
+    report = adult.run(fake_dir, download=False, allow_unverified=True)
+    # Synthetic files only run with explicit unverified-data opt-in.
     assert set(report["dataset"]["integrity"].values()) == {"digest-mismatch"}
     assert set(report["models"]) == {"naive", "blind", "blind_no_age", "true_label"}
     label = report["models"]["true_label"]
@@ -112,7 +112,7 @@ def test_missing_files_without_download_fail_clearly(adult, tmp_path: Path) -> N
 def test_csv_export_is_accepted_by_upload_workflow(adult, fake_dir: Path) -> None:
     from chaoshire.services import upload_decisions
 
-    report = adult.run(fake_dir, download=False)
+    report = adult.run(fake_dir, download=False, allow_unverified=True)
     csv_text = adult.upload_csv(report["decisions"]["blind"])
     assert set(pd.read_csv(io.StringIO(csv_text))["decision"]) <= {"advance", "reject"}
     result = upload_decisions(
@@ -136,6 +136,7 @@ def test_cli_writes_json_and_csv(adult, fake_dir: Path, tmp_path: Path) -> None:
             "--data-dir",
             str(fake_dir),
             "--no-download",
+            "--allow-unverified",
             "--json",
             str(json_path),
             "--csv",

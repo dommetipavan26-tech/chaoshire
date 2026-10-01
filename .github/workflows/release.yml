@@ -7,12 +7,15 @@ on:
 permissions:
   contents: write
 
+env:
+  PIP_CONSTRAINT: ${{ github.workspace }}/constraints/requirements-py312.txt
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
           cache: pip
@@ -20,15 +23,20 @@ jobs:
       - run: python -m ruff check backend.py chaoshire tests
       - run: python -m pytest --cov=chaoshire --cov-fail-under=90 -q
       - run: python -m chaoshire gate --baseline legacy --candidate fair
+      - name: Build and verify publishable Python distributions
+        run: |
+          python -m build
+          python scripts/check_distribution.py --wheel dist/chaoshire-*.whl --sdist dist/chaoshire-*.tar.gz --constraints "$PIP_CONSTRAINT"
       - name: Build release evidence
         run: |
           mkdir -p release
+          cp dist/chaoshire-*.whl dist/chaoshire-*.tar.gz release/
           python -m chaoshire report --model legacy --output release/chaoshire-report.html
           python -m chaoshire report --model legacy --format pdf --output release/chaoshire-report.pdf
           python -m chaoshire evidence --model legacy --output release/chaoshire-evidence.json
           git archive --format=zip --output=release/chaoshire-source.zip HEAD
           sha256sum release/* > release/SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           generate_release_notes: true
           files: release/*

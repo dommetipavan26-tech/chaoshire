@@ -1,10 +1,55 @@
+[build-system]
+requires = ["setuptools>=78.1.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chaoshire"
+dynamic = ["version", "dependencies", "optional-dependencies"]
+description = "Reproducible fairness audits and chaos tests for hiring-model decisions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.urls]
+Repository = "https://github.com/dommetipavan26-tech/chaoshire"
+Documentation = "https://github.com/dommetipavan26-tech/chaoshire/tree/main/docs"
+Issues = "https://github.com/dommetipavan26-tech/chaoshire/issues"
+
+[project.scripts]
+chaoshire = "chaoshire.cli:main"
+
+[tool.setuptools]
+packages = ["chaoshire"]
+py-modules = ["backend"]
+# Asset directories are data, not namespace packages; ship only the explicit
+# patterns below instead of inferring extra packages from the sdist manifest.
+include-package-data = false
+
+[tool.setuptools.dynamic]
+version = {attr = "chaoshire.__version__"}
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.dynamic.optional-dependencies]
+postgres = {file = ["requirements-postgres.txt"]}
+maintenance = {file = ["requirements-maintenance.txt"]}
+
+[tool.setuptools.package-data]
+chaoshire = [
+  "artifacts/*.json",
+  "web/*.html",
+  "web/static/*.css",
+  "web/static/*.js",
+  "web/static/*.png",
+  "web/static/fonts/*",
+  "web/static/icons/*",
+]
+
 [tool.pytest.ini_options]
 # The Playwright suite is opt-in: its browser dependency is not part of requirements-dev.txt.
 testpaths = ["tests/api", "tests/core", "tests/infrastructure", "tests/web"]
 addopts = "--strict-markers"
-filterwarnings = [
-  "ignore:Using `httpx` with `starlette.testclient` is deprecated.*",
-]
+markers = ["postgres: requires an explicitly supplied disposable PostgreSQL service"]
 
 [tool.ruff]
 target-version = "py311"

@@ -244,7 +244,7 @@ score is noisy in the cutoff, while the unseen-population mean is not.
 | Cutoff P(qualified) ≥ | Cost *k* | Fixture score | Fixture qualified rejected | Unseen mean score | Unseen mean accuracy |
 |---|---:|---:|---:|---:|---:|
 | 0.50 | 1.00 | 58 | 63 | 69.2 | 88.7% |
-| 0.45 | 1.22 | 55 | 53 | 71.9 | 88.4% |
+| 0.45 | 1.22 | 55 | 53 | 72.0 | 88.4% |
 | 0.40 | 1.50 | 65 | 42 | 74.7 | 87.4% |
 | 0.35 | 1.86 | 76 | 26 | 75.9 | 85.8% |
 | **0.333** | **2.00** | **80** | **21** | **76.0** | **85.0%** |
@@ -252,7 +252,10 @@ score is noisy in the cutoff, while the unseen-population mean is not.
 | 0.25 | 3.00 | 85 | 11 | 78.6 | 80.9% |
 
 (Merit features only; 49 unseen populations drawn with seeds 1–50 excluding the
-fixture seed 29.) Lower cutoffs trade accuracy and precision for recall and a
+fixture seed 29.) Rechecked locally on 1 October 2026 with scikit-learn 1.9.1;
+cutoffs were evaluated exactly and the displayed cost ratios/means rounded.
+The 0.45-cutoff mean is 71.96, shown as 72.0 rather than the earlier 71.9.
+Lower cutoffs trade accuracy and precision for recall and a
 higher fairness score. Part of that score gain is mechanical: accepting more
 candidates narrows ratios between selection rates, which is one reason
 four-fifths results should be compared at matched acceptance rates. Every

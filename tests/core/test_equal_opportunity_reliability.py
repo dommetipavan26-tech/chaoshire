@@ -268,9 +268,9 @@ def test_the_dashboard_marks_thin_true_positive_rates():
     """The exclusion is visible in the product, not only in the JSON."""
     from pathlib import Path
 
-    html = (Path(__file__).resolve().parents[2] / "chaoshire" / "web" / "index.html").read_text(
-        encoding="utf-8"
-    )
+    html = (
+        Path(__file__).resolve().parents[2] / "chaoshire" / "web" / "static" / "chaoshire.js"
+    ).read_text(encoding="utf-8")
     assert "g.low_qualified_n" in html
     assert "g.qualified_count" in html
     assert "excluded from ΔEqOpp" in html

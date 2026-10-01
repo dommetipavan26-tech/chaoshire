@@ -1,0 +1,2 @@
+# Optional PostgreSQL driver; also used by the chaoshire[postgres] extra.
+psycopg2-binary>=2.9.13,<3

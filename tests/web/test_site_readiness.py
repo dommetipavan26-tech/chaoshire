@@ -54,7 +54,9 @@ def test_site_pages_have_distinct_titles_descriptions_and_legal_links() -> None:
         assert "while the resume stays still." in home
         assert "résumé" not in home
         assert 'id="home-tab"' not in home.split("</header>")[0]
-        assert 'id="home-tab" data-t="welcome"' in home
+        assert "/static/chaoshire.js?v=" in home
+        script = client.get("/static/chaoshire.js").text
+        assert 'id="home-tab" data-t="welcome"' in script
         assert "anonymous uploads" in client.get("/privacy").text.lower()
         assert "do not use this public service" in client.get("/terms").text.lower()
         compressed = client.get("/", headers={"Accept-Encoding": "gzip"})
@@ -175,7 +177,14 @@ def test_operator_key_never_appears_in_browser_assets_or_public_meta(monkeypatch
     secret = "server-only-canary-do-not-publish"
     monkeypatch.setenv("CHAOSHIRE_API_KEY", secret)
     with TestClient(app) as client:
-        for path in ("/", "/privacy", "/terms", "/static/chaoshire.css", "/api/meta"):
+        for path in (
+            "/",
+            "/privacy",
+            "/terms",
+            "/static/chaoshire.css",
+            "/static/chaoshire.js",
+            "/api/meta",
+        ):
             assert secret not in client.get(path).text
         assert client.get("/api/meta").json()["platform"]["api_key_configured"] is True
 

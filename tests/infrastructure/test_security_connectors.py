@@ -43,7 +43,7 @@ def test_csp_uses_a_fresh_nonce_per_request():
     match = NONCE_RE.search(csp)
     assert match, f"no nonce in script-src: {script_src}"
     nonce = match.group(1)
-    assert f'<script nonce="{nonce}">' in first.text
+    assert f'<script nonce="{nonce}" src="/static/chaoshire.js?v=' in first.text
     assert "<script>" not in first.text
 
     second_nonce = NONCE_RE.search(second.headers["content-security-policy"])
@@ -225,8 +225,8 @@ def test_upstream_failure_never_echoes_the_exception(monkeypatch, caplog):
 
     Remote-connector exceptions are exactly the kind that embed the request URL,
     proxy configuration or a credential fragment, so the client receives the
-    failure category and the exception class, and the operator gets the full text
-    in the server log.
+    failure category and the exception class. Logs must not persist credential-
+    bearing upstream exception text either.
     """
 
     class ExplodingAdapter:
@@ -248,8 +248,11 @@ def test_upstream_failure_never_echoes_the_exception(monkeypatch, caplog):
     payload = response.json()
     assert payload["error"] == "Remote model 'acme-v4' could not be audited."
     assert payload["reason"] == "RuntimeError"
-    # The detail is not lost, it is just not sent to the caller.
-    assert "SUPERSECRET" in caplog.text
+    # Exception class remains useful, without persisting a URL/credential.
+    assert "RuntimeError" in caplog.text
+    assert "SUPERSECRET" not in caplog.text
+    assert "abc123" not in caplog.text
+    assert "models.example" not in caplog.text
 
 
 def test_csv_parse_failure_never_echoes_parser_internals(caplog):

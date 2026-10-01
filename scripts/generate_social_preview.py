@@ -4,9 +4,9 @@ Install Pillow (`python -m pip install pillow`) and run
 `python -m scripts.generate_social_preview` after changing the brand copy.
 The generated PNG is committed because crawlers cannot run a Python generator.
 
-Headlines use Besley when ``CHAOSHIRE_BESLEY`` points at the TTF, or when a
-local checkout still has ``/tmp/fonts/Besley-600.ttf``. Otherwise the card
-falls back to DejaVu, which is enough to regenerate the colors.
+Headlines use Besley when ``CHAOSHIRE_BESLEY`` points at an operator-owned TTF.
+Otherwise the card falls back to DejaVu, which is enough to regenerate the colors.
+No font is loaded implicitly from a shared temporary directory.
 """
 
 from __future__ import annotations
@@ -32,7 +32,6 @@ def font(size: int, *, heading: bool = False) -> ImageFont.FreeTypeFont | ImageF
     if heading:
         if os.getenv("CHAOSHIRE_BESLEY"):
             candidates.append(os.environ["CHAOSHIRE_BESLEY"])
-        candidates.append("/tmp/fonts/Besley-600.ttf")
     candidates.append("DejaVuSans-Bold.ttf" if heading else "DejaVuSans.ttf")
     for name in candidates:
         try:

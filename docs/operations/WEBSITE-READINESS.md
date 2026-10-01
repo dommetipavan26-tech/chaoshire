@@ -7,7 +7,7 @@ This document audits the public-facing ChaosHire **synthetic prototype**. It is 
 | Checklist area | Status in this codebase |
 |---|---|
 | Privacy Policy and Terms & Conditions | Separate `/privacy` and `/terms` pages, linked from the site footer. Their private contact route is GitHub's private vulnerability reporting (**Report a vulnerability** on the repository's Security tab), which must stay enabled. Wording reviewed for the synthetic demo on 24 September 2026; it is not a substitute for independent legal review before handling real personal data. |
-| Secrets and HTTPS | Operator, connector, and webhook credentials remain in server environment variables; a canary test checks public HTML/CSS/API metadata for leaks. On Render (or with `CHAOSHIRE_FORCE_HTTPS=1`) public HTTP redirects to a configured HTTPS origin, and secure responses carry HSTS. Health probes are exempt from redirects. Never trust forwarded scheme headers outside a proxy that overwrites them. |
+| Secrets and HTTPS | Operator, connector, and webhook credentials remain in server environment variables; a canary test checks public HTML/CSS/JavaScript/API metadata for leaks. On Render (or with `CHAOSHIRE_FORCE_HTTPS=1`) public HTTP redirects to a configured HTTPS origin, and secure responses carry HSTS. Health probes are exempt from redirects. Never trust forwarded scheme headers outside a proxy that overwrites them. |
 | Consent and analytics | Accessible, optional, cookie-free consent banner. No page-view request occurs before Allow. The choice is stored in localStorage and can be changed in the footer. Only allowlisted section names reach the first-party API; daily counts are operator-only, process-local, and expire within 30 UTC days or on restart. No visitor IDs are stored with those counts. |
 | Search and sharing | Distinct page titles/descriptions, canonical HTTPS URLs, Open Graph/Twitter preview with alt text, 1200×630 PNG, `/favicon.ico` + PNG favicon, `/sitemap.xml`, and `/robots.txt` (excludes API/docs). |
 | Accessible and mobile UI | One primary action (**Start the 3-minute demo**); mobile shows all three model choices without horizontal page overflow. Form labels, inline error messages, keyboard access, reduced-motion styles, and legible colours are checked in a real browser. API errors remain JSON; browser navigation gets a useful HTML 404. |
@@ -40,7 +40,7 @@ For custom Chromium binaries, pass `--chromium-executable PATH` to both scripts.
 
 ## Automated live checks
 
-A merge does not prove a deploy on the hand-managed service, so [`.github/workflows/live-site.yml`](../../.github/workflows/live-site.yml) checks the running site from GitHub's servers. It runs after every push to `main` and can be started by hand (**Actions → Live site checks → Run workflow**) after a manual Render deploy. It first waits (30 minutes after a push; 10 by default when run by hand) until the live `/api/meta` build facts and stylesheet version match the commit. Then [`scripts/check_live_site.py`](../../scripts/check_live_site.py) verifies:
+A merge does not prove a deploy on the hand-managed service, so [`.github/workflows/live-site.yml`](../../.github/workflows/live-site.yml) checks the running site from GitHub's servers. It runs after every push to `main` and can be started by hand (**Actions → Live site checks → Run workflow**) after a manual Render deploy. It first waits (30 minutes after a push; 10 by default when run by hand) until the live `/api/meta` build facts, stylesheet version, and JavaScript version match the commit. Then [`scripts/check_live_site.py`](../../scripts/check_live_site.py) verifies:
 
 - the new routes, content types, titles, robots/sitemap origin, and the 1200×630 social card;
 - the HTTP→HTTPS redirect target, HSTS of at least one year, CSP without `unsafe-inline`, and the framing/sniffing/referrer headers;
@@ -125,3 +125,34 @@ Chromium, fresh context, service workers blocked):
 
 The previous lab-console measurements (axe-core 4.10.3, 1440px FCP 68 ms)
 remain in the git history of this file.
+
+
+## Repository audit snapshot — 1 October 2026 (local only)
+
+The [repository-wide audit](REPOSITORY-AUDIT.md) rechecked the current source,
+not the hand-managed Render service. Dashboard behavior now lives in
+`chaoshire/web/static/chaoshire.js`, served as a nonce-bearing deferred
+same-origin script; CSS/JS content hashes and the HTML-template hash invalidate
+its offline cache. The model selector is now a named landmark.
+
+The opt-in Chromium suite passes seven scenarios, including score rendering,
+XSS, consent, anonymous-upload downloads, and every-tab layout checks. Axe-core
+4.13.0 checked Home, Dashboard, Upload, Appeals, Privacy, Terms, and 404 at
+1440/390/320px: **0 reported violations in 21 audits** after the landmark fix.
+All 21 audits still mark colour-contrast elements inconclusive because axe
+cannot determine their gradient backgrounds. Palette-token tests pass, but
+these inconclusive results require manual rendered-contrast review and must
+not be described as complete WCAG certification.
+
+Five fresh uncached visits per width (Chromium 153, service workers blocked):
+
+| Viewport | Median TTFB | Load | FCP / LCP | HTML wire / decoded | Other resources on wire |
+|---|---:|---:|---:|---:|---:|
+| 1440px | 4 ms | 52 ms | 108 / 108 ms | 2,287 / 6,896 bytes | 48,294 bytes |
+| 390px | 4 ms | 55 ms | 96 / 96 ms | 2,287 / 6,896 bytes | 48,294 bytes |
+
+This run used isolated local SQLite state and a higher local read budget to
+avoid benchmarking the rate limiter. These are sandbox lab timings, not
+production/cold-start/field Core Web Vitals, and not a Lighthouse score. The
+previous dated snapshots above are historical evidence, not current rollout
+proof. Repeat the owner checks after deploying the reviewed changes.
