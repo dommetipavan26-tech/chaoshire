@@ -146,7 +146,8 @@ Scores: LegacyCorp `32/F` and MeritFirst `84/B` preserved; TalentFit `66/C` → 
 - [x] P2: Validate connector URLs/timeouts/response bounds and stop credential-bearing exception logging.
 - [x] P2: Prefer HTTPX2 for development/browser TestClient; old HTTPX remains the outbound runtime client.
 - [x] Split shared decision validation into its own module without moving stable public application imports.
-- [ ] Owner: Docker/Python 3.12/live rollout and real-device/screen-reader/gradient-contrast verification remain outstanding.
+- [x] Hosted CI: Python 3.11/3.12 quality/package gates, PostgreSQL services, Docker non-root/PORT/readiness smoke, browser, fairness, dependency and CodeQL checks pass for the verified PR #50 code revision.
+- [ ] Owner: Live rollout, tenant/account decisions and independent real-device/screen-reader/gradient-contrast/privacy/security/legal reviews remain outstanding.
 
 See [the audit report](../operations/REPOSITORY-AUDIT.md) for evidence, acceptance criteria, and scope limits;
 [the file inventory](../operations/REPOSITORY-INVENTORY.md) maps all source files to their responsibilities.

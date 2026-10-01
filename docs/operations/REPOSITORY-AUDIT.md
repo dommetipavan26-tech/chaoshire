@@ -150,10 +150,27 @@ No blanket rule suppression was added. Safe YAML and defused XML remain in the r
 
 Python coverage intentionally excludes synthetic generator `chaoshire/data.py`; JavaScript coverage is not part of the percentage. PostgreSQL remains around 44% in the **default-only** run but reaches 98.53% in the separate real-service suite. Those figures were not combined to inflate the committed default percentage. `__main__.py` remains 0% within pytest's process even though separate module-CLI smoke passes. Mocked/vendor behavior, local server behavior and real production integrations remain different evidence categories.
 
+## Hosted CI follow-up — 2 October 2026
+
+[Pull request #50](https://github.com/dommetipavan26-tech/chaoshire/pull/50) runs the previously prepared gates against the published Arena branch. All ten checks passed for code revision `cedefc7903e6e561c199eb23c8ce8b85fb29ea92`:
+
+| Hosted verification | Evidence |
+|---|---|
+| Quality / complete default suite / package-install gates, Python 3.11 and 3.12 | [Quality checks](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/36914526740) |
+| Real PostgreSQL integration on both Python versions | Same quality workflow, separate service-backed jobs |
+| Docker build, non-root UID, non-default PORT, readiness and packaged assets | Same quality workflow, `container-smoke` job |
+| Browser/mobile suite | [Browser checks](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/36914527145) |
+| Dependency audit and CodeQL analysis / alert gate | [Security checks](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/36914526912) |
+| Fairness release gate | [Fairness gate](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/36914526788) |
+
+The initial CodeQL alert concerned a case-sensitive script-tag regex **in a test helper**. It was fixed with structural `HTMLParser` inspection, including mixed-case tags/attributes and closing-tag whitespace coverage, rather than a rule suppression or alert dismissal. The separate CodeQL alert gate now passes.
+
+This hosted evidence closes the earlier **remote CI / Python 3.12 / Docker execution** gaps for the stated code revision. It does not certify a production deployment, real applicant use, external vendor/webhook accounts, tenant isolation, complete secrets/container vulnerability auditing, independent review, or legal/accessibility compliance. PR/main merge and production rollout remain separate actions. Subsequent commits must retain their own green checks; linked historical runs are not relabeled as results for a different SHA.
+
 ## Still requires owner decisions / independent execution
 
 1. **Before personal/applicant data:** identity/provider choice, tenant/per-audit authorization and export isolation, approved durable storage, encryption, retention/deletion, backup/restore, incident response and independent legal/privacy/security review. Keep the public demo synthetic until then.
-2. **Remote CI / Docker / Python 3.12 runtime:** jobs and exact-version resolution are prepared, but no push/run was triggered and Docker/3.12 executables are unavailable locally. Do not mark those jobs as passed without their real run.
+2. **Future revisions / other environments:** hosted CI, Docker and Python 3.12 are now verified for the revision above; repeat those gates after changes. Other platforms, live production configuration and patched production database releases still require their own evidence.
 3. **Production Render / proxy / TLS / durability / monitoring:** no live rollout, proxy proof, paid storage, alert-account setup or cold-start test performed. `render.yaml` does not configure an already hand-managed service automatically.
 4. **Actual vendor/webhook accounts:** no production credentials/endpoints used. Bounded mocked failure/load tests do not prove an external receiver's contract, throughput or retention policy.
 5. **Public Adult benchmark fresh rerun:** the earlier UCI TLS/EOF transport failure prevented real-data re-download. Offline integrity/model tests are valid, but no substituted/fabricated fresh public-benchmark findings are claimed.
