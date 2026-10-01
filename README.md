@@ -133,11 +133,11 @@ Fixture scores, accuracy, recall and the rejection counts above are unaffected.
 precision. It advances more candidates to interview (482 vs 459 for
 MeritFirst), and out of sample it is slightly less accurate than MeritFirst.
 On the audited fixture MeritFirst still scores 4 points higher (84 vs 80). The
-cutoff was not tuned to close that gap. A 3× cost would tie MeritFirst at 84,
+cutoff was not tuned to close that gap. A 3× cost scores 85, one point above MeritFirst,
 but choosing a threshold because it wins on the audited sample is exactly the
 gaming this project exists to catch: the fixture score is noisy and not even
 monotonic in the cutoff (58, 55, 65, 76 from probability 0.50 down to 0.35),
-while the unseen-population mean rises smoothly (65.3, 68.1, 71.4, 73.4). The release gate agrees: it now passes LegacyCorp → TalentFit (the
+while the unseen-population mean rises smoothly (69.2, 72.0, 74.7, 75.9). The release gate agrees: it now passes LegacyCorp → TalentFit (the
 original v3 was blocked) and blocks MeritFirst → TalentFit on the 4-point
 regression. Resilience 100/100 holds **by construction** for both MeritFirst and
 TalentFit: a model with no protected inputs cannot flip on a swap.
@@ -247,13 +247,13 @@ chaoshire/                 # importable application; existing module paths stay 
 ├── repository*.py         # SQLite and optional PostgreSQL persistence
 ├── artifacts/             # pinned trained-model fixture
 └── web/                   # packaged browser shell (served at /)
-    ├── index.html
-    └── static/            # stylesheet and PWA icons
+    ├── index.html        # semantic markup; legal and 404 pages alongside it
+    └── static/            # chaoshire.css, chaoshire.js, licensed font, PWA icons
 tests/
 ├── api/                   # endpoints, uploads, and access controls
 ├── core/                  # metrics, models, and fairness workflows
 ├── infrastructure/        # repositories, connectors, and build checks
-├── web/                   # HTML/CSS, CSP, and escaping
+├── web/                   # HTML/CSS/JS, asset cache, CSP, and escaping
 └── browser/               # opt-in Playwright suite
 docs/
 ├── engineering/           # architecture, methodology, integration
@@ -265,8 +265,9 @@ examples/                  # runnable decision-adapter example
 .github/workflows/         # quality, browser, fairness, security, release CI
 ```
 
-See the [documentation index](docs/README.md) for individual files and maintenance
-commands. `backend.py`, dependency manifests, `Dockerfile`, `render.yaml`, and the
+See the [documentation index](docs/README.md), the [file-by-file inventory](docs/operations/REPOSITORY-INVENTORY.md),
+and the [1 October 2026 audit and next updates](docs/operations/REPOSITORY-AUDIT.md)
+for individual files, verification scope, and maintenance commands. `backend.py`, dependency manifests, `Dockerfile`, `render.yaml`, and the
 standard community files remain at the root for existing deployment and tooling
 conventions. The Python modules remain at their public `chaoshire.*` import paths;
 the web assets are resolved relative to the package rather than the working
@@ -314,7 +315,7 @@ commands are in the [documentation index](docs/README.md). GitHub Actions runs
 linting, type checking, the trained-model drift check and the default test suite
 on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
 quality gate requires at least 90% package coverage; the **current source
-baseline**, measured locally, contains **312 tests with 95.1% package coverage**
+baseline**, measured locally, contains **504 tests with 97.1% package coverage**
 (the configured source set excludes the synthetic fixture module
 `chaoshire/data.py`). The tagged release and live site may lag this revision.
 
@@ -324,9 +325,25 @@ fixture size are derived from the running package at import time, so they cannot
 drift. The test count and coverage figure cannot be derived that way, so
 `scripts/check_build_info.py` re-derives both from a real pytest run and fails
 the build if `chaoshire/build_info.py` disagrees. `GET /api/meta` serves the
-result as `build`, and `chaoshire/web/index.html` renders that payload instead
+result as `build`, and `chaoshire/web/static/chaoshire.js` renders that payload instead
 of hardcoding a version string — the failure mode that once left the landing page advertising
 v0.21.0 while the package said v0.22.0.
+
+### Optional integrations and reproducible checks
+
+```bash
+# Linux / Python 3.11 development; use requirements-py312.txt for Python 3.12
+python -m pip install -c constraints/requirements-py311.txt -r requirements-dev.txt
+# Optional PostgreSQL runtime driver (SQLite remains default)
+python -m pip install ".[postgres]"
+# Optional asset/audit/constraint-generation tools
+python -m pip install -r requirements-maintenance.txt
+# Fresh-wheel verification after `python -m build`
+python scripts/check_distribution.py --wheel dist/chaoshire-*.whl --sdist dist/chaoshire-*.tar.gz \
+  --constraints constraints/requirements-py311.txt
+```
+
+The [engineering update report](docs/operations/REPOSITORY-AUDIT.md) distinguishes local results from owner-only rollout. Strict decision labels, expiring bounded limiter keys, fixed webhook workers, and fail-closed benchmark input are now implemented. PostgreSQL tests are opt-in (`tests/integration/`) and require an explicit **disposable local** `CHAOSHIRE_TEST_POSTGRES_URL`; they never fall back to a production DSN. CI now exercises PostgreSQL, installed packages, and a non-default-PORT container in addition to its quality matrix. Configuring CI is not proof that its remote run has happened.
 
 ### Audit scikit-learn predictions
 
@@ -402,7 +419,7 @@ For this example, configure:
 - Protected attributes: `region, disability_status`
 - Minimum reliable group size: `30` by default, configurable from 2–500
 
-Column names are normalized for surrounding whitespace and case. Missing group values are retained as a visible `(missing)` group instead of silently discarded. High-cardinality fields that look like identifiers are rejected as protected attributes. Each successful upload returns its interpretation settings and warnings, and `/api/audit/export` downloads the result as JSON.
+Column names are normalized for surrounding whitespace and case. Missing group values are retained as a visible `(missing)` group instead of silently discarded. High-cardinality fields that look like identifiers are rejected as protected attributes. Each successful upload returns its interpretation settings, warnings, and aggregate audit. **Anonymous uploads are not published or persisted** (`published: false`, `audit_id: null`); the dashboard's **Download JSON audit** button downloads that exact browser-local result. Only operator-authenticated uploads populate shared history and the latest-upload slot. `/api/audit/export`, HTML/PDF reports, and evidence endpoints refer to that **shared published slot**, not to an anonymous visitor's upload. See [persistence and privacy](docs/operations/PERSISTENCE.md).
 
 The original schema remains backward-compatible. Download a compatible synthetic sample from `/api/sample.csv`.
 
@@ -426,7 +443,7 @@ ChaosHire is an educational and portfolio-grade prototype—not a legal complian
 - Equal-opportunity analysis depends on trustworthy qualification labels.
 - Per-group threshold calibration is **not offered as a mitigation**. Setting different cutoff scores by race, colour, religion, sex or national origin in an employment test is an unlawful employment practice under [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2) (Civil Rights Act of 1991). ChaosHire can still compute it as a labelled research contrast — `threshold_contrast_acknowledged=true`, refused otherwise, reported under its own key and never merged into a mitigation result — but nothing here is legal advice.
 - The current in-memory upload and appeals state is not suitable for sensitive production data.
-- The public demonstration keeps a single shared upload slot, so the latest upload's aggregate result is readable by every visitor; raw rows never leave process memory.
+- The public demonstration keeps a single shared slot for **operator-published** uploads, so the latest published aggregate result is readable by every visitor. Anonymous uploads do not replace that slot; their parsed rows are discarded after the response. Published raw rows stay in process memory only.
 - Real deployments require privacy assessment, access controls, encryption, retention policies, monitoring, and legal review.
 
 ## Roadmap

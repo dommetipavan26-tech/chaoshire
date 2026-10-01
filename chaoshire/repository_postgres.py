@@ -52,7 +52,7 @@ def _require_psycopg2():
         return psycopg2, psycopg2.extras
     except ImportError as error:  # pragma: no cover - exercised only with postgres backend
         raise RuntimeError(
-            "CHAOSHIRE_DB_BACKEND=postgres requires psycopg2; install psycopg2-binary."
+            "CHAOSHIRE_DB_BACKEND=postgres requires psycopg2; install chaoshire[postgres] or requirements-postgres.txt."
         ) from error
 
 
@@ -65,7 +65,7 @@ def connect() -> Iterator[Any]:
         raise RuntimeError(
             "CHAOSHIRE_DB_BACKEND=postgres requires CHAOSHIRE_DATABASE_URL to be set."
         )
-    connection = psycopg2.connect(url)
+    connection = psycopg2.connect(url, connect_timeout=5)
     try:
         yield connection
         connection.commit()

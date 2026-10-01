@@ -2,12 +2,16 @@
 
 import json
 import os
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any, Protocol, runtime_checkable
+from urllib.parse import urlsplit
 
 import pandas as pd
 
+from .decisions import normalise_decisions
 from .models import build_decisions, get_model
 
 
@@ -58,14 +62,46 @@ class CallableDecisionAdapter:
         }
 
     def decisions(self) -> pd.DataFrame:
-        frame = self.provider()
-        required = {"accepted"}
-        missing = required - set(frame.columns)
-        if missing:
-            raise ValueError(
-                f"Adapter output is missing required columns: {', '.join(sorted(missing))}."
-            )
-        return frame.copy()
+        return normalise_decisions(self.provider())
+
+
+def validate_remote_configuration(
+    url: str,
+    timeout_seconds: float = 30.0,
+    api_key_env: str | None = None,
+    *,
+    allow_http: bool = False,
+) -> None:
+    """Reject unsafe configuration without including credential-bearing values in errors."""
+    if not isinstance(url, str) or len(url) > 2048 or any(c.isspace() for c in url) or "\\" in url:
+        raise ValueError("Remote connector URL must be an absolute http(s) URL.")
+    try:
+        parts = urlsplit(url)
+        valid = parts.scheme in {"https", "http"} and bool(parts.hostname) and parts.port != 0
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ValueError("Remote connector URL must be an absolute http(s) URL.")
+    if parts.username is not None or parts.password is not None or parts.query or parts.fragment:
+        raise ValueError(
+            "Remote connector URL must not contain userinfo, query credentials or fragments."
+        )
+    if not isinstance(allow_http, bool) or (parts.scheme == "http" and not allow_http):
+        raise ValueError(
+            "Remote connectors require HTTPS; allow_http=true is an explicit local/private-network opt-in."
+        )
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or not isfinite(timeout_seconds)
+        or not 0 < timeout_seconds <= 120
+    ):
+        raise ValueError("Remote connector timeout_seconds must be finite and in (0, 120].")
+    if api_key_env is not None and (
+        not isinstance(api_key_env, str)
+        or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", api_key_env) is None
+    ):
+        raise ValueError("Remote connector api_key_env must be a valid environment-variable name.")
 
 
 @dataclass(frozen=True)
@@ -84,8 +120,13 @@ class RemoteDecisionAdapter:
     timeout_seconds: float = 30.0
     transport: Any = None
     adapter_id: str = "remote-http"
+    allow_http: bool = False
+    max_response_bytes: int = 5_500_000
 
     def describe(self) -> dict[str, Any]:
+        validate_remote_configuration(
+            self.url, self.timeout_seconds, self.api_key_env, allow_http=self.allow_http
+        )
         return {
             "adapter": self.adapter_id,
             "model_id": self.model_id,
@@ -102,9 +143,16 @@ class RemoteDecisionAdapter:
             raise RuntimeError(
                 "The remote connector requires httpx; install requirements.txt."
             ) from error
-        if not self.url.startswith(("https://", "http://")):
-            raise ValueError(f"Remote connector URL must be http(s): {self.url!r}")
-        headers = {"Accept": "application/json"}
+        validate_remote_configuration(
+            self.url, self.timeout_seconds, self.api_key_env, allow_http=self.allow_http
+        )
+        if (
+            isinstance(self.max_response_bytes, bool)
+            or not isinstance(self.max_response_bytes, int)
+            or self.max_response_bytes <= 0
+        ):
+            raise ValueError("Remote response byte limit must be a positive integer.")
+        headers = {"Accept": "application/json", "Accept-Encoding": "identity"}
         if self.api_key_env:
             api_key = os.environ.get(self.api_key_env, "").strip()
             if not api_key:
@@ -112,33 +160,36 @@ class RemoteDecisionAdapter:
                     f"Remote connector '{self.model_id}' is missing API key env '{self.api_key_env}'."
                 )
             headers["Authorization"] = f"Bearer {api_key}"
-        with httpx.Client(timeout=self.timeout_seconds, transport=self.transport) as client:
-            response = client.get(self.url, headers=headers)
-        response.raise_for_status()
-        return normalise_remote_decisions(response.json(), model_id=self.model_id)
-
-
-FAVOURABLE_VALUES = {"1", "true", "yes", "y", "accept", "accepted"}
+        body = bytearray()
+        with httpx.Client(
+            timeout=self.timeout_seconds, transport=self.transport, follow_redirects=False
+        ) as client:
+            with client.stream("GET", self.url, headers=headers) as response:
+                response.raise_for_status()
+                if response.headers.get("content-encoding", "identity").lower() != "identity":
+                    raise ValueError(
+                        "Remote responses must use identity encoding for bounded decoding."
+                    )
+                for chunk in response.iter_bytes(chunk_size=65_536):
+                    if len(body) + len(chunk) > self.max_response_bytes:
+                        raise ValueError(
+                            "Remote decision response exceeds the configured byte limit."
+                        )
+                    body.extend(chunk)
+        return normalise_remote_decisions(json.loads(body), model_id=self.model_id)
 
 
 def normalise_remote_decisions(payload: Any, model_id: str) -> pd.DataFrame:
-    """Normalise a remote JSON payload into the DecisionAdapter contract."""
+    """Normalize both outcome and truth labels before any metric sees the rows."""
     rows = payload.get("decisions") if isinstance(payload, dict) else payload
     if not isinstance(rows, list) or not rows:
         raise ValueError(f"Remote model '{model_id}' returned no decision rows.")
+    if len(rows) > 100_000 or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("Remote decisions must be a bounded list of row objects.")
     frame = pd.DataFrame(rows)
     if "accepted" not in frame.columns:
         raise ValueError(f"Remote model '{model_id}' payload is missing the 'accepted' field.")
-
-    def as_bool(value: Any) -> bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, (int, float)):
-            return bool(value)
-        return str(value).strip().lower() in FAVOURABLE_VALUES
-
-    frame["accepted"] = frame["accepted"].map(as_bool)
-    return frame
+    return normalise_decisions(frame)
 
 
 def remote_adapters_from_env() -> list[RemoteDecisionAdapter]:
@@ -153,22 +204,35 @@ def remote_adapters_from_env() -> list[RemoteDecisionAdapter]:
     try:
         entries = json.loads(raw)
     except json.JSONDecodeError as error:
-        raise ValueError(f"CHAOSHIRE_REMOTE_MODELS is not valid JSON: {error}") from error
+        raise ValueError("CHAOSHIRE_REMOTE_MODELS is not valid JSON.") from error
     if not isinstance(entries, list):
         raise ValueError("CHAOSHIRE_REMOTE_MODELS must be a JSON list of connector objects.")
     adapters: list[RemoteDecisionAdapter] = []
+    seen: set[str] = set()
+    if len(entries) > 100:
+        raise ValueError("Configure no more than 100 remote models.")
     for entry in entries:
         if not isinstance(entry, dict) or not entry.get("model_id") or not entry.get("url"):
             raise ValueError("Each connector needs 'model_id' and 'url'.")
-        url = str(entry["url"])
-        if not url.startswith(("https://", "http://")):
-            raise ValueError(f"Connector URL must be http(s): {url!r}")
+        model_id = entry["model_id"]
+        if (
+            not isinstance(model_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}", model_id)
+            or model_id in seen
+        ):
+            raise ValueError("Remote model IDs must be unique, bounded identifiers.")
+        seen.add(model_id)
+        timeout = entry.get("timeout_seconds", 30.0)
+        key_env = entry.get("api_key_env")
+        allow_http = entry.get("allow_http", False)
+        validate_remote_configuration(entry["url"], timeout, key_env, allow_http=allow_http)
         adapters.append(
             RemoteDecisionAdapter(
-                model_id=str(entry["model_id"]),
-                url=url,
-                api_key_env=entry.get("api_key_env"),
-                timeout_seconds=float(entry.get("timeout_seconds", 30.0)),
+                model_id=model_id,
+                url=entry["url"],
+                api_key_env=key_env,
+                timeout_seconds=float(timeout),
+                allow_http=allow_http,
             )
         )
     return adapters
@@ -196,6 +260,8 @@ def adapter_catalog() -> dict[str, Any]:
         "contract": "DecisionAdapter.describe() + DecisionAdapter.decisions()",
         "required_normalized_columns": ["accepted"],
         "recommended_columns": ["candidate_id", "qualified", "protected attributes"],
+        "label_contract": "Explicit booleans, numeric 0/1, or documented true/false tokens; missing/unknown/nonfinite labels are rejected.",
+        "remote_transport": "HTTPS by default; credential-free URLs; explicit allow_http for private/local endpoints; bounded response bodies.",
         "adapters": [
             {
                 "id": "reference-model",

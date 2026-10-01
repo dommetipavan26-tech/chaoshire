@@ -13,6 +13,8 @@ are relative to the **repository root**.
 
 ## Operations
 
+- [Repository audit and completed updates — 1 October 2026](operations/REPOSITORY-AUDIT.md) — findings, executed checks, limits, and prioritized next updates.
+- [Every-file inventory](operations/REPOSITORY-INVENTORY.md) — responsibilities and structural checks for every source file.
 - [Persistence and privacy](operations/PERSISTENCE.md) — what is stored and for how long.
 - [Monitoring](operations/MONITORING.md) — deployment posture and operational checks.
 - [Release checklist](operations/RELEASE-CHECKLIST.md) — automated gates and owner actions.
@@ -36,18 +38,23 @@ are relative to the **repository root**.
 
 - `chaoshire/*.py` retains its public import paths (for example, `chaoshire.metrics`);
   `backend.py` retains the `uvicorn backend:app` entry point.
-- `chaoshire/web/` contains `index.html` and `static/`. Both ship **inside the
-  Python package**. The routes for `/`, `/static/chaoshire.css`, and `/icons/...`
-  have not changed. Docker copies this directory along with the rest of
-  `chaoshire/`.
+- `chaoshire/web/` contains the HTML shell, legal/error pages, and `static/`.
+  Styles and behavior live separately in `static/chaoshire.css` and
+  `static/chaoshire.js`; both have content-hashed asset URLs. All ship **inside
+  the Python package** alongside the licensed font and icons. `/`, the CSS
+  route, and `/icons/...` retain their public paths; `/static/chaoshire.js` now
+  serves the extracted behavior. Docker copies this directory with `chaoshire/`.
 - `chaoshire/artifacts/` contains the pinned trained-model fixture, not generated
   reports. `examples/` holds the runnable adapter example. In `scripts/`,
+  [`check_repository.py`](../scripts/check_repository.py) inventories/checks every source file,
   [`check_build_info.py`](../scripts/check_build_info.py) checks CI facts,
   [`generate_icons.py`](../scripts/generate_icons.py) writes PWA icons to
   `chaoshire/web/static/icons/`, and
   [`probe_xff.py`](../scripts/probe_xff.py) tests proxy rate limiting. Keep root
   dependency manifests and deployment configuration in place for Docker,
   Render, pip, and Dependabot.
+- `constraints/` holds Linux CPython 3.11/3.12 exact-version resolutions, refreshed with `scripts/compile_constraints.py`. Optional PostgreSQL and maintenance manifests back the matching package extras. The installed-wheel gate is `scripts/check_distribution.py`; it does not rely on an editable/source import.
+- `tests/integration/` exercises a real disposable **local** PostgreSQL service. Install `requirements-postgres.txt`, set `CHAOSHIRE_TEST_POSTGRES_URL`, then run `python -m pytest tests/integration --require-postgres -q`. Cases create/drop random schemas; production DSNs are never fallback inputs. Like browser checks, this is separate from default collection.
 - `tests/api/`, `tests/core/`, `tests/infrastructure/`, and `tests/web/` run with
   `python -m pytest -q`. `tests/browser/` is opt-in because it requires Playwright:
 

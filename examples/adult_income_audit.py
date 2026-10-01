@@ -52,10 +52,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import numpy as np
 import pandas as pd
@@ -128,29 +131,100 @@ MODELS: dict[str, dict[str, Any]] = {
 LABEL_REFERENCE = "true_label"
 
 
+MAX_DATA_FILE_BYTES = 8 * 1024 * 1024
+DOWNLOAD_CHUNK_BYTES = 64 * 1024
+
+
+class DatasetIntegrityError(ValueError):
+    """Refuse to publish benchmark results from an unverified input by default."""
+
+
 def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(DOWNLOAD_CHUNK_BYTES), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
-def ensure_data(data_dir: Path, download: bool = True) -> dict[str, str]:
-    """Make sure both Adult files exist locally; return their verification status."""
+def _verify_file(path: Path, expected: str, allow_unverified: bool) -> str:
+    if path.stat().st_size > MAX_DATA_FILE_BYTES:
+        raise DatasetIntegrityError(f"{path.name} exceeds the benchmark file size limit.")
+    if _sha256(path) == expected:
+        return "verified"
+    if not allow_unverified:
+        raise DatasetIntegrityError(
+            f"{path.name} does not match the pinned UCI SHA-256. "
+            "No benchmark will run; remove/repair the cache or explicitly use --allow-unverified for experimental data."
+        )
+    print(
+        f"WARNING: {path.name} has an unverified digest; experimental results must not be quoted as the pinned UCI benchmark.",
+        file=sys.stderr,
+    )
+    return "digest-mismatch"
+
+
+def _download_verified(path: Path, expected: str, allow_unverified: bool) -> str:
+    """Bound the actual bytes and replace the cache only after a successful check."""
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent, prefix=f".{path.name}-", suffix=".part", delete=False
+        ) as target:
+            temporary = Path(target.name)
+            with urllib.request.urlopen(f"{UCI_BASE}/{path.name}", timeout=60) as response:
+                final_url = urlsplit(response.geturl())
+                if final_url.scheme != "https" or final_url.hostname != "archive.ics.uci.edu":
+                    raise DatasetIntegrityError(
+                        "UCI download redirected outside its trusted HTTPS origin."
+                    )
+                declared = response.headers.get("Content-Length")
+                if declared is not None:
+                    try:
+                        length = int(declared)
+                    except (ValueError, TypeError) as error:
+                        raise DatasetIntegrityError("Invalid benchmark download length.") from error
+                    if length < 0 or length > MAX_DATA_FILE_BYTES:
+                        raise DatasetIntegrityError(
+                            "Benchmark download exceeds the file size limit."
+                        )
+                received = 0
+                while chunk := response.read(DOWNLOAD_CHUNK_BYTES):
+                    received += len(chunk)
+                    if received > MAX_DATA_FILE_BYTES:
+                        raise DatasetIntegrityError(
+                            "Benchmark download exceeds the file size limit."
+                        )
+                    target.write(chunk)
+                if declared is not None and received != length:
+                    raise DatasetIntegrityError(
+                        "Benchmark download length does not match received bytes."
+                    )
+                target.flush()
+                os.fsync(target.fileno())
+        status = _verify_file(temporary, expected, allow_unverified)
+        temporary.replace(path)
+        return status
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def ensure_data(
+    data_dir: Path, download: bool = True, *, allow_unverified: bool = False
+) -> dict[str, str]:
+    """Verify cached/downloaded files before training; unverified input requires opt-in."""
     data_dir.mkdir(parents=True, exist_ok=True)
     status: dict[str, str] = {}
     for name, expected in FILES.items():
         path = data_dir / name
-        if not path.exists():
-            if not download:
-                raise FileNotFoundError(f"{path} is missing and downloading is disabled.")
+        if path.exists():
+            status[name] = _verify_file(path, expected, allow_unverified)
+        elif download:
             print(f"Downloading {name} from UCI ...", file=sys.stderr)
-            with urllib.request.urlopen(f"{UCI_BASE}/{name}", timeout=60) as response:
-                path.write_bytes(response.read())
-        status[name] = "verified" if _sha256(path) == expected else "digest-mismatch"
-        if status[name] != "verified":
-            print(
-                f"WARNING: {name} does not match the pinned UCI SHA-256; "
-                "results may differ from the documented ones.",
-                file=sys.stderr,
-            )
+            status[name] = _download_verified(path, expected, allow_unverified)
+        else:
+            raise FileNotFoundError(f"{path} is missing and downloading is disabled.")
     return status
 
 
@@ -247,9 +321,9 @@ def summarise(name: str, decisions: pd.DataFrame, result: dict[str, Any]) -> dic
     }
 
 
-def run(data_dir: Path, download: bool = True) -> dict[str, Any]:
+def run(data_dir: Path, download: bool = True, *, allow_unverified: bool = False) -> dict[str, Any]:
     """Load data, train both models, audit them, and return the combined report."""
-    integrity = ensure_data(data_dir, download=download)
+    integrity = ensure_data(data_dir, download=download, allow_unverified=allow_unverified)
     train = load_split(data_dir / "adult.data")
     test = load_split(data_dir / "adult.test")
 
@@ -346,13 +420,20 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--no-download", action="store_true", help="fail instead of downloading")
+    parser.add_argument(
+        "--allow-unverified",
+        action="store_true",
+        help="explicit experimental opt-in to mismatched digests; never pinned benchmark evidence",
+    )
     parser.add_argument("--json", type=Path, help="write the audit summary as JSON")
     parser.add_argument(
         "--csv", type=Path, help="write blind-model decisions in the dashboard upload format"
     )
     args = parser.parse_args(argv)
 
-    report = run(args.data_dir, download=not args.no_download)
+    report = run(
+        args.data_dir, download=not args.no_download, allow_unverified=args.allow_unverified
+    )
     print_report(report)
     if args.json:
         payload = {key: value for key, value in report.items() if key != "decisions"}

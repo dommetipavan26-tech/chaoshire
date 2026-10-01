@@ -32,13 +32,16 @@ import os
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass
+from math import ceil
 from secrets import compare_digest, token_urlsafe
 from typing import Any
 from uuid import uuid4
 
 from fastapi import Header, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .site import public_origin
 
@@ -137,6 +140,11 @@ def is_secure_request(request: Request) -> bool:
 def configured_api_key() -> str | None:
     """Return the trimmed ``CHAOSHIRE_API_KEY``, or ``None`` when unset."""
     return (os.getenv("CHAOSHIRE_API_KEY") or "").strip() or None
+
+
+def api_key_matches(configured: str, supplied: str) -> bool:
+    """Constant-time byte comparison without the ASCII-only string restriction."""
+    return compare_digest(configured.encode("utf-8"), supplied.encode("utf-8"))
 
 
 def anonymous_writes_allowed() -> bool:
@@ -367,35 +375,90 @@ OPERATIONS = Operations()
 
 
 class SlidingWindowLimiter:
-    def __init__(self) -> None:
-        self._events: dict[str, deque[float]] = defaultdict(deque)
+    """Bounded, lazy-expiring per-process windows; never evict a live budget.
+
+    New identities fail closed at capacity instead of evicting existing keys
+    (which would let an attacker reset an active limit by flooding identities).
+    Expired identities are removed on requests and operator snapshots, even if
+    that particular identity never visits again. No background thread is needed.
+    """
+
+    def __init__(self, max_keys: int = 4096, clock: Callable[[], float] | None = None) -> None:
+        if max_keys < 1:
+            raise ValueError("Rate limiter max_keys must be positive.")
+        self.max_keys = max_keys
+        self._clock = clock or (lambda: time.monotonic())
+        self._events: dict[str, deque[float]] = {}
+        self._expires: dict[str, float] = {}
         self._lock = threading.Lock()
+        self._last_sweep = float("-inf")
+        self._denied = 0
+        self._capacity_denied = 0
+
+    def _purge(self, now: float, *, force: bool = False) -> None:
+        if not force and now - self._last_sweep < 1:
+            return
+        for key in [key for key, expires in self._expires.items() if expires <= now]:
+            self._events.pop(key, None)
+            self._expires.pop(key, None)
+        self._last_sweep = now
 
     def allow(self, key: str, limit: int, window_seconds: int = 60) -> bool:
+        if window_seconds < 1:
+            raise ValueError("Rate limiter window must be positive.")
         if limit <= 0:
             return True
-        now = time.monotonic()
+        now = self._clock()
         with self._lock:
+            self._purge(now)
+            if key not in self._events:
+                if len(self._events) >= self.max_keys:
+                    self._purge(now, force=True)
+                if len(self._events) >= self.max_keys:
+                    self._capacity_denied += 1
+                    self._denied += 1
+                    return False
+                self._events[key] = deque()
             events = self._events[key]
             while events and events[0] <= now - window_seconds:
                 events.popleft()
             if len(events) >= limit:
+                self._denied += 1
                 return False
             events.append(now)
+            # Preserve the longest still-active expiration if a library caller
+            # uses different window sizes for the same trusted bucket key.
+            self._expires[key] = max(self._expires.get(key, now), now + window_seconds)
             return True
 
     def retry_after(self, key: str, window_seconds: int = 60) -> int:
-        """Seconds until the oldest event in ``key``'s window expires."""
-        now = time.monotonic()
+        now = self._clock()
         with self._lock:
+            self._purge(now, force=True)
             events = self._events.get(key)
-            if not events:
-                return window_seconds
-            return max(1, int(window_seconds - (now - events[0])) + 1)
+            if events:
+                return max(1, ceil(events[0] + window_seconds - now))
+            if len(self._events) >= self.max_keys:
+                return max(1, ceil(min(self._expires.values()) - now))
+            return window_seconds
+
+    def snapshot(self) -> dict[str, int]:
+        """Safe operator telemetry; no client identifiers or timestamps exposed."""
+        with self._lock:
+            self._purge(self._clock(), force=True)
+            return {
+                "active_keys": len(self._events),
+                "max_keys": self.max_keys,
+                "denied": self._denied,
+                "capacity_denied": self._capacity_denied,
+            }
 
     def reset(self) -> None:
         with self._lock:
             self._events.clear()
+            self._expires.clear()
+            self._denied = self._capacity_denied = 0
+            self._last_sweep = float("-inf")
 
 
 LIMITER = SlidingWindowLimiter()
@@ -455,7 +518,7 @@ def require_write_access(
     configured = configured_api_key()
     client = client_key(request)
 
-    if configured and x_api_key and compare_digest(configured, x_api_key):
+    if configured and x_api_key and api_key_matches(configured, x_api_key):
         access = WriteAccess(authenticated=True, client=client)
     elif configured and x_api_key:
         # A key was offered and rejected: never silently downgrade to anonymous.
@@ -509,45 +572,121 @@ def require_operator(
             status_code=503,
             detail="Operator endpoints require CHAOSHIRE_API_KEY to be configured.",
         )
-    if not x_api_key or not compare_digest(configured, x_api_key):
+    if not x_api_key or not api_key_matches(configured, x_api_key):
         raise HTTPException(status_code=401, detail="A valid X-API-Key header is required.")
 
 
+class RequestBodyLimitMiddleware:
+    """Bound actual ASGI body bytes, even with no or misleading Content-Length.
+
+    Buffer at most the configured budget before calling the application. This
+    prevents oversized streams from reaching JSON/Pydantic parsers and does not
+    depend on Starlette Request's private body-cache attributes. The platform
+    middleware wraps this layer, so refusals still get security headers and are
+    included in operational metrics.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        maximum = _int_env("CHAOSHIRE_MAX_BODY_BYTES", 5_500_000)
+        lengths = [
+            value for key, value in scope.get("headers", []) if key.lower() == b"content-length"
+        ]
+        if lengths:
+            raw = lengths[0].strip()
+            try:
+                if len(lengths) != 1 or not raw.isdigit():
+                    raise ValueError("invalid content length")
+                declared = int(raw)
+            except ValueError:
+                await JSONResponse({"detail": "Invalid Content-Length header."}, status_code=400)(
+                    scope, receive, send
+                )
+                return
+            if declared > maximum:
+                await self._too_large(scope, receive, send)
+                return
+
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            chunk = message.get("body", b"")
+            if len(body) + len(chunk) > maximum:
+                await self._too_large(scope, receive, send)
+                return
+            body.extend(chunk)
+            if not message.get("more_body", False):
+                break
+
+        replayed = False
+
+        async def replay_body() -> Message:
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": bytes(body), "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay_body, send)
+
+    @staticmethod
+    async def _too_large(scope: Scope, receive: Receive, send: Send) -> None:
+        await JSONResponse(
+            {"detail": "Request body exceeds the configured size limit."}, status_code=413
+        )(scope, receive, send)
+
+
 async def platform_middleware(request: Request, call_next):
+    started = time.perf_counter()
     request_id = request.headers.get("x-request-id") or uuid4().hex[:16]
+    request.state.csp_nonce = token_urlsafe(16)
+
+    def finish(response):
+        OPERATIONS.record(response.status_code, (time.perf_counter() - started) * 1000)
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if is_secure_request(request):
+            # Do not include subdomains: Render controls other *.onrender.com hosts.
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; style-src 'self'; "
+            f"script-src 'self' 'nonce-{request.state.csp_nonce}'; "
+            "img-src 'self' data:; connect-src 'self'; "
+            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        )
+        return response
+
     # Health probes run inside the Render network and need not be redirected.
     health_probes = {"/api/health", "/api/live", "/api/ready"}
     if force_https() and not is_secure_request(request) and request.url.path not in health_probes:
         target = public_origin() + request.url.path
         if request.url.query:
             target += "?" + request.url.query
-        return RedirectResponse(
-            target,
-            status_code=308,
-            headers={"Cache-Control": "no-store", "X-Request-ID": request_id},
+        return finish(
+            RedirectResponse(target, status_code=308, headers={"Cache-Control": "no-store"})
         )
-    # A fresh nonce per request; the nonce-based CSP below forbids 'unsafe-inline'.
-    request.state.csp_nonce = token_urlsafe(16)
-    content_length = request.headers.get("content-length")
-    maximum = _int_env("CHAOSHIRE_MAX_BODY_BYTES", 5_500_000)
-    if content_length and int(content_length) > maximum:
-        return JSONResponse(
-            {"detail": "Request body exceeds the configured size limit."},
-            status_code=413,
-            headers={"X-Request-ID": request_id},
-        )
+
     client = client_key(request)
     limit = rate_limit_per_minute()
     if limit and not LIMITER.allow(client, limit):
-        return JSONResponse(
-            {"detail": "Rate limit exceeded. Retry later."},
-            status_code=429,
-            headers={
-                "Retry-After": str(LIMITER.retry_after(client)),
-                "X-Request-ID": request_id,
-            },
+        return finish(
+            JSONResponse(
+                {"detail": "Rate limit exceeded. Retry later."},
+                status_code=429,
+                headers={"Retry-After": str(LIMITER.retry_after(client))},
+            )
         )
-    started = time.perf_counter()
     try:
         response = await call_next(request)
     except Exception:
@@ -555,20 +694,4 @@ async def platform_middleware(request: Request, call_next):
         # stack, so record them here or operational metrics would never see them.
         OPERATIONS.record(500, (time.perf_counter() - started) * 1000)
         raise
-    duration = (time.perf_counter() - started) * 1000
-    OPERATIONS.record(response.status_code, duration)
-    response.headers["X-Request-ID"] = request_id
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    if is_secure_request(request):
-        # Do not include subdomains: Render controls other *.onrender.com hosts.
-        response.headers["Strict-Transport-Security"] = "max-age=31536000"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; style-src 'self'; "
-        f"script-src 'self' 'nonce-{request.state.csp_nonce}'; "
-        "img-src 'self' data:; connect-src 'self'; "
-        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-    )
-    return response
+    return finish(response)

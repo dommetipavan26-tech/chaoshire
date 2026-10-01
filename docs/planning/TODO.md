@@ -127,3 +127,27 @@ Scores: LegacyCorp `32/F` and MeritFirst `84/B` preserved; TalentFit `66/C` → 
 - [x] Structured external JSON log shipping (`CHAOSHIRE_LOG_WEBHOOK_URL`; events: audit/appeal/chaos/mitigation/upload — `chaoshire/loghook.py`)
 - [ ] Dependency and container vulnerability scanning
 - [x] SHAP-compatible explanation adapter (`/api/explain/shap/{id}`, `/api/explain/shap/batch` — `chaoshire/explain.py`)
+
+
+## Repository audit — 1 October 2026
+
+- [x] Inventory and structurally check every source file; keep stable imports and deployment entry points.
+- [x] Separate dashboard markup, styles, and JavaScript; preserve escaping/CSP and versioned asset/offline caches.
+- [x] Bound actual request bytes, validate declared lengths, and safely handle Unicode API keys/evidence digests.
+- [x] Correct contrast-panel scores and anonymous-upload JSON downloads; add browser regressions.
+- [x] Restore package metadata, dependencies, CLI, and runtime assets; verify wheel/sdist and a clean installation.
+- [x] Run default/browser suites, quality/security checks, training reproducibility, and local accessibility checks.
+- [x] P1: Strictly validate accepted/qualified values and required attributes across decision adapters; malformed upstream output gives a sanitized 502.
+- [x] P1: Expire/cap inactive limiter keys; four webhook workers and 256 total pending/in-flight jobs.
+- [x] P1: Fail closed on Adult benchmark digest mismatch; bounded, verified atomic cache writes with explicit experimental opt-in.
+- [x] P1: Declare the optional PostgreSQL extra and verify nine isolated tests against a real local PostgreSQL 16.2 service; add CI service jobs.
+- [ ] Before real-data use: tenant/per-audit authorization, durable storage, retention/deletion, backups, and independent privacy/security review.
+- [x] P2: Generate Linux 3.11/3.12 version constraints, verify installed-package smoke, pin Actions to verified commits, and declare maintenance tools.
+- [x] P2: Validate connector URLs/timeouts/response bounds and stop credential-bearing exception logging.
+- [x] P2: Prefer HTTPX2 for development/browser TestClient; old HTTPX remains the outbound runtime client.
+- [x] Split shared decision validation into its own module without moving stable public application imports.
+- [x] Hosted CI: Python 3.11/3.12 quality/package gates, PostgreSQL services, Docker non-root/PORT/readiness smoke, browser, fairness, dependency and CodeQL checks pass for the verified PR #50 code revision.
+- [ ] Owner: Live rollout, tenant/account decisions and independent real-device/screen-reader/gradient-contrast/privacy/security/legal reviews remain outstanding.
+
+See [the audit report](../operations/REPOSITORY-AUDIT.md) for evidence, acceptance criteria, and scope limits;
+[the file inventory](../operations/REPOSITORY-INVENTORY.md) maps all source files to their responsibilities.

@@ -185,3 +185,14 @@ Report security or privacy issues privately through GitHub's private vulnerabili
 The website's Privacy Policy and Terms link to this form as their private contact route, so private vulnerability reporting must stay enabled (**Settings → Advanced Security → Private vulnerability reporting**).
 
 Production adoption would require authentication, authorization, encryption, secure storage, retention controls, audit logging, dependency scanning, privacy review, and legal review.
+
+
+## Bounded integration safeguards — 1 October 2026
+
+- Read/write budget semantics remain unchanged; the limiter admits at most 4,096 identities, lazily expires inactive windows, and fails closed at capacity rather than resetting live budgets through eviction. Operator-only `GET /api/ops/metrics` exposes counts and bounds, never IP keys.
+- Optional webhook delivery uses four daemon workers and at most 256 **pending plus in-flight** events; each serialized event is capped at 64 KiB. Backpressure drops events without blocking request handlers. HMAC secrets are captured at enqueue time; exceptions are logged by class, not credential-bearing text. This is best-effort delivery, not a durable queue.
+- Remote adapters require HTTPS unless an operator explicitly sets `allow_http: true`; URLs with userinfo, queries or fragments are refused. Timeouts are finite in (0, 120] seconds. Redirects are not followed with bearer credentials; identity-encoded response bytes are capped before JSON parsing. Malformed accepted/qualified labels, scores, or required groups cannot generate a certificate and return a sanitized 502.
+- The benchmark downloader fails closed on digest mismatch, bounds size, and atomically installs verified files. Experimental opt-in does not turn mismatched input into verified evidence.
+- All external GitHub Actions are pinned to verified commit IDs. Linux CPython 3.11/3.12 version constraints include build and optional-tool dependencies; they are version pins, not distribution hashes or cross-platform guarantees. Separate audits of both complete constraint files report no known advisories at this checkpoint.
+
+These changes do not create user accounts, tenant isolation, a durable public deployment, legal certification, independent security review, or browser/OS/container vulnerability guarantees.

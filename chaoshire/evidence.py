@@ -38,13 +38,16 @@ def verify_evidence_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     integrity = bundle.get("integrity", {})
     if not isinstance(payload, dict):
         return {"valid": False, "reason": "Bundle payload is missing or invalid."}
-    expected = evidence_digest(payload)
+    try:
+        expected = evidence_digest(payload)
+    except (ValueError, TypeError, UnicodeError):
+        return {"valid": False, "reason": "Bundle payload is not canonical JSON."}
     supplied = integrity.get("digest") if isinstance(integrity, dict) else None
-    valid = isinstance(supplied, str) and compare_digest(supplied, expected)
+    valid = isinstance(supplied, str) and supplied.isascii() and compare_digest(supplied, expected)
     return {
         "valid": valid,
         "algorithm": "SHA-256",
         "expected": expected,
-        "supplied": supplied,
+        "supplied": supplied if isinstance(supplied, str) and supplied.isascii() else None,
         "reason": "Digest matches canonical aggregate evidence." if valid else "Digest mismatch.",
     }

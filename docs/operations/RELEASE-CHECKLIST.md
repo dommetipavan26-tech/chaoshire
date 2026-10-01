@@ -50,3 +50,15 @@ git push origin vX.Y.Z
 ```
 
 Do not create the tag until all workflows for the release-preparation commit are green.
+
+
+## Nightly engineering gates added on 1 October 2026
+
+- Install with the matching Linux/Python constraint file, not an unreviewed latest resolution.
+- Repository checker must reject mutable external Action references; pin revisions and let Dependabot propose reviewed updates.
+- Quality/release jobs build wheel/sdist and run `scripts/check_distribution.py` in a fresh runtime-only environment outside the source tree. Keep both extras, assets, model fixture, CLI and failure exit-code checks.
+- PostgreSQL jobs require a real isolated local service on both Python matrix legs; optional suites must not silently skip with `--require-postgres`.
+- Container job requires non-root UID 10001, an intentionally non-default PORT, healthy `/api/ready`, and web assets. Local Docker remains unavailable; only an actual remote job can prove this image run.
+- New reviewable integration bounds: strict decision labels, HTTPS/credential-free connector URLs, positive finite timeouts, bounded identity-encoded responses, four webhook workers/256 outstanding jobs/64 KiB events, 4,096 expiring limiter identities.
+- No benchmark release evidence may come from `--allow-unverified` data. Complete a live UCI rerun when transport permits.
+- Independent real-device/gradient-contrast, privacy/security/legal, tenant access, durable storage and production rollout approval still apply. A green local suite does not waive them.

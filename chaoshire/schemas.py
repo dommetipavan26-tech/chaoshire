@@ -103,7 +103,8 @@ class EvidenceVerifyRequest(BaseModel):
 class ConnectorAuditRequest(BaseModel):
     """Selects an operator-configured remote decision source by identifier."""
 
-    model_id: str = Field(min_length=1, max_length=100)
+    model_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+    protected_attributes: list[str] | None = Field(default=None, min_length=1, max_length=8)
 
 
 class ShapBatchRequest(BaseModel):

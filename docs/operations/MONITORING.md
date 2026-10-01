@@ -130,3 +130,12 @@ UptimeRobot configuration lives in the owner's account and cannot be proven from
 5. Roll back to the previous successful GitHub commit if necessary.
 
 Metrics are process-local, reset on restart, and contain no candidate data. Do not use query strings or audit payloads in monitoring names or alerts.
+
+
+## Bounded resources and test services
+
+Authenticated `GET /api/ops/metrics` reports `rate_limiter` active/max key counts and capacity denials, plus webhook `worker_limit`, `outstanding`, `max_outstanding`, delivered/failed/dropped counts. It never returns webhook URLs, HMAC keys, queued payloads, or IP bucket keys. The existing public `/api/metrics` shape is preserved.
+
+Defaults are 4,096 limiter identities, four webhook workers, 256 total pending/in-flight events, and 64 KiB per event. Overload fails closed/drops events; neither a distributed limiter nor durable messaging is implemented. Expired limiter windows are removed lazily on requests/snapshots, not by a permanent timer.
+
+For optional PostgreSQL install `requirements-postgres.txt` or `chaoshire[postgres]`. Integration tests require `CHAOSHIRE_TEST_POSTGRES_URL` on loopback/a local Unix socket and isolate each case in a random schema. Never supply a production connection string. `python -m pytest tests/integration --require-postgres -q` fails instead of silently skipping when its service/driver is missing.

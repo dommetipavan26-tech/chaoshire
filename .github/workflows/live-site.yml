@@ -36,6 +36,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PIP_CONSTRAINT: ${{ github.workspace }}/constraints/requirements-py312.txt
   BASE_URL: ${{ inputs.base_url || 'https://chaoshire.onrender.com' }}
   WAIT_MINUTES: ${{ inputs.wait_minutes || '30' }}
 
@@ -46,8 +47,8 @@ jobs:
     outputs:
       deployed: ${{ steps.live.outputs.deployed }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
           cache: pip
@@ -61,7 +62,7 @@ jobs:
         run: python scripts/check_live_site.py --base-url "$BASE_URL" --wait-minutes "$WAIT_MINUTES"
       - name: Keep screenshots and measurements
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: live-site-evidence
           path: reports/generated/live/

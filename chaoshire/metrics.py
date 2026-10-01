@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from .config import MIN_CELL_SIZE
+from .decisions import normalise_decisions
 
 
 def round4(value: float) -> float:
@@ -86,6 +87,15 @@ def attribute_metrics(
     data: pd.DataFrame,
     attribute: str,
     minimum_group_size: int = MIN_CELL_SIZE,
+) -> dict[str, Any]:
+    """Validate the decision contract even when a caller audits one attribute directly."""
+    return _attribute_metrics(normalise_decisions(data, [attribute]), attribute, minimum_group_size)
+
+
+def _attribute_metrics(
+    data: pd.DataFrame,
+    attribute: str,
+    minimum_group_size: int,
 ) -> dict[str, Any]:
     groups: list[dict[str, Any]] = []
     has_truth = "qualified" in data.columns
@@ -201,14 +211,24 @@ def intersectional_metrics(
     attributes: list[str],
     minimum_group_size: int = MIN_CELL_SIZE,
 ) -> list[dict[str, Any]]:
-    """Audit every pair of protected attributes without affecting the primary risk score."""
+    """Validate and audit attribute pairs without changing the primary risk score."""
+    return _intersectional_metrics(
+        normalise_decisions(data, attributes), attributes, minimum_group_size
+    )
+
+
+def _intersectional_metrics(
+    data: pd.DataFrame,
+    attributes: list[str],
+    minimum_group_size: int,
+) -> list[dict[str, Any]]:
     results = []
     for first, second in combinations(attributes, 2):
         temporary = data.copy()
         temporary["_intersection"] = (
             temporary[first].astype(str) + " × " + temporary[second].astype(str)
         )
-        result = attribute_metrics(temporary, "_intersection", minimum_group_size)
+        result = _attribute_metrics(temporary, "_intersection", minimum_group_size)
         result["attribute"] = f"{first} × {second}"
         result["source_attributes"] = [first, second]
         results.append(result)
@@ -444,11 +464,18 @@ def audit(
     attributes: list[str] | None = None,
     minimum_group_size: int = MIN_CELL_SIZE,
 ) -> dict[str, Any]:
-    selected_attributes = attributes or [
-        attribute for attribute in ["gender", "ethnicity", "age_band"] if attribute in data.columns
-    ]
+    data = normalise_decisions(data, attributes)
+    selected_attributes = (
+        [
+            attribute
+            for attribute in ["gender", "ethnicity", "age_band"]
+            if attribute in data.columns
+        ]
+        if attributes is None
+        else attributes
+    )
     results = [
-        attribute_metrics(data, attribute, minimum_group_size) for attribute in selected_attributes
+        _attribute_metrics(data, attribute, minimum_group_size) for attribute in selected_attributes
     ]
     count = int(len(data))
     accepted = int(data["accepted"].sum())
@@ -463,7 +490,7 @@ def audit(
             ),
         },
         "attributes": results,
-        "intersections": intersectional_metrics(data, selected_attributes, minimum_group_size),
+        "intersections": _intersectional_metrics(data, selected_attributes, minimum_group_size),
         "configuration": {
             "protected_attributes": selected_attributes,
             "minimum_group_size": minimum_group_size,

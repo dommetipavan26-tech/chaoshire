@@ -7,7 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY constraints/requirements-py312.txt ./constraints.txt
+RUN pip install --no-cache-dir -c constraints.txt -r requirements.txt
 
 # The packaged web shell lives under chaoshire/web, not at the repository root.
 COPY backend.py ./
@@ -21,6 +22,6 @@ USER chaoshire
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8000') + '/api/ready', timeout=2)"
 
 CMD ["sh", "-c", "python -m uvicorn backend:app --host 0.0.0.0 --port ${PORT}"]

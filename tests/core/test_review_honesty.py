@@ -33,7 +33,9 @@ from chaoshire.metrics import audit
 from chaoshire.models import LEGACY, MODEL_META, build_decisions
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-INDEX_HTML = (PROJECT_ROOT / "chaoshire" / "web" / "index.html").read_text(encoding="utf-8")
+DASHBOARD_SOURCE = (PROJECT_ROOT / "chaoshire" / "web" / "index.html").read_text(
+    encoding="utf-8"
+) + (PROJECT_ROOT / "chaoshire" / "web" / "static" / "chaoshire.js").read_text(encoding="utf-8")
 
 client = operator_client()
 
@@ -78,9 +80,9 @@ def test_privilege_injection_pass_is_labelled_fixture_limited():
             assert result["fixture_limit"] == "", result["id"]
     # The label is rendered next to the verdict and as a visible scope note —
     # an unlabelled PASS is exactly what the review flagged.
-    assert "fixture-limited" in INDEX_HTML
-    assert "Scope note:" in INDEX_HTML
-    assert "t.fixture_limit" in INDEX_HTML
+    assert "fixture-limited" in DASHBOARD_SOURCE
+    assert "Scope note:" in DASHBOARD_SOURCE
+    assert "t.fixture_limit" in DASHBOARD_SOURCE
 
 
 def test_the_fixture_label_changes_no_verdict_and_no_resilience_score():
@@ -106,11 +108,11 @@ def test_the_fairness_review_is_not_marketed_as_an_ai_agent():
     assert served["agent"] == review["agent"]
     assert "not an AI agent or language model" in served["limitations"][0]
     # Current-facing surfaces: no "Fairness Review Agent" branding survives.
-    assert "Fairness Review Agent" not in INDEX_HTML
-    assert "Review Agent" not in INDEX_HTML
-    assert "Fairness Review" in INDEX_HTML
-    assert "no AI agent or language model is involved" in INDEX_HTML
-    assert "not an AI agent" in INDEX_HTML
+    assert "Fairness Review Agent" not in DASHBOARD_SOURCE
+    assert "Review Agent" not in DASHBOARD_SOURCE
+    assert "Fairness Review" in DASHBOARD_SOURCE
+    assert "no AI agent or language model is involved" in DASHBOARD_SOURCE
+    assert "not an AI agent" in DASHBOARD_SOURCE
     # The guided demo step no longer says "Ask the review agent".
     demo = guided_demo()
     step_four = next(step for step in demo["steps"] if step["id"] == 4)
@@ -150,7 +152,7 @@ def test_no_current_surface_blames_talentfit_disparity_on_proxies():
     import chaoshire.training as training
 
     surfaces = {
-        "index.html": INDEX_HTML,
+        "dashboard HTML/JS": DASHBOARD_SOURCE,
         "README.md": (PROJECT_ROOT / "README.md").read_text(encoding="utf-8"),
         "case study": (PROJECT_ROOT / "docs" / "portfolio" / "PORTFOLIO-CASE-STUDY.md").read_text(
             encoding="utf-8"
@@ -200,9 +202,9 @@ def test_passes_that_cannot_fail_are_labelled_by_construction():
     assert all(result["by_construction"] == "" for result in legacy["tests"])
     assert legacy["resilience"] == 30
     # Rendered next to the verdict and as a scope note in the Chaos Lab.
-    assert "by construction" in INDEX_HTML
-    assert "t.by_construction" in INDEX_HTML
-    assert "r.resilience_scope" in INDEX_HTML
+    assert "by construction" in DASHBOARD_SOURCE
+    assert "t.by_construction" in DASHBOARD_SOURCE
+    assert "r.resilience_scope" in DASHBOARD_SOURCE
 
 
 def test_published_demo_scores_are_preserved():

@@ -248,15 +248,19 @@ def test_the_landing_page_reads_the_numbers_instead_of_hardcoding_them():
         assert f'id="{card_id}">\u2014<' in proof.group(0), card_id
         assert re.search('id="' + card_id + r'">[^<]*\d', proof.group(0)) is None, card_id
 
+    script = (REPO_ROOT / "chaoshire" / "web" / "static" / "chaoshire.js").read_text(
+        encoding="utf-8"
+    )
     for expression in (
         "b.automated_tests",
         "b.package_coverage",
         "b.chaos_experiments",
         "b.version",
     ):
-        assert expression in html
+        assert expression in script
 
-    # No copy of the values anywhere in the page, in any rendering position.
+    # No copy of the values anywhere in the markup or behavior, in any rendering position.
+    html += script
     assert PACKAGE_COVERAGE not in html
     assert f">{AUTOMATED_TESTS}<" not in html
     assert f"'{AUTOMATED_TESTS}'" not in html

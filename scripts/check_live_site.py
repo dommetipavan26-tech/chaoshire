@@ -51,6 +51,7 @@ CONSENT_KEY = "chaoshire-analytics-consent-v1"
 BEACON_PATH = "/api/analytics/view"
 USER_AGENT = "ChaosHire-live-check/1.0 (+https://github.com/dommetipavan26-tech/chaoshire)"
 CSS_VERSION = re.compile(r"chaoshire\.css\?v=([0-9a-f]{12})")
+JS_VERSION = re.compile(r"chaoshire\.js\?v=([0-9a-f]{12})")
 REDIRECT_CODES = (301, 302, 307, 308)
 ONE_YEAR = 31_536_000
 
@@ -63,6 +64,7 @@ ROUTES: list[tuple[str, int, str, dict[str, str]]] = [
     ("/sitemap.xml", 200, "application/xml", {}),
     ("/social-preview.png", 200, "image/png", {}),
     ("/favicon.ico", 200, "image/", {}),
+    ("/static/chaoshire.js", 200, "application/javascript", {}),
     ("/icons/favicon-32.png", 200, "image/png", {}),
     ("/api/ready", 200, "application/json", {}),
     ("/this-page-does-not-exist", 404, "text/html", {"Accept": "text/html"}),
@@ -135,6 +137,8 @@ def expected_build() -> dict[str, str]:
         facts[key] = match.group(1)
     stylesheet = REPO_ROOT / "chaoshire" / "web" / "static" / "chaoshire.css"
     facts["stylesheet"] = hashlib.sha256(stylesheet.read_bytes()).hexdigest()[:12]
+    javascript = REPO_ROOT / "chaoshire" / "web" / "static" / "chaoshire.js"
+    facts["javascript"] = hashlib.sha256(javascript.read_bytes()).hexdigest()[:12]
     return facts
 
 
@@ -145,7 +149,8 @@ def describe(build: dict[str, Any]) -> str:
         return f"an error ({build['error']})"
     return (
         f"v{build.get('version')}, {build.get('automated_tests')} tests, "
-        f"{build.get('package_coverage')}, stylesheet {build.get('stylesheet')}"
+        f"{build.get('package_coverage')}, stylesheet {build.get('stylesheet')}, "
+        f"JavaScript {build.get('javascript')}"
     )
 
 
@@ -170,8 +175,11 @@ def get(
 
 def live_build(client: httpx.Client, base: str) -> dict[str, Any]:
     build: dict[str, Any] = dict(get(client, f"{base}/api/meta", timeout=120.0).json()["build"])
-    match = CSS_VERSION.search(get(client, f"{base}/", timeout=60.0).text)
+    html = get(client, f"{base}/", timeout=60.0).text
+    match = CSS_VERSION.search(html)
     build["stylesheet"] = match.group(1) if match else None
+    script_match = JS_VERSION.search(html)
+    build["javascript"] = script_match.group(1) if script_match else None
     return build
 
 

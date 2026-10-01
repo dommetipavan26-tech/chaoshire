@@ -1,33 +1,10 @@
-"""Structured JSON log-shipping hook for external observability pipelines.
+"""Best-effort aggregate log delivery with bounded workers, bytes, and outstanding jobs.
 
-When ``CHAOSHIRE_LOG_WEBHOOK_URL`` is set, key application events are POSTed
-as JSON to that endpoint on a background thread. Failures are logged locally
-but never block the request that triggered them — a dead webhook must not
-take the application down.
-
-Events shipped
---------------
-``audit.completed``
-    An aggregate audit finished (demo or uploaded CSV). Carries the audit ID
-    (if published), model, certificate grade and candidate count.
-``appeal.created``
-    A candidate appeal was accepted into the queue. Carries the appeal ID
-    and priority only — the message body is never shipped.
-``chaos.completed``
-    A chaos suite run finished. Carries the experiment ID, model, resilience
-    score and per-test verdicts.
-``mitigation.completed``
-    A mitigation simulation finished. Carries the before/after grades and
-    the strategies applied.
-``upload.completed``
-    A CSV upload was validated and audited. Carries the audit ID (if
-    published), row count, attributes and whether the result was published.
-
-The webhook receives ``application/json`` with a top-level ``event`` key and
-a ``timestamp`` in ISO-8601 UTC. A ``CHAOSHIRE_LOG_WEBHOOK_SECRET`` may be
-set to sign each payload with an ``X-ChaosHire-Signature`` header
-(HMAC-SHA256 hex digest of the body), so the receiver can authenticate the
-source without a shared bearer token.
+An optional server-only webhook receives five allowlisted event kinds. Payloads
+contain aggregate metadata, never candidate rows or appeal message bodies.
+The HMAC secret is captured at enqueue time; credential-bearing exception text
+is never logged. Delivery outages drop work instead of blocking application
+requests. No retry/durability guarantee is made.
 """
 
 from __future__ import annotations
@@ -38,30 +15,38 @@ import json
 import logging
 import os
 import threading
+import time
+from collections import deque
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-logger = logging.getLogger(__name__)
+import httpx
 
-_QUEUE_LOCK = threading.Lock()
-_QUEUE: list[dict[str, Any]] = []
-_MAX_QUEUE = 256
+logger = logging.getLogger(__name__)
+_MAX_QUEUE = 256  # Pending PLUS in-flight, not a thread-per-request backlog.
+_MAX_WORKERS = 4
+_MAX_EVENT_BYTES = 65_536
+
+SHIPPED_EVENTS = (
+    "audit.completed",
+    "appeal.created",
+    "chaos.completed",
+    "mitigation.completed",
+    "upload.completed",
+)
 
 
 def webhook_url() -> str | None:
-    """Return the configured webhook URL, or ``None`` when unset."""
-    raw = (os.getenv("CHAOSHIRE_LOG_WEBHOOK_URL") or "").strip()
-    return raw or None
+    return (os.getenv("CHAOSHIRE_LOG_WEBHOOK_URL") or "").strip() or None
 
 
 def webhook_secret() -> str | None:
-    """Return the configured HMAC secret, or ``None`` when unset."""
-    raw = (os.getenv("CHAOSHIRE_LOG_WEBHOOK_SECRET") or "").strip()
-    return raw or None
+    return (os.getenv("CHAOSHIRE_LOG_WEBHOOK_SECRET") or "").strip() or None
 
 
 def webhook_enabled() -> bool:
-    """Whether log shipping is configured."""
     return webhook_url() is not None
 
 
@@ -78,107 +63,229 @@ def _build_payload(event: str, data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def ship(event: str, data: dict[str, Any]) -> None:
-    """Enqueue a structured event for delivery on a background thread.
-
-    Silently drops the event when the queue is full — a webhook outage must
-    never exert backpressure on the request path. The queue is bounded so a
-    dead webhook cannot accumulate unbounded memory.
-    """
-    url = webhook_url()
-    if not url:
-        return
-    payload = _build_payload(event, data)
-    with _QUEUE_LOCK:
-        if len(_QUEUE) >= _MAX_QUEUE:
-            logger.warning("chaoshire log-shipping queue full; dropping event %r", event)
-            return
-        _QUEUE.append({"url": url, "payload": payload})
-    thread = threading.Thread(target=_drain_one, daemon=True)
-    thread.start()
+@dataclass(frozen=True)
+class Delivery:
+    url: str
+    event: str
+    body: bytes
+    signature: str | None
 
 
-def _drain_one() -> None:
-    """Deliver one queued event. Failures are logged and swallowed."""
-    with _QUEUE_LOCK:
-        if not _QUEUE:
-            return
-        item = _QUEUE.pop(0)
-    url = item["url"]
-    body = json.dumps(item["payload"], ensure_ascii=False).encode("utf-8")
+def _deliver(job: Delivery) -> bool:
+    """Perform real delivery; tests inject an HTTP transport rather than skip this path."""
     headers = {"Content-Type": "application/json"}
-    secret = webhook_secret()
-    if secret:
-        headers["X-ChaosHire-Signature"] = _sign(body, secret)
+    if job.signature is not None:
+        headers["X-ChaosHire-Signature"] = job.signature
     try:
-        import httpx
-
-        with httpx.Client(timeout=10.0) as client:
-            response = client.post(url, content=body, headers=headers)
-        if response.status_code >= 400:
-            logger.warning(
-                "chaoshire log-shipping webhook returned %s for %s",
-                response.status_code,
-                item["payload"]["event"],
-            )
-    except ImportError:  # pragma: no cover - httpx is a declared runtime dep
-        logger.warning("chaoshire log-shipping unavailable (httpx not installed)")
+        # Do not follow a redirect with credentials or buffer an arbitrary
+        # receiver response body. Only the status is needed for observability.
+        with httpx.Client(timeout=10.0, follow_redirects=False) as client:
+            with client.stream("POST", job.url, content=job.body, headers=headers) as response:
+                succeeded = 200 <= response.status_code < 300
+                if not succeeded:
+                    logger.warning(
+                        "log webhook rejected event %s (status %d)", job.event, response.status_code
+                    )
+                return succeeded
     except Exception as error:
-        logger.warning("chaoshire log-shipping delivery failed: %r", error)
+        logger.warning("log webhook delivery failed for %s (%s)", job.event, type(error).__name__)
+        return False
 
 
-def drain_all_sync() -> list[dict[str, Any]]:
-    """Deliver every queued event synchronously. Used by tests only."""
-    results: list[dict[str, Any]] = []
-    while True:
-        with _QUEUE_LOCK:
-            if not _QUEUE:
-                break
-            item = _QUEUE.pop(0)
-        url = item["url"]
-        body = json.dumps(item["payload"], ensure_ascii=False).encode("utf-8")
-        headers = {"Content-Type": "application/json"}
-        secret = webhook_secret()
-        if secret:
-            headers["X-ChaosHire-Signature"] = _sign(body, secret)
-        import httpx
+class WebhookDispatcher:
+    """A fixed daemon-worker pool with a shared outstanding-job reservation.
 
-        with httpx.Client(timeout=10.0) as client:
-            response = client.post(url, content=body, headers=headers)
-        results.append(
-            {
-                "event": item["payload"]["event"],
-                "status_code": response.status_code,
-                "body": response.text,
+    Taking a job off the pending deque does NOT free its capacity reservation;
+    it stays reserved until completion. A stalled receiver therefore cannot
+    cause more threads/jobs to be allocated than the configured bounds.
+    """
+
+    def __init__(
+        self,
+        *,
+        workers: int = _MAX_WORKERS,
+        capacity: int = _MAX_QUEUE,
+        max_event_bytes: int = _MAX_EVENT_BYTES,
+        deliver: Callable[[Delivery], bool] | None = None,
+    ) -> None:
+        if workers < 1 or capacity < workers or max_event_bytes < 1:
+            raise ValueError("Webhook bounds must be positive and capacity must cover all workers.")
+        self.workers = workers
+        self.capacity = capacity
+        self.max_event_bytes = max_event_bytes
+        self.pid = os.getpid()
+        self._deliver = deliver or _deliver
+        self._condition = threading.Condition()
+        self._pending: deque[Delivery] = deque()
+        self._in_flight = 0
+        self._sent = self._failed = self._dropped = 0
+        self._accepting = True
+        self._closing = False
+        self._threads = [
+            threading.Thread(target=self._work, name=f"chaoshire-webhook-{i}", daemon=True)
+            for i in range(workers)
+        ]
+        for thread in self._threads:
+            thread.start()
+
+    def submit(self, url: str, event: str, data: dict[str, Any], secret: str | None = None) -> bool:
+        try:
+            if event not in SHIPPED_EVENTS:
+                raise ValueError("Unsupported event")
+            body = json.dumps(
+                _build_payload(event, data), ensure_ascii=True, allow_nan=False
+            ).encode("utf-8")
+            if len(body) > self.max_event_bytes:
+                raise ValueError("Oversized event")
+            job = Delivery(url, event, body, _sign(body, secret) if secret else None)
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            with self._condition:
+                self._dropped += 1
+            return False
+        with self._condition:
+            if not self._accepting or len(self._pending) + self._in_flight >= self.capacity:
+                self._dropped += 1
+                return False
+            self._pending.append(job)
+            self._condition.notify()
+            return True
+
+    def _work(self) -> None:
+        while True:
+            with self._condition:
+                self._condition.wait_for(lambda: self._pending or self._closing)
+                if not self._pending:
+                    return
+                job = self._pending.popleft()
+                self._in_flight += 1
+            success = False
+            try:
+                success = self._deliver(job)
+            except Exception as error:
+                # A broken injected/embedded delivery callback must not kill a
+                # worker and strand its reservation forever.
+                logger.warning("log delivery callback failed (%s)", type(error).__name__)
+            finally:
+                with self._condition:
+                    self._in_flight -= 1
+                    self._sent += bool(success)
+                    self._failed += not success
+                    self._condition.notify_all()
+
+    def flush(self, timeout: float = 5.0) -> bool:
+        with self._condition:
+            return self._condition.wait_for(
+                lambda: not self._pending and not self._in_flight, timeout=timeout
+            )
+
+    def close(self, timeout: float = 5.0, *, drain: bool = True) -> bool:
+        """Seal the queue and join within a bounded deadline; daemon jobs may be lost at exit."""
+        with self._condition:
+            self._accepting = False
+            self._closing = True
+            if not drain:
+                self._dropped += len(self._pending)
+                self._pending.clear()
+            self._condition.notify_all()
+        deadline = time.monotonic() + timeout
+        for thread in self._threads:
+            thread.join(max(0, deadline - time.monotonic()))
+        return all(not thread.is_alive() for thread in self._threads)
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._condition:
+            return {
+                "queue_depth": len(self._pending),
+                "in_flight": self._in_flight,
+                "outstanding": len(self._pending) + self._in_flight,
+                "max_queue": self.capacity,
+                "max_outstanding": self.capacity,
+                "worker_limit": self.workers,
+                "active_workers": sum(thread.is_alive() for thread in self._threads),
+                "max_event_bytes": self.max_event_bytes,
+                "delivered": self._sent,
+                "failed": self._failed,
+                "dropped": self._dropped,
+                "accepting": self._accepting,
             }
-        )
-    return results
+
+
+_DISPATCHER: WebhookDispatcher | None = None
+_DISPATCHER_LOCK = threading.Lock()
+
+
+def _dispatcher() -> WebhookDispatcher | None:
+    global _DISPATCHER
+    with _DISPATCHER_LOCK:
+        if _DISPATCHER is not None and _DISPATCHER.pid != os.getpid():
+            # Forked processes cannot use a parent process's worker threads.
+            _DISPATCHER = None
+        if _DISPATCHER is not None and not _DISPATCHER.snapshot()["accepting"]:
+            if _DISPATCHER.snapshot()["active_workers"]:
+                return None  # Never start a second pool while a sealed pool is alive.
+            _DISPATCHER = None
+        if _DISPATCHER is None:
+            _DISPATCHER = WebhookDispatcher()
+        return _DISPATCHER
+
+
+def ship(event: str, data: dict[str, Any]) -> None:
+    """Non-blocking best-effort enqueue; an unconfigured hook allocates no threads."""
+    url = webhook_url()
+    if url is None:
+        return
+    dispatcher = _dispatcher()
+    if dispatcher is not None:
+        dispatcher.submit(url, event, data, webhook_secret())
+
+
+def shutdown_log_shipping(timeout: float = 5.0) -> bool:
+    """Called on application shutdown; no credentials or payloads in its result."""
+    with _DISPATCHER_LOCK:
+        dispatcher = _DISPATCHER
+    return dispatcher.close(timeout) if dispatcher is not None else True
 
 
 def queue_depth() -> int:
-    """Number of events waiting for delivery. Used by operational endpoints."""
-    with _QUEUE_LOCK:
-        return len(_QUEUE)
+    with _DISPATCHER_LOCK:
+        return _DISPATCHER.snapshot()["queue_depth"] if _DISPATCHER is not None else 0
+
+
+def drain_all_sync() -> list[dict[str, Any]]:
+    """Compatibility test helper: wait for bounded delivery, return only safe summary stats."""
+    with _DISPATCHER_LOCK:
+        dispatcher = _DISPATCHER
+    if dispatcher is None:
+        return []
+    dispatcher.flush()
+    return [dispatcher.snapshot()]
 
 
 def log_shipping_status() -> dict[str, Any]:
-    """Status snapshot for ``/api/meta`` and operator posture endpoints."""
-    url = webhook_url()
+    with _DISPATCHER_LOCK:
+        dispatcher = _DISPATCHER
+    stats = (
+        dispatcher.snapshot()
+        if dispatcher is not None
+        else {
+            "queue_depth": 0,
+            "in_flight": 0,
+            "outstanding": 0,
+            "max_queue": _MAX_QUEUE,
+            "max_outstanding": _MAX_QUEUE,
+            "worker_limit": _MAX_WORKERS,
+            "active_workers": 0,
+            "max_event_bytes": _MAX_EVENT_BYTES,
+            "delivered": 0,
+            "failed": 0,
+            "dropped": 0,
+            "accepting": True,
+        }
+    )
     return {
-        "configured": url is not None,
-        "url_present": url is not None,
+        "configured": webhook_enabled(),
+        "url_present": webhook_enabled(),
         "signed": webhook_secret() is not None,
-        "queue_depth": queue_depth(),
-        "max_queue": _MAX_QUEUE,
         "events_shipped": list(SHIPPED_EVENTS),
+        **stats,
     }
-
-
-#: Event names the hook recognises. Documented for operators and tests.
-SHIPPED_EVENTS = (
-    "audit.completed",
-    "appeal.created",
-    "chaos.completed",
-    "mitigation.completed",
-    "upload.completed",
-)

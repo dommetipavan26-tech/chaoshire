@@ -1,0 +1,6 @@
+# Optional asset/audit/constraint tooling; not needed by the application.
+Pillow>=12.3.0,<13
+fonttools[woff]>=4.66.1,<5
+pip-audit>=2.10.1,<3
+bandit>=1.9.4,<2
+uv>=0.12.21,<0.13

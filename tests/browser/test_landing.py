@@ -264,6 +264,17 @@ def test_mitigation_tab_refuses_per_group_thresholds() -> None:
         assert "research only" in contrast_out
         assert "prohibited in US employment testing" in contrast_out
         assert "42 U.S.C. § 2000e-2(l)" in contrast_out
+        assert "undefined" not in contrast_out
+        reference = page.request.post(
+            f"{url}/api/mitigate",
+            data={"strategies": ["proxy"], "threshold_contrast_acknowledged": True},
+        ).json()
+        before = reference["before"]["certificate"]
+        after = reference["after"]["certificate"]
+        contrast = reference["research_contrast"]["after"]["certificate"]
+        assert f"{before['total']} ({before['grade']})" in contrast_out
+        assert f"{after['total']} ({after['grade']})" in contrast_out
+        assert f"{contrast['total']} ({contrast['grade']})" in contrast_out
         browser.close()
 
 
@@ -398,3 +409,58 @@ def test_mobile_consent_and_form_validation() -> None:
         expect(page.locator("#upout")).to_contain_text("Choose a .csv file")
         assert not any(url.endswith("/api/upload") for url in submissions)
         browser.close()
+
+
+def test_anonymous_upload_downloads_its_own_audit_not_the_shared_slot() -> None:
+    """Unpublished reports are client-local; never download another visitor's audit."""
+    with running_app() as url, sync_playwright() as playwright:
+        browser = launch_chromium(playwright)
+        try:
+            page = browser.new_page()
+            errors: list[str] = []
+            server_exports: list[str] = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.on(
+                "request",
+                lambda request: (
+                    server_exports.append(request.url)
+                    if "dataset=uploaded" in request.url
+                    else None
+                ),
+            )
+            page.goto(url, wait_until="networkidle")
+            expect(page.get_by_role("region", name="Audit models", exact=True)).to_be_visible()
+            page.get_by_role("button", name="Your data", exact=True).click()
+            page.get_by_role("button", name="Upload Your Model", exact=True).click()
+            name = "My unpublished audit"
+            page.locator("#auditname").fill(name)
+            page.locator("#attrs").fill("gender")
+            csv_text = "gender,decision,qualified\n" + "\n".join(
+                ["F,1,true"] * 20 + ["F,0,true"] * 20 + ["M,1,true"] * 20 + ["M,0,true"] * 20
+            )
+            page.locator("#csvfile").set_input_files(
+                {"name": "synthetic.csv", "mimeType": "text/csv", "buffer": csv_text.encode()}
+            )
+            page.locator("#upbtn").click()
+            expect(page.locator("#upout")).to_contain_text("Audited, not published")
+            page.locator("#viewup").click()
+            expect(page.locator("#tab-overview")).to_contain_text("This unpublished audit")
+            assert page.locator('#tab-overview a[href*="dataset=uploaded"]').count() == 0
+            with page.expect_download() as event:
+                page.get_by_role("button", name="Download JSON audit", exact=True).click()
+            download = event.value
+            assert download.suggested_filename == "chaoshire-audit.json"
+            path = download.path()
+            assert path is not None
+            audit = json.loads(Path(path).read_text(encoding="utf-8"))
+            assert audit["audit_name"] == name
+            assert audit["audit_id"] is None
+            assert audit["source"] == "uploaded_csv_unpublished"
+            assert audit["stats"]["candidates"] == 80
+            assert audit["certificate"]["total"] == 100
+            assert page.request.get(f"{url}/api/audit?dataset=uploaded").status == 404
+            assert page.request.get(f"{url}/api/audits").json()["audits"] == []
+            assert not server_exports
+            assert not errors
+        finally:
+            browser.close()

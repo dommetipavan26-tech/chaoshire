@@ -1,7 +1,7 @@
 """Single source of truth for the build facts the landing page and README quote.
 
 Every number a reviewer can compare against the repository lives here exactly
-once. ``/api/meta`` serves it, so ``index.html`` renders it instead of
+once. ``/api/meta`` serves it, so ``web/static/chaoshire.js`` renders it instead of
 hardcoding a string that can drift from ``chaoshire.__version__`` — the failure
 mode that left the landing page advertising v0.21.0 while the package said
 0.22.0 and a browser test asserted the stale value.
@@ -21,10 +21,10 @@ from .models import MODEL_META
 VERSION = __version__
 
 #: Verified by ``scripts/check_build_info.py`` against a real pytest run.
-AUTOMATED_TESTS = 312
+AUTOMATED_TESTS = 504
 
 #: Verified by ``scripts/check_build_info.py`` against a real coverage report.
-PACKAGE_COVERAGE = "95.1%"
+PACKAGE_COVERAGE = "97.1%"
 
 #: Derived: cannot drift.
 SERVICE_WORKER_CACHE = f"chaoshire-v{VERSION.replace('.', '')}"

@@ -11,6 +11,7 @@ from chaoshire.app import app
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WEB_DIR = PROJECT_ROOT / "chaoshire" / "web"
 INDEX_HTML = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+JS_CONTENT = (WEB_DIR / "static" / "chaoshire.js").read_text(encoding="utf-8")
 CSS_FILE = WEB_DIR / "static" / "chaoshire.css"
 CSS_CONTENT = CSS_FILE.read_text(encoding="utf-8")
 
@@ -76,13 +77,13 @@ def test_no_static_inline_styles_in_html_body():
 
 def test_dynamic_styles_use_data_style_attribute():
     """JS template literals use data-style instead of style for CSP compliance."""
-    assert 'data-style="' in INDEX_HTML
+    assert 'data-style="' in JS_CONTENT
 
 
 def test_data_style_applied_via_cssom_helper():
     """The JS has an applyDataStyles function for CSP compliance."""
-    assert "function applyDataStyles" in INDEX_HTML
-    assert "data-style" in INDEX_HTML
+    assert "function applyDataStyles" in JS_CONTENT
+    assert "data-style" in JS_CONTENT
 
 
 def test_web_assets_are_packaged_and_served_independent_of_cwd(tmp_path, monkeypatch):
