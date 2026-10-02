@@ -237,9 +237,8 @@ commands are in the [documentation index](docs/README.md). GitHub Actions runs
 linting, type checking, the trained-model drift check and the default test suite
 on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
 quality gate requires at least 90% package coverage; the **current source
-baseline**, measured locally on **CPython 3.11.2**, contains
-**504 tests with 97.1% package coverage**
-(the configured source set excludes the synthetic fixture module
+baseline**, measured locally, contains **504 tests with 97.1% package coverage**
+(on **CPython 3.11.2**; the configured source set excludes the synthetic fixture module
 `chaoshire/data.py`). The tagged release and live site may lag this revision.
 
 `chaoshire/build_info.py` is the single source of truth for every number the
