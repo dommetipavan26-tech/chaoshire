@@ -2,7 +2,7 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Privacy Policy](chaoshire/web/privacy.html) · [Terms](chaoshire/web/terms.html) · [scikit-learn example](docs/engineering/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence](docs/portfolio/PORTFOLIO-EVIDENCE.md) · [Case study](docs/portfolio/PORTFOLIO-CASE-STUDY.md) · [Architecture](docs/engineering/ARCHITECTURE.svg) · [Methodology](docs/engineering/METHODOLOGY.md) · [Platform](docs/portfolio/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/operations/MONITORING.md) · [Roadmap](docs/planning/PROJECT-ROADMAP.md)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Privacy Policy](chaoshire/web/privacy.html) · [Terms](chaoshire/web/terms.html) · [scikit-learn example](docs/engineering/SCIKIT-LEARN-INTEGRATION.md) · [Portfolio evidence](docs/portfolio/PORTFOLIO-EVIDENCE.md) · [Case study](docs/portfolio/PORTFOLIO-CASE-STUDY.md) · [Architecture](#architecture) · [Methodology](docs/engineering/METHODOLOGY.md) · [Platform](docs/portfolio/PORTFOLIO-PLATFORM.md) · [Monitoring](docs/operations/MONITORING.md) · [Roadmap](docs/planning/PROJECT-ROADMAP.md)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
@@ -44,7 +44,12 @@ labels change no verdict and no resilience point either.
 
 ## Demonstration results
 
-The built-in demonstration uses a deterministic synthetic population of 1,000 candidates and **three selectable model variants**. `legacy` and `fair` are hand-authored scoring fixtures; `trained` is fitted with scikit-learn at build time and loaded from a pinned artifact at runtime (no scikit-learn runtime dependency).
+The built-in demo uses a deterministic synthetic population of 1,000 candidates and
+**three selectable model variants**. `legacy` and `fair` are hand-authored scoring
+fixtures; `trained` is fitted with scikit-learn at build time and loaded from a pinned
+artifact at runtime (no scikit-learn runtime dependency).
+
+### Model comparison
 
 | Model (API/CLI ID) | Purpose | Fairness risk score | Chaos resilience |
 |---|---|---:|---:|
@@ -60,129 +65,41 @@ curl 'http://localhost:8000/api/audit?model=fair&dataset=demo'
 curl 'http://localhost:8000/api/audit?model=trained&dataset=demo'
 ```
 
-The LegacyCorp fixture produces:
+### LegacyCorp stress-test snapshot
+
+On the intentionally biased fixture, Chaos Lab reports:
 
 - **16.9%** decision flips under gender swapping
 - **11.1%** decision flips under name/community swapping
-- **32.7%** newly rejected hires under the ageing stress test
+- **32.7%** newly rejected candidates under the ageing stress test
 - **42** qualified candidates incorrectly rejected
-- A simulated mitigation improvement from **32/F to 80/B** using blind screening plus proxy removal
 
-TalentFit v3 is the model we actually trained, and the most instructive one
-because its first version failed. Its coefficients are pinned in
-`chaoshire/artifacts/trained_model.json` with a SHA-256 digest;
-`python -m chaoshire train --check` re-derives them and fails CI if they drift
-(agreement floor 0.90).
+The dashboard also simulates blind screening plus proxy removal as a mitigation; this
+illustrative what-if is not a guarantee about real hiring outcomes.
 
-### How TalentFit v3 was upgraded
+### Trained model and score summary
 
-The **original v3** was a logistic regression fitted to the `qualified` label,
-kept college prestige and career gap as inputs, and accepted at probability 0.5.
-It was the **most accurate** model (89.4% agreement with the label), yet it
-scored **66/C** and failed the four-fifths rule (worst disparate impact 0.727,
-age band). "Trained" does not mean "fairer": the fit optimises agreement with
-the label, and on this fixture the label itself is uneven across groups.
-`qualified` is built only from skills, experience, education and certifications,
-all drawn independently of identity, but with 1,000 candidates the groups end
-up with different qualified rates by chance (45% of women, 37% of men, 30% of
-the 57 non-binary candidates). A **perfect predictor** of the label scores
-**68/C**, so any model that copies the label closely inherits the gap.
+TalentFit v3 is the fitted model, not another hand-authored fixture. Its original version
+was trained on the synthetic qualification label. It achieved higher label agreement
+than the upgraded version, but also had a weaker group-fairness result. The current
+version drops college-prestige and career-gap proxies and uses one global,
+cost-sensitive cutoff, trading some precision for recall without per-group thresholds.
+The original-versus-upgraded comparison, rationale, 49-population holdout, and
+trade-offs are in [the methodology guide](docs/engineering/METHODOLOGY.md#why-a-more-accurate-model-can-score-lower).
+The model artifact is pinned and checked by `python -m chaoshire train --check`.
 
-The **upgraded v3** changes two things, both fixed on product grounds before
-looking at the audit:
-
-1. **Proxy-free inputs.** Prestige and career gap are dropped, following the
-   platform's own proxy-removal mitigation. The label never uses them; the
-   original fit weighted them near zero (and gave career gaps a meaningless
-   *positive* weight). The artifact loader now rejects any proxy weight.
-2. **A cost-sensitive cutoff.** A first-round screen that wrongly rejects a
-   qualified candidate loses them for good; a wrongly advanced one is caught at
-   interview. Treating a false rejection as **2×** as costly as a false
-   acceptance gives the standard Bayes-optimal cutoff P(qualified) ≥ 1/(1+2) =
-   **1/3**. It is **one cutoff for every candidate**, never a per-group
-   threshold (see the § 2000e-2(l) note below). The policy is recorded in the
-   artifact as `decision_policy`.
-
-| On the fixture | MeritFirst v2 | Original v3 | **Upgraded v3** |
-|---|---:|---:|---:|
-| Fairness risk score | **84 / B** | 66 / C | **80 / B** |
-| Worst disparate impact (four-fifths ≥ 0.8) | 0.873 ✓ | 0.727 ✗ | **0.814 ✓** |
-| Qualified candidates wrongly rejected (of 400) | 34 | 65 | **21** |
-| Recall on qualified candidates | 91.5% | 83.8% | **94.8%** |
-| Accuracy vs `qualified` | 87.3% | **89.4%** | 87.6% |
-
-**Does it generalise?** Every model was fitted or written against one fixture,
-so its fixture score can flatter it. `python -m chaoshire train --holdout`
-re-draws 49 whole populations from the same generator with other seeds and
-audits the unchanged coefficients on each:
-
-| On 49 unseen populations (mean) | MeritFirst v2 | Original v3 | **Upgraded v3** |
-|---|---:|---:|---:|
-| Fairness risk score | 74.4 | 69.5 | **76.0** |
-| Qualified candidates wrongly rejected | 23.9 | 53.4 | **18.1** |
-| Recall on qualified candidates | 94.0% | 86.7% | **95.5%** |
-| Accuracy | 85.7% | **88.6%** | 85.0% |
-
-All three means were re-derived after the equal-opportunity gap started
-excluding groups with too few *qualified* people to estimate a true-positive
-rate from; each model moved up by about two points and the ranking is unchanged
-(see [METHODOLOGY.md](docs/engineering/METHODOLOGY.md#minimum-group-size)).
-Fixture scores, accuracy, recall and the rejection counts above are unaffected.
-
-**The trade-offs, stated plainly.** The upgrade buys fairness and recall with
-precision. It advances more candidates to interview (482 vs 459 for
-MeritFirst), and out of sample it is slightly less accurate than MeritFirst.
-On the audited fixture MeritFirst still scores 4 points higher (84 vs 80). The
-cutoff was not tuned to close that gap. A 3× cost scores 85, one point above MeritFirst,
-but choosing a threshold because it wins on the audited sample is exactly the
-gaming this project exists to catch: the fixture score is noisy and not even
-monotonic in the cutoff (58, 55, 65, 76 from probability 0.50 down to 0.35),
-while the unseen-population mean rises smoothly (69.2, 72.0, 74.7, 75.9). The release gate agrees: it now passes LegacyCorp → TalentFit (the
-original v3 was blocked) and blocks MeritFirst → TalentFit on the 4-point
-regression. Resilience 100/100 holds **by construction** for both MeritFirst and
-TalentFit: a model with no protected inputs cannot flip on a swap.
-
-All of this is computed at runtime without scikit-learn by
-`chaoshire.training.disparity_diagnostics()` and `holdout_comparison()`, served
-in step 7 of the guided demo (`/api/demo`), and pinned by
-`tests/core/test_trained_model.py`. See
-[METHODOLOGY.md](docs/engineering/METHODOLOGY.md#why-a-more-accurate-model-can-score-lower).
-
-These are reproducible **synthetic demonstration results**, not findings about a real employer. The model names are fictional.
-
-> **Responsible-use boundary:** The fairness risk score is a transparent heuristic for investigation and human review. It is not an independent certification, does not establish legal compliance, and does not by itself prove or disprove discrimination. The public API retains the historical `certificate` JSON key and `--min-certificate` CLI option for backward compatibility.
-
-### How the score is computed
-
-`total = measured / available × 100` over group-fairness components only:
-
-| Component | Points |
-|---|---:|
-| Disparate impact (four-fifths rule) | 40 |
-| Demographic parity gap | 20 |
-| Equal opportunity gap | 25 |
-| **Available when the equal-opportunity gap is measurable** | **85** |
-| **Available when it is not** — no qualification labels, or no two groups hold enough qualified people | **60** |
-
-Two properties follow, and both are stated in every `certificate` payload rather
-than left for a reader to infer:
-
-- **Nothing is awarded for free.** Earlier versions added an unconditional 15
-  "transparency" points for disclosure, release gates, CI and appeal routes.
-  None of that is a property of the model under audit and none of it was ever
-  measured, so it gave a badly biased model 47/D instead of 32/F and capped a
-  perfect one at 85. Those points are gone; a perfect group-fairness result now
-  scores 100/A on merit. The platform capabilities are still disclosed — as
-  `platform_disclosure` text, with `scored: false`.
-- **The denominator is part of the result.** `basis` is `"full"` (85 available
-  points) or `"selection-rate-only"` (60), `available_points` and
-  `measured_points` are reported, `unmeasured_components` names what could not
-  be measured and why, and `comparable_with_full_basis` is `false` whenever the
-  score rests on less evidence. A 60-point-basis score must not be ranked
-  against an 85-point-basis score; the HTML and PDF reports say so in the same
-  place they print the number.
+The Fairness Risk Score summarizes disparate-impact, demographic-parity and—when
+supportable—equal-opportunity evidence. Assessable results report measured and available
+points plus their `full` or `selection-rate-only` basis; scores on different bases are
+not directly comparable. Unassessable results are identified separately. See
+[METHODOLOGY.md](docs/engineering/METHODOLOGY.md#fairness-risk-score) for the formula
+and component rules. These reproducible results use synthetic data and
+fictional model names; they are not findings about real employers or a certification
+of legal compliance.
 
 ## Product capabilities
+
+### Auditing and fairness metrics
 
 - Group audits for gender, ethnicity/community and age band
 - Disparate impact using the four-fifths threshold
@@ -190,50 +107,55 @@ than left for a reader to infer:
 - 95% Wilson confidence intervals for selection and true-positive rates
 - Exploratory highest-vs-lowest two-proportion significance tests
 - Pairwise intersectional audits such as gender × age band
-- Minimum-cell-size warnings for unreliable group comparisons, applied to a group's rows **and** to the qualified people behind its true-positive rate
-- Strict reference-model and dataset validation: unknown identifiers return HTTP 400, never a substituted audit
-- Explicit "not assessable" verdicts when decisions show no variation or groups are too small to compare
+- Minimum-cell-size warnings for unreliable group comparisons, applied to a group's
+  rows **and** to the qualified people behind its true-positive rate
+- Explicit "not assessable" verdicts when decisions show no variation or groups are too
+  small to compare
+
+### Chaos testing and candidate review
+
 - Reusable counterfactual and stress-test framework with configurable thresholds
 - Deterministic experiment IDs and candidate-level before/after evidence
+- Candidate-level additive explanations
+- Candidate decision lookup and appeals workflow
+- Blind-screening and proxy-removal simulations, plus a research-only per-group
+  threshold contrast that is refused by default and cites
+  [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2)
+
+### Reporting and governance
+
 - Side-by-side model-version comparison and automated CI/CD fairness release gate
-- Deterministic evidence-grounded fairness review with prioritized human actions (a transparent rules engine — not an AI agent or language model)
-- Pluggable decision-adapter contract for reference, CSV, and production providers
+- Deterministic evidence-grounded fairness review with prioritized human actions (a
+  transparent rules engine—not an AI agent or language model)
 - Tamper-evident SHA-256 evidence bundles with verification API and CLI
 - Self-contained HTML reports plus dependency-free native PDF summaries
-- API-key write protection, request-size limits, separate read and write rate limits, a nonce-based Content-Security-Policy, a bounded appeal queue, and operational metrics
-- Accessible mobile/PWA shell and a stable three-minute guided portfolio demo
-- Candidate-level additive explanations
-- Blind-screening and proxy-removal simulations, plus a research-only per-group threshold contrast that is refused by default and cites [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2)
-- Candidate decision lookup and appeals workflow
+- Downloadable JSON audit evidence
+
+### Data and integrations
+
+- Pluggable decision-adapter contract for reference, CSV, and production providers
 - Configurable CSV audits without exposing model weights
 - Custom decision, qualification, candidate-ID, and protected-attribute columns
 - Configurable favorable values and minimum reliable group size
-- Downloadable JSON audit evidence
 - Named audit IDs and SQLite-backed aggregate audit history
 - Privacy-conscious storage: uploaded candidate rows are never written to history
+
+### Operations, security and experience
+
+- Strict reference-model and dataset validation: unknown identifiers return HTTP 400, never a substituted audit
+- API-key write protection, request-size limits, separate read and write rate limits, a
+  nonce-based Content-Security-Policy, a bounded appeal queue, and operational metrics
+- Accessible mobile/PWA shell and a stable three-minute guided portfolio demo
 - Responsive, dependency-free web dashboard
 
 ## Architecture
 
-[View the architecture diagram](docs/engineering/ARCHITECTURE.svg).
+A browser-based shell calls FastAPI, which orchestrates audits, chaos experiments,
+candidate explanations, reports, evidence, and operations.
 
-```text
-Browser (vanilla HTML/CSS/JS)
-             │ JSON/HTTP
-             ▼
-      FastAPI route layer
-             │
-     Application services
-      ├── fairness metrics
-      ├── chaos experiments
-      ├── explanations
-      ├── mitigations
-      └── appeals / uploads
-             │
- Reference models + synthetic data
-             │
-       NumPy + Pandas
-```
+![ChaosHire architecture diagram: browser/PWA, FastAPI, audit and chaos services, evidence, storage, and release gates](docs/engineering/ARCHITECTURE.svg)
+
+[Open the architecture SVG source](docs/engineering/ARCHITECTURE.svg).
 
 ### Repository layout
 
@@ -266,7 +188,7 @@ examples/                  # runnable decision-adapter example
 ```
 
 See the [documentation index](docs/README.md), the [file-by-file inventory](docs/operations/REPOSITORY-INVENTORY.md),
-and the [1 October 2026 audit and next updates](docs/operations/REPOSITORY-AUDIT.md)
+and the [1 October 2026 audit, with its 2 October hosted-CI follow-up](docs/operations/REPOSITORY-AUDIT.md)
 for individual files, verification scope, and maintenance commands. `backend.py`, dependency manifests, `Dockerfile`, `render.yaml`, and the
 standard community files remain at the root for existing deployment and tooling
 conventions. The Python modules remain at their public `chaoshire.*` import paths;
@@ -315,7 +237,8 @@ commands are in the [documentation index](docs/README.md). GitHub Actions runs
 linting, type checking, the trained-model drift check and the default test suite
 on Python 3.11 and 3.12; a separate workflow runs the browser tests. The
 quality gate requires at least 90% package coverage; the **current source
-baseline**, measured locally, contains **504 tests with 97.1% package coverage**
+baseline**, measured locally on **CPython 3.11.2**, contains
+**504 tests with 97.1% package coverage**
 (the configured source set excludes the synthetic fixture module
 `chaoshire/data.py`). The tagged release and live site may lag this revision.
 
@@ -343,7 +266,14 @@ python scripts/check_distribution.py --wheel dist/chaoshire-*.whl --sdist dist/c
   --constraints constraints/requirements-py311.txt
 ```
 
-The [engineering update report](docs/operations/REPOSITORY-AUDIT.md) distinguishes local results from owner-only rollout. Strict decision labels, expiring bounded limiter keys, fixed webhook workers, and fail-closed benchmark input are now implemented. PostgreSQL tests are opt-in (`tests/integration/`) and require an explicit **disposable local** `CHAOSHIRE_TEST_POSTGRES_URL`; they never fall back to a production DSN. CI now exercises PostgreSQL, installed packages, and a non-default-PORT container in addition to its quality matrix. Configuring CI is not proof that its remote run has happened.
+The [repository audit and hosted verification](docs/operations/REPOSITORY-AUDIT.md)
+distinguish local results from owner-only rollout and record CI outcomes by code
+revision. Strict decision labels, expiring bounded limiter keys, fixed webhook workers,
+and fail-closed benchmark input are implemented. PostgreSQL tests are opt-in
+(`tests/integration/`) and require an explicit **disposable local**
+`CHAOSHIRE_TEST_POSTGRES_URL`; they never fall back to a production DSN. CI includes
+service-backed PostgreSQL, installed-package, and non-default-PORT container checks
+alongside the quality matrix.
 
 ### Audit scikit-learn predictions
 
@@ -425,17 +355,19 @@ The original schema remains backward-compatible. Download a compatible synthetic
 
 ## Three-minute walkthrough
 
-1. Open **LegacyCorp Screen v1** and note its **32/F** risk score — and the scoring-basis line beside it, which says the score is 27.1 of 85 available points measured.
-2. Open **Chaos Lab** and run the suite; explain the 16.9% gender-swap flip rate.
-3. Open **Who Got Filtered Out** and show the 42 qualified rejected candidates.
-4. Apply both mitigations and compare **32/F with 80/B**. Note the panel explaining why per-group threshold "calibration" is *not* one of them, with the statute cited.
-5. Switch to **MeritFirst v2** (**84/B**, resilience 100/100) to show a cleaner synthetic fixture under the same tests; these results are not a certification.
-6. Switch to **TalentFit v3** (**80/B**, resilience 100/100, worst disparate impact 0.814). Its first version was the most accurate model and still scored 66/C, because it copied group gaps already in its training label (a perfect copy of the label scores 68/C). The upgrade drops the proxy features and uses one cost-sensitive cutoff for everyone: it passes the four-fifths rule and wrongly rejects 21 qualified candidates against MeritFirst's 34. Its passes are labelled *by construction*: with no protected inputs it cannot flip on a swap.
-7. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
+1. Open **LegacyCorp Screen v1** and note its risk score and measurement-basis line; compare it with the model table above.
+2. Run **Chaos Lab** and inspect the counterfactual flips, stress tests, and any *by construction* labels.
+3. Open **Who Got Filtered Out** to review candidate-level decisions and explanations.
+4. Apply blind screening and proxy removal, then discuss the limits of a synthetic mitigation simulation and why per-group threshold "calibration" is not offered.
+5. Compare the three model variants and use the [methodology guide](docs/engineering/METHODOLOGY.md#why-a-more-accurate-model-can-score-lower) to explain TalentFit's training trade-offs.
+6. In **Appeals**, look up `C-1046`; the system identifies a likely qualified rejection and prioritizes the appeal.
 
 ## Methodology and limitations
 
-ChaosHire is an educational and portfolio-grade prototype—not a legal compliance certification service.
+ChaosHire is an educational and portfolio-grade prototype—not a legal compliance
+certification service. The [engineering methodology](docs/engineering/METHODOLOGY.md)
+explains the statistics, score construction, trained-model results, and assumptions
+in detail.
 
 - The built-in dataset and models are synthetic.
 - Observed disparity is evidence requiring investigation; it does not by itself prove unlawful discrimination.

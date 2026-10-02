@@ -5,7 +5,7 @@ are relative to the **repository root**.
 
 ## Engineering
 
-- [Architecture diagram](engineering/ARCHITECTURE.svg) — browser, API, audits, evidence, and delivery.
+- [Architecture overview](../README.md#architecture) — inline diagram; [SVG source](engineering/ARCHITECTURE.svg).
 - [Methodology](engineering/METHODOLOGY.md) — metrics, assumptions, and responsible-use limits.
 - [Continuous fairness](engineering/CONTINUOUS-FAIRNESS.md) — experiments and release-gate policy.
 - [scikit-learn integration](engineering/SCIKIT-LEARN-INTEGRATION.md) — decision-adapter example.

@@ -258,12 +258,28 @@ The 0.45-cutoff mean is 71.96, shown as 72.0 rather than the earlier 71.9.
 Lower cutoffs trade accuracy and precision for recall and a
 higher fairness score. Part of that score gain is mechanical: accepting more
 candidates narrows ratios between selection rates, which is one reason
-four-fifths results should be compared at matched acceptance rates. Every
-unseen-population mean here was re-derived after the equal-opportunity
-qualified-count check was added, which raised all three models by about two
-points (see [Minimum group size](#minimum-group-size)); the ordering is
-unchanged. A cost of 3 now scores 85 on the fixture, one point *above*
-MeritFirst's 84; picking it *because* it wins would be tuning to the audit.
+four-fifths results should be compared at matched acceptance rates. A cost of 3
+now scores 85 on the fixture, one point *above* MeritFirst's 84; picking it
+*because* it wins would be tuning to the audit.
+
+### Holdout comparison across model variants
+
+`python -m chaoshire train --holdout` audits the fixed MeritFirst control and both
+TalentFit versions, without refitting or threshold tuning, on 49 unseen populations
+(seeds 1–50 excluding fixture seed 29):
+
+| Mean across 49 populations | MeritFirst v2 | Original v3 | Upgraded v3 |
+|---|---:|---:|---:|
+| Fairness risk score | 74.4 | 69.5 | **76.0** |
+| Qualified candidates wrongly rejected | 23.9 | 53.4 | **18.1** |
+| Recall on qualified candidates | 94.0% | 86.7% | **95.5%** |
+| Accuracy | 85.7% | **88.6%** | 85.0% |
+
+Both the cutoff-sweep and cross-model holdout means were re-derived after the
+equal-opportunity minimum-qualified-count rule was added (see [Minimum group size](#minimum-group-size)).
+The rule raised each model's average score by about two points without changing
+the ranking. Fixture results above are unaffected; the cutoff sweep remains a
+separate sensitivity analysis for the upgraded TalentFit.
 
 **Proxies.** The original v3 was offered college prestige and career gap. The
 label never uses them, so they received near-zero weight (+0.012 and +0.030,
