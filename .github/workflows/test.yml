@@ -116,7 +116,7 @@ jobs:
       - name: Run on a non-default PORT and require healthy readiness
         run: |
           docker run -d --name chaoshire-ci -e PORT=8080 -p 127.0.0.1:8080:8080 chaoshire-ci
-          for attempt in $(seq 1 30); do
+          for (( attempt = 1; attempt <= 30; attempt++ )); do
             status="$(docker inspect --format '{{.State.Health.Status}}' chaoshire-ci)"
             if [ "$status" = "healthy" ]; then break; fi
             if [ "$status" = "unhealthy" ]; then docker logs chaoshire-ci; exit 1; fi

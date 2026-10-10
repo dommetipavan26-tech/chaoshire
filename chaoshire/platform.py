@@ -65,6 +65,7 @@ LIMITER_SCOPE = "process-local-memory"
 # parses the Blueprint and fails if these diverge. Live drift (dashboard env
 # vs this file) is reported at boot and on ``GET /api/ops/posture``.
 BLUEPRINT_CONTRACT: dict[str, str] = {
+    "CHAOSHIRE_PRIVATE_MODE": "0",
     "CHAOSHIRE_ALLOW_ANONYMOUS_WRITES": "1",
     "CHAOSHIRE_RATE_LIMIT_PER_MINUTE": "120",
     "CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE": "6",
@@ -84,6 +85,7 @@ BLUEPRINT_CONTRACT: dict[str, str] = {
 # surface. The boot log and ``GET /api/ops/posture`` always carry the full set.
 _RECON_POSTURE_KEYS = (
     "api_key_configured",
+    "private_mode",
     "rate_limit_per_minute",
     "write_rate_limit_per_minute",
     "instance_write_rate_limit_per_minute",
@@ -147,8 +149,19 @@ def api_key_matches(configured: str, supplied: str) -> bool:
     return compare_digest(configured.encode("utf-8"), supplied.encode("utf-8"))
 
 
+def private_mode_enabled() -> bool:
+    """Whether sensitive shared data is protected by the single operator key.
+
+    This is deliberately a single-operator boundary, not account or tenant
+    isolation. The public synthetic demo remains unchanged unless the operator
+    opts in explicitly.
+    """
+    return _bool_env("CHAOSHIRE_PRIVATE_MODE", False)
+
+
 def anonymous_writes_allowed() -> bool:
-    return _bool_env("CHAOSHIRE_ALLOW_ANONYMOUS_WRITES", True)
+    """Whether unauthenticated mutations are allowed in the current mode."""
+    return not private_mode_enabled() and _bool_env("CHAOSHIRE_ALLOW_ANONYMOUS_WRITES", True)
 
 
 def anonymous_uploads_published() -> bool:
@@ -209,10 +222,12 @@ def audit_history_durable() -> bool:
 def disclose_write_posture() -> bool:
     """Whether ``/api/meta`` includes budgets, key presence, and bucketing.
 
-    Defaults to the same value as anonymous writes: the public demo stays
-    verifiable from outside, a private deployment does not advertise its
-    gates. Override with ``CHAOSHIRE_DISCLOSE_WRITE_POSTURE``.
+    Private mode always hides recon details on the public metadata route; its
+    operator-only posture endpoint remains available with the API key. Outside
+    private mode, disclosure defaults to the same value as anonymous writes.
     """
+    if private_mode_enabled():
+        return False
     return _bool_env("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", anonymous_writes_allowed())
 
 
@@ -245,15 +260,23 @@ def blueprint_drift() -> list[dict[str, str]]:
 
 def write_posture_note() -> str:
     published = anonymous_uploads_published()
-    return (
+    note = (
         "Only uploads authenticated with CHAOSHIRE_API_KEY are published to the "
         "shared audit history. Anonymous uploads are "
         + ("also published." if published else "returned to the caller and discarded.")
-        + " Behind a trusted proxy, set CHAOSHIRE_TRUST_FORWARDED_FOR=1 so rate "
+    )
+    if private_mode_enabled():
+        note += (
+            " Private mode requires the operator key for published history, appeal listings, "
+            "and uploaded-data reads; it is one shared operator boundary, not tenant isolation."
+        )
+    note += (
+        " Behind a trusted proxy, set CHAOSHIRE_TRUST_FORWARDED_FOR=1 so rate "
         "limits bucket per client; unset, every visitor shares one bucket. "
         "Rate limits are process-local memory and reset on restart. "
         "Set CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0 to hide budgets from /api/meta."
     )
+    return note
 
 
 def write_posture() -> dict[str, Any]:
@@ -263,6 +286,7 @@ def write_posture() -> dict[str, Any]:
     trusted = trust_forwarded_for()
     return {
         "api_key_configured": configured_api_key() is not None,
+        "private_mode": private_mode_enabled(),
         "anonymous_writes_allowed": anonymous_writes_allowed(),
         "anonymous_uploads_published": anonymous_uploads_published(),
         "rate_limit_per_minute": rate_limit_per_minute(),
@@ -574,6 +598,16 @@ def require_operator(
         )
     if not x_api_key or not api_key_matches(configured, x_api_key):
         raise HTTPException(status_code=401, detail="A valid X-API-Key header is required.")
+
+
+def require_private_data_access(request: Request) -> None:
+    """Protect shared applicant-related records in opt-in private mode.
+
+    The key represents one operator/workspace. It is not a user account,
+    tenant claim, or per-audit ownership mechanism.
+    """
+    if private_mode_enabled():
+        require_operator(request.headers.get("x-api-key"))
 
 
 class RequestBodyLimitMiddleware:

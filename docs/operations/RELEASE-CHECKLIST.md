@@ -26,6 +26,9 @@ it described.
 - [ ] Quality, fairness-gate, security, and browser workflows pass
 - [ ] Local dependency audit reports no known vulnerabilities
 - [ ] Workflow, Render, and Dependabot YAML parse successfully
+- [ ] `actionlint` validates all workflow files
+- [ ] Full-history Gitleaks scan passes or findings are rotated/triaged
+- [ ] Trivy image scan has no fixed CRITICAL/HIGH OS or library vulnerabilities
 
 ## Owner actions
 
@@ -39,7 +42,8 @@ it described.
 - [ ] Check the social preview, sitemap, robots, internal/external links, consent choice, and private analytics summary on the deployed host
 - [ ] Re-run the real-browser mobile/contrast and page-speed checks; a local timing is not a production Lighthouse score
 - [ ] Test overview, Chaos, fairness review, guided demo, PDF, and evidence download on one Android or iPhone
-- [ ] Create and push tag `vX.Y.Z`; the Release workflow publishes source, reports, evidence, checksums, and release notes
+- [ ] Create and push tag `vX.Y.Z`; the Release workflow publishes source, reports, evidence, SPDX SBOM, checksums, release notes, and GitHub artifact attestations
+- [ ] Verify the release provenance/SBOM attestation with `gh attestation verify <release-file> --repo dommetipavan26-tech/chaoshire`
 - [ ] Add the live URL and repository to résumé and LinkedIn
 
 ## Tag command

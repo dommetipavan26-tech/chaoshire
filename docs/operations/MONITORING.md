@@ -17,6 +17,7 @@ the dashboard.
 |---|---|---|---|
 | `CHAOSHIRE_API_KEY` | generated at deploy time | Holding it is what makes an upload *published* | `GET /api/meta` → `platform.api_key_configured: true` (when disclosure is on); a request with a wrong `X-API-Key` gets `401`. The value is never logged or echoed. |
 | `CHAOSHIRE_ALLOW_ANONYMOUS_WRITES` | `1` | Keeps the public demo interactive | Anonymous `POST /api/upload` → `200` with `published: false` and no `audit_id` |
+| `CHAOSHIRE_PRIVATE_MODE` | `0` | Opt-in single-operator boundary for published history, appeals, and uploaded-data reads; forces write-gated mutations to require the operator key | Authenticated `GET /api/ops/posture` → `private_mode: true`; without the key, `/api/audits` and `/api/appeals` return `401` (or `503` if no key is configured). Not tenant isolation or browser login. |
 | `CHAOSHIRE_RATE_LIMIT_PER_MINUTE` | `120` | Per-client read budget | `GET /api/meta` → `platform.rate_limit_per_minute: 120` |
 | `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE` | `6` | Per-client write budget | `GET /api/meta` → `platform.write_rate_limit_per_minute: 6`; a 7th mutating call within a minute gets `429` |
 | `CHAOSHIRE_TRUST_FORWARDED_FOR` | `1` | Buckets limits by the left-most `X-Forwarded-For` entry (Render's client IP, `:port` stripped) plus a process-wide `write:_instance` backstop at the same budget | Config: `/api/meta` → `trusted_proxy_headers: true` / `client_ip_selection: left-most-x-forwarded-for`, `limiter_scope: process-local-memory`, `instance_write_rate_limit_per_minute: 6`. Behaviour: `GET /api/ops/whoami` with a spoofed left-most XFF, or `python scripts/probe_xff.py --host chaoshire.onrender.com --limit 6` (rotating left-most still hits 429 via the instance cap) |
@@ -44,7 +45,9 @@ curl -s -o /dev/null -w '%{http_code}\n' https://chaoshire.onrender.com/api/read
 ```
 
 The privacy and terms pages, robots/sitemap, and social-preview image must also
-be inspected on the deployed URL. The first-party, cookie-free analytics API
+be inspected on the deployed URL. For an API-only private single-operator
+deployment, set `CHAOSHIRE_PRIVATE_MODE=1` and configure `CHAOSHIRE_API_KEY`; the
+browser UI deliberately does not store or transmit the operator key. The first-party, cookie-free analytics API
 records a page-section view **only after browser consent**, and the aggregate
 report is operator-only; send the key from a server-side shell, never from the
 browser:
