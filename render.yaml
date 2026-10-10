@@ -21,6 +21,12 @@ services:
         value: "1"
 
       # --- write access -----------------------------------------------------
+      # The public synthetic demo is a single shared workspace. Set to "1"
+      # only on a private deployment; this requires the operator key for
+      # published history, appeal listings and uploaded-data reads.
+      - key: CHAOSHIRE_PRIVATE_MODE
+        value: "0"
+
       # A real secret is generated at deploy time, not left unset. Holding it
       # makes an upload "published": it is written to the persistent audit
       # history and becomes the shared dataset=uploaded artifact. Operators and

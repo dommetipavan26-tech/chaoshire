@@ -52,10 +52,12 @@ from .platform import (
     disclose_write_posture,
     ensure_package_logging,
     platform_middleware,
+    private_mode_enabled,
     process_worker_count,
     public_write_posture,
     rate_limit_per_minute,
     require_operator,
+    require_private_data_access,
     require_write_access,
     trust_forwarded_for,
     write_posture,
@@ -150,13 +152,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     ensure_package_logging(logger)
     logger.info(
-        "chaoshire %s resolved write posture: api_key_configured=%s "
+        "chaoshire %s resolved write posture: private_mode=%s api_key_configured=%s "
         "anonymous_writes_allowed=%s anonymous_uploads_published=%s "
         "rate_limit_per_minute=%s write_rate_limit_per_minute=%s "
         "appeals_capacity=%s trusted_proxy_headers=%s rate_limit_bucketing=%s "
         "limiter_scope=%s audit_history_durable=%s disclose_write_posture=%s "
         "blueprint_drift=%s worker_count=%s",
         __version__,
+        "true" if private_mode_enabled() else "false",
         "true" if configured_api_key() is not None else "false",
         "true" if anonymous_writes_allowed() else "false",
         "true" if anonymous_uploads_published() else "false",
@@ -554,8 +557,9 @@ def demo_story() -> dict:
 
 
 @app.get("/api/audit", tags=["audit"])
-def api_audit(model: ModelQuery, dataset: DatasetQuery) -> Any:
+def api_audit(model: ModelQuery, dataset: DatasetQuery, request: Request) -> Any:
     if dataset == "uploaded":
+        require_private_data_access(request)
         result = uploaded_audit()
         if "error" in result:
             return JSONResponse(status_code=404, content=result)
@@ -676,7 +680,8 @@ def post_appeal(
 
 
 @app.get("/api/appeals", tags=["appeals"])
-def get_appeals() -> dict:
+def get_appeals(request: Request) -> dict:
+    require_private_data_access(request)
     return list_appeals()
 
 
@@ -717,12 +722,14 @@ def api_upload(
 
 
 @app.get("/api/audits", tags=["audit history"])
-def audit_history(limit: int = 50) -> dict:
+def audit_history(request: Request, limit: int = 50) -> dict:
+    require_private_data_access(request)
     return {"audits": list_audits(limit)}
 
 
 @app.get("/api/audits/{audit_id}", tags=["audit history"])
-def audit_detail(audit_id: str) -> dict:
+def audit_detail(audit_id: str, request: Request) -> dict:
+    require_private_data_access(request)
     result = get_audit(audit_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Audit record not found.")
@@ -730,7 +737,8 @@ def audit_detail(audit_id: str) -> dict:
 
 
 @app.get("/api/audit/export", response_class=JSONResponse, tags=["audit"])
-def export_uploaded_audit() -> JSONResponse:
+def export_uploaded_audit(request: Request) -> JSONResponse:
+    require_private_data_access(request)
     result = uploaded_audit()
     if "error" in result:
         return JSONResponse(status_code=404, content=result)
@@ -740,9 +748,12 @@ def export_uploaded_audit() -> JSONResponse:
     )
 
 
-def _report_inputs(model: ModelQuery, dataset: DatasetQuery) -> tuple[dict, dict | None]:
-    """Resolve report inputs; both identifiers are validated by the route layer."""
+def _report_inputs(
+    model: ModelQuery, dataset: DatasetQuery, request: Request
+) -> tuple[dict, dict | None]:
+    """Resolve report inputs; protect uploaded content in private mode."""
     if dataset == "uploaded":
+        require_private_data_access(request)
         result = uploaded_audit()
         if "error" in result:
             raise HTTPException(status_code=404, detail=result["error"])
@@ -751,14 +762,14 @@ def _report_inputs(model: ModelQuery, dataset: DatasetQuery) -> tuple[dict, dict
 
 
 @app.post("/api/agent/review", tags=["fairness agent"])
-def agent_review(request: AgentReviewRequest) -> dict:
-    result, chaos_result = _report_inputs(request.model, request.dataset)
+def agent_review(request: AgentReviewRequest, http_request: Request) -> dict:
+    result, chaos_result = _report_inputs(request.model, request.dataset, http_request)
     return review_audit(result, chaos_result if request.include_chaos else None)
 
 
 @app.get("/api/evidence", tags=["evidence"])
-def evidence_bundle(model: ModelQuery, dataset: DatasetQuery) -> dict:
-    result, chaos_result = _report_inputs(model, dataset)
+def evidence_bundle(model: ModelQuery, dataset: DatasetQuery, request: Request) -> dict:
+    result, chaos_result = _report_inputs(model, dataset, request)
     review = review_audit(result, chaos_result)
     return build_evidence_bundle(result, chaos_result, review)
 
@@ -769,8 +780,8 @@ def verify_evidence(request: EvidenceVerifyRequest) -> dict:
 
 
 @app.get("/api/report.html", response_class=HTMLResponse, tags=["reports"])
-def html_report(model: ModelQuery, dataset: DatasetQuery) -> HTMLResponse:
-    result, chaos_result = _report_inputs(model, dataset)
+def html_report(model: ModelQuery, dataset: DatasetQuery, request: Request) -> HTMLResponse:
+    result, chaos_result = _report_inputs(model, dataset, request)
     return HTMLResponse(
         render_html_report(result, chaos_result),
         headers={"Content-Disposition": "attachment; filename=chaoshire-report.html"},
@@ -778,8 +789,8 @@ def html_report(model: ModelQuery, dataset: DatasetQuery) -> HTMLResponse:
 
 
 @app.get("/api/report.pdf", tags=["reports"])
-def pdf_report(model: ModelQuery, dataset: DatasetQuery) -> Response:
-    result, chaos_result = _report_inputs(model, dataset)
+def pdf_report(model: ModelQuery, dataset: DatasetQuery, request: Request) -> Response:
+    result, chaos_result = _report_inputs(model, dataset, request)
     return Response(
         render_pdf_report(result, chaos_result),
         media_type="application/pdf",

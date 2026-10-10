@@ -38,7 +38,16 @@ ChaosHire deliberately does not write the following upload contents to the histo
 
 For an **operator-published** upload, the raw parsed DataFrame is retained only in the shared process-local slot alongside its aggregate result. A later publication replaces it and a restart clears it. This is not a per-visitor session. For anonymous uploads, those rows are discarded after the response.
 
-The public demonstration has no visitor accounts or per-audit read authorization. Published audit names, aggregate metrics, and configurations returned by the history API are visible to every visitor. Use synthetic data and non-sensitive audit names only.
+The public demonstration defaults to no visitor accounts or per-audit read authorization. Published audit names, aggregate metrics, and configurations returned by the history API are visible to every visitor. Use synthetic data and non-sensitive audit names only.
+
+An operator may opt into `CHAOSHIRE_PRIVATE_MODE=1`. In that mode, the configured
+`CHAOSHIRE_API_KEY` is required for published history, the appeal listing, and
+all uploaded-dataset reads/reports/evidence/exports; it also forces the existing
+write-gated routes to reject anonymous requests. Missing key configuration fails
+closed. Public synthetic reference endpoints remain available. This is only a
+single shared operator/workspace key: it provides no individual accounts,
+tenant isolation, per-audit ownership, browser login, or delegated roles. Never
+send the key to dashboard JavaScript; use a trusted server-side API client.
 
 ## Site preferences and anonymous analytics
 
@@ -77,4 +86,4 @@ GET /api/audits/{audit_id}   # complete stored aggregate result
 
 Unknown IDs return HTTP 404. The list limit is bounded to 1–100 records.
 
-The in-memory uploaded-data slot is shared by the whole process, so `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and the uploaded report endpoints return the **most recent operator-published upload**, not a caller-specific result. They expose aggregates, never raw rows. Before any publication these uploaded-data endpoints return 404; an anonymous upload does not change that. Persisted history records may outlive the latest-upload slot after a process restart.
+The in-memory uploaded-data slot is shared by the whole process, so `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and uploaded review/report endpoints return the **most recent operator-published upload**, not a caller-specific result. They expose aggregates, never raw rows. In public demo mode these results are public; `CHAOSHIRE_PRIVATE_MODE=1` requires the operator key before returning them. Before any publication these uploaded-data endpoints return 404; an anonymous upload does not change that. Persisted history records may outlive the latest-upload slot after a process restart. Private mode does not isolate one operator's uploads from another because this app has no tenant model.
