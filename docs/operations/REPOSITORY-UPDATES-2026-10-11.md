@@ -1,9 +1,9 @@
 # Repository follow-up — 11 October 2026
 
 This is a source-repository update to the 1 October audit, not a new production
-readiness certification. The changes are being published from the active branch
-for pull-request review. The new hosted security jobs must be checked on this
-branch; prior GitHub checks on the base commit are not evidence for this follow-up.
+readiness certification. Pull request #57 is open from the active branch. The
+new hosted security jobs have passed on the PR revision; prior GitHub checks on
+the base commit are not evidence for this follow-up.
 
 ## Opt-in private data mode
 
@@ -68,11 +68,18 @@ synthetic demo remains available and that private posture is not disclosed.
 - Local environment was Python 3.11.2. Docker, PostgreSQL and Playwright were not installed locally.
 <!-- LOCAL-VERIFICATION-END -->
 
-Hosted Python matrix, browser, PostgreSQL, Docker, fairness, dependency audit,
-CodeQL and live-site checks on the base revision are historical context only.
-The newly added workflows must pass on the updated commit. No deployment,
-managed database provisioning, secret rotation, production scan triage, or
-release tag was performed.
+### Hosted verification (pull request #57)
+
+At PR head `574dff3`, GitHub Actions passed the Python 3.11/3.12 quality jobs,
+PostgreSQL 3.11/3.12, container smoke, browser/mobile, fairness, dependency
+audit, CodeQL, actionlint, full-history Gitleaks, and Trivy container scan. The
+first actionlint run exposed ShellCheck issues; those were fixed before this
+passing run. Trivy is configured to ignore unfixed findings, so review its full
+output for advisory context rather than treating the pass as zero findings.
+
+Checks on the base revision remain historical context only. No deployment,
+managed database provisioning, secret rotation, production scan triage, live-site
+check, or release tag was performed.
 
 ## Still needs owner or independent execution
 
@@ -88,6 +95,7 @@ release tag was performed.
 4. Rerun the Adult benchmark from a verified source when download transport is
    available; the previous fresh-download attempt failed at the external
    transport layer. Do not present an old run as newly reproduced.
-5. After publication, inspect Gitleaks/Trivy/actionlint results and verify the
-   first signed release attestations. Scanner configuration alone is not proof
-   of a clean environment.
+5. Review the full Trivy output for any unfixed findings and verify the first
+   signed release attestations after a tagged release. The PR checks passed
+   under their configured policies; neither is proof of a clean production
+   environment.

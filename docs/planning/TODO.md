@@ -161,6 +161,7 @@ See [the audit report](../operations/REPOSITORY-AUDIT.md) for evidence, acceptan
 - [x] Add API regression tests for every shared-data route and both public/private behavior.
 - [x] Add source configuration for complete Git-history secret scanning, workflow linting, and high/critical OS/library image vulnerability scanning.
 - [x] Generate an SPDX SBOM and GitHub artifact provenance/SBOM attestations in tagged releases; include the SBOM in release checksums/assets.
-- [ ] Hosted verification of the new security jobs and release attestations after the change is pushed; inspect and remediate scanner findings.
+- [x] Hosted verification on PR #57: actionlint, full-history Gitleaks, Trivy, dependency audit, and CodeQL passed on the updated workflow. Trivy ignores unfixed findings; review full output for any that need triage.
+- [ ] Verify the first release provenance/SBOM attestations after a tagged release and complete remaining scanner-finding triage.
 - [ ] Before real candidate data: choose a managed durable store and retention/deletion, backup/restore and incident-response policies; complete an independent privacy/security/legal review. Private mode alone is not production readiness.
 - [ ] Complete manual gradient-contrast, screen-reader and real-device review; rerun the public Adult benchmark from a verified source when network access permits.

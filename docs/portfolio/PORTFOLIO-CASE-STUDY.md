@@ -18,7 +18,7 @@ ChaosHire combines group metrics, uncertainty estimates, pairwise intersectional
 - Deterministic 1,000-candidate fixture with reproducible experiment and review IDs.
 - Configurable CSV schema, Wilson confidence intervals, two-proportion indicators, and intersectional analysis.
 - SHA-256 tamper-evident evidence, offline HTML and native PDF reports.
-- API-key write protection plus opt-in single-operator private reads for shared history, appeal listings, and uploaded data (not tenant isolation), separate read/write limits, bounded appeals, nonce-based CSP, request IDs, readiness checks, and operational metrics. CI includes CodeQL and dependency auditing; actionlint, full-history Gitleaks, and Trivy OS/library scanning are configured, with their first hosted run pending. Dependabot and automated releases remain in place.
+- API-key write protection plus opt-in single-operator private reads for shared history, appeal listings, and uploaded data (not tenant isolation), separate read/write limits, bounded appeals, nonce-based CSP, request IDs, readiness checks, and operational metrics. CI includes CodeQL and dependency auditing; actionlint, full-history Gitleaks, and Trivy OS/library scanning passed on PR #57 under their configured policies. Results are revision-specific, and scanner findings still require review. Dependabot and automated releases remain in place.
 - 507 automated tests, 97.1% package coverage, and fairness policy enforcement in GitHub Actions. The figures are derived by `scripts/check_build_info.py` from a real test run, so the documents cannot outlive the code they describe.
 
 ## Measurable demonstration

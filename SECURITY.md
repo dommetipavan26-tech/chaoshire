@@ -178,11 +178,12 @@ recorded here because it is a deliberate design decision rather than an oversigh
 (`pip-audit`) and CodeQL. It now also configures actionlint, a Gitleaks scan with
 `fetch-depth: 0` for complete Git history, and Trivy against the built runtime
 image (OS and library findings; fixed HIGH/CRITICAL findings fail the job,
-unfixed findings are reported but do not block). These new jobs need a hosted
-run on the updated commit before their results can be called clean. The tagged
-release workflow is configured to attach an SPDX SBOM and GitHub artifact
-attestations for release provenance and the SBOM; those attestations also need
-to be verified after a release. None of these automated gates replaces secret
+unfixed findings are reported but do not block). These checks passed on pull
+request #57; the Trivy result is under its ignore-unfixed policy, so review the
+full output for any findings requiring follow-up. The tagged release workflow
+is configured to attach an SPDX SBOM and GitHub artifact attestations for
+release provenance and the SBOM; those attestations have not run and must be
+verified after a release. None of these automated gates replaces secret
 rotation, independent review, or an operational response to a finding.
 
 ## Current limitations
