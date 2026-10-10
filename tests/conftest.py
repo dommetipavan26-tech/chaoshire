@@ -46,6 +46,7 @@ def isolated_state(tmp_path, monkeypatch):
     monkeypatch.setenv("CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE", "0")
     monkeypatch.setenv("CHAOSHIRE_ANONYMOUS_APPEALS_PER_MINUTE", "0")
     monkeypatch.delenv("CHAOSHIRE_ALLOW_ANONYMOUS_WRITES", raising=False)
+    monkeypatch.delenv("CHAOSHIRE_PRIVATE_MODE", raising=False)
     monkeypatch.delenv("CHAOSHIRE_DISCLOSE_WRITE_POSTURE", raising=False)
     monkeypatch.delenv("CHAOSHIRE_AUDIT_HISTORY_DURABLE", raising=False)
     monkeypatch.delenv("CHAOSHIRE_TRUST_FORWARDED_FOR", raising=False)

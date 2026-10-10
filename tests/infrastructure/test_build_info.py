@@ -177,9 +177,12 @@ def test_the_check_script_refuses_to_guess_when_coverage_json_is_missing(tmp_pat
         checker.main(["--coverage-json", str(tmp_path / "absent.json")])
 
 
-#: Living documentation. CHANGELOG.md and docs/planning/TODO.md are historical
-#: records: an old entry quoting a past test count is still correct for that release.
+#: Current-facing documentation whose quoted baseline must match this source.
 DOCUMENTED_FILES = ("README.md", "SECURITY.md", "CONTRIBUTING.md")
+HISTORICAL_DOCS = {
+    Path("docs/planning/TODO.md"),
+    Path("docs/operations/REPOSITORY-AUDIT.md"),
+}
 
 TEST_COUNT_PATTERN = re.compile(r"(\d{2,4}) (?:automated )?tests")
 COVERAGE_PATTERN = re.compile(r"(\d{2}\.\d)% (?:package )?coverage")
@@ -189,7 +192,7 @@ def _living_documentation() -> list[Path]:
     docs = REPO_ROOT / "docs"
     return [
         *(REPO_ROOT / name for name in DOCUMENTED_FILES),
-        *(p for p in docs.rglob("*.md") if p != docs / "planning" / "TODO.md"),
+        *(p for p in docs.rglob("*.md") if p.relative_to(REPO_ROOT) not in HISTORICAL_DOCS),
     ]
 
 

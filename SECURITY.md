@@ -9,7 +9,8 @@ This document describes the posture the shipped configuration actually enforces,
 | Control | Default | Env var |
 |---|---|---|
 | Operator key for publishing writes | *unset locally, generated at deploy time* | `CHAOSHIRE_API_KEY` |
-| Anonymous writes accepted at all | `1` (allowed, but never published) | `CHAOSHIRE_ALLOW_ANONYMOUS_WRITES` |
+| Private single-operator data mode | `0` (public synthetic demo) | `CHAOSHIRE_PRIVATE_MODE` |
+| Anonymous writes accepted at all | `1` (allowed, but never published; forced off in private mode) | `CHAOSHIRE_ALLOW_ANONYMOUS_WRITES` |
 | Read rate limit | `120`/minute/IP | `CHAOSHIRE_RATE_LIMIT_PER_MINUTE` |
 | Write rate limit | `6`/minute/IP | `CHAOSHIRE_WRITE_RATE_LIMIT_PER_MINUTE` |
 | Request body cap | `5,500,000` bytes | `CHAOSHIRE_MAX_BODY_BYTES` |
@@ -37,6 +38,17 @@ collapse, and the result is capped at 60 characters.
 The gateway fails closed. With anonymous writes disabled and no key configured
 it answers `503` rather than silently accepting writes, which is what the old
 no-op configuration did.
+
+Set `CHAOSHIRE_PRIVATE_MODE=1` for an opt-in **single-operator** boundary. It
+forces the write-gated upload, appeal and connector routes to require the
+configured key, and requires that key to read published history, the appeal
+listing, or any uploaded-dataset audit/report/evidence/export. A missing key
+fails closed (`503`); a missing or incorrect key on configured deployments
+returns `401`. Public posture details are hidden on `/api/meta` even if
+`CHAOSHIRE_DISCLOSE_WRITE_POSTURE=1`. Synthetic reference-model endpoints remain
+public. The browser never receives the key, so private operations use an
+authenticated API client. This mode is **not** user accounts, per-audit ACLs,
+or tenant isolation; everyone holding the shared key has the same workspace.
 
 `GET /api/meta` returns the resolved posture as `platform` **when disclosure is
 on** (the public demo). Private deployments set
@@ -160,14 +172,27 @@ recorded here because it is a deliberate design decision rather than an oversigh
   enforces both halves. **Re-review this dismissal — and never rely on it — before
   any deployment that handles real candidate data.**
 
+## Automated supply-chain checks
+
+`.github/workflows/security.yml` runs the runtime/development dependency audit
+(`pip-audit`) and CodeQL. It now also configures actionlint, a Gitleaks scan with
+`fetch-depth: 0` for complete Git history, and Trivy against the built runtime
+image (OS and library findings; fixed HIGH/CRITICAL findings fail the job,
+unfixed findings are reported but do not block). These new jobs need a hosted
+run on the updated commit before their results can be called clean. The tagged
+release workflow is configured to attach an SPDX SBOM and GitHub artifact
+attestations for release provenance and the SBOM; those attestations also need
+to be verified after a release. None of these automated gates replaces secret
+rotation, independent review, or an operational response to a finding.
+
 ## Current limitations
 
 - Raw uploaded CSV rows and appeals are stored in process memory; both are bounded (request-size cap and a 200-entry appeal queue) but neither survives a restart. `GET /api/appeals` serves **redacted copies** only — names masked to initials; emails, bare 7+ digit runs and phone-like runs replaced with `[email redacted]`, `[number redacted]` and `[phone redacted]` — and discloses the rules in the response (`chaoshire/redaction.py`). Redaction is mechanical string matching and can miss novel identifier formats; the "synthetic data only" rule for the public demo still applies.
 - Named aggregate audit results and interpretation settings are stored in SQLite; raw candidate rows and IDs are not written to history.
 - Render free-tier storage is ephemeral and must not be treated as a durable record system.
-- There are no user accounts and no role-based authorization. Write access is a single shared operator key; anyone holding it can publish.
-- Aggregate history remains readable to visitors when the portfolio demo is operated publicly.
-- The demo keeps a single shared upload slot for *published* uploads: `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and the uploaded report endpoints return the most recent authenticated upload made by anyone. Only aggregate metrics and interpretation settings are exposed, and the slot is swapped under a lock so concurrent uploads cannot interleave.
+- There are no user accounts, roles, or tenant/per-audit ownership. Write access is a single shared operator key; anyone holding it can publish. Optional `CHAOSHIRE_PRIVATE_MODE=1` applies that same key to shared-data reads, but does not create separate workspaces.
+- In the default public demo mode, aggregate history remains readable to visitors. Private mode gates those history endpoints and appeal listings.
+- The process has a single shared upload slot for *published* uploads: `/api/audit?dataset=uploaded`, `/api/audit/export`, `/api/evidence?dataset=uploaded`, and uploaded report/review endpoints refer to the most recent authenticated upload. Private mode protects those reads with the operator key but does not make the slot per-user or per-audit. Only aggregate metrics and interpretation settings are exposed, and the slot is swapped under a lock so concurrent uploads cannot interleave.
 - Rate limits are per resolved client IP and **process-local memory**: they reset on restart and they double if the process is replicated. Behind a proxy without `CHAOSHIRE_TRUST_FORWARDED_FOR=1` every visitor shares one bucket; with it enabled only the left-most `X-Forwarded-For` entry (the client IP Render observed, with any `:port` stripped) is used, and a process-wide `write:_instance` bucket at the same write budget enforces the advertised cap even when per-client keys diverge. A client still cannot rotate the header to evade the limit, and the backstop proves it even when identity fails — verify with `GET /api/ops/whoami` or `scripts/probe_xff.py`.
 - `/api/meta` is a recon surface when disclosure is on. Turn it off
   (`CHAOSHIRE_DISCLOSE_WRITE_POSTURE=0`) before hosting real data.

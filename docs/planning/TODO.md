@@ -125,7 +125,8 @@ Scores: LegacyCorp `32/F` and MeritFirst `84/B` preserved; TalentFit `66/C` → 
 - [x] Optional PostgreSQL repository behind env (`CHAOSHIRE_DB_BACKEND=postgres` + `CHAOSHIRE_DATABASE_URL`; SQLite stays default — `chaoshire/repository_postgres.py`)
 - [x] Authenticated remote REST connector (`RemoteDecisionAdapter` in `chaoshire/adapters.py`, operator-configured via `CHAOSHIRE_REMOTE_MODELS`)
 - [x] Structured external JSON log shipping (`CHAOSHIRE_LOG_WEBHOOK_URL`; events: audit/appeal/chaos/mitigation/upload — `chaoshire/loghook.py`)
-- [ ] Dependency and container vulnerability scanning
+- [x] Dependency vulnerability auditing (`pip-audit`) and CodeQL are automated.
+- [x] Configure full-history Gitleaks, actionlint, and a Trivy OS/library image scan (workflow configuration only; first hosted run and finding triage remain open below).
 - [x] SHAP-compatible explanation adapter (`/api/explain/shap/{id}`, `/api/explain/shap/batch` — `chaoshire/explain.py`)
 
 
@@ -151,3 +152,15 @@ Scores: LegacyCorp `32/F` and MeritFirst `84/B` preserved; TalentFit `66/C` → 
 
 See [the audit report](../operations/REPOSITORY-AUDIT.md) for evidence, acceptance criteria, and scope limits;
 [the file inventory](../operations/REPOSITORY-INVENTORY.md) maps all source files to their responsibilities.
+
+
+## Repository updates — 11 October 2026
+
+- [x] Add opt-in `CHAOSHIRE_PRIVATE_MODE` for a single operator: protect published history, appeal listings, uploaded-data audits/reports/evidence/exports, and write-gated mutations with the existing API key. Keep synthetic demo routes public. This is explicitly **not** per-user, tenant, or per-audit authorization.
+- [x] Force anonymous writes off and hide public posture details in private mode; fail closed when the operator key is not configured.
+- [x] Add API regression tests for every shared-data route and both public/private behavior.
+- [x] Add source configuration for complete Git-history secret scanning, workflow linting, and high/critical OS/library image vulnerability scanning.
+- [x] Generate an SPDX SBOM and GitHub artifact provenance/SBOM attestations in tagged releases; include the SBOM in release checksums/assets.
+- [ ] Hosted verification of the new security jobs and release attestations after the change is pushed; inspect and remediate scanner findings.
+- [ ] Before real candidate data: choose a managed durable store and retention/deletion, backup/restore and incident-response policies; complete an independent privacy/security/legal review. Private mode alone is not production readiness.
+- [ ] Complete manual gradient-contrast, screen-reader and real-device review; rerun the public Adult benchmark from a verified source when network access permits.
