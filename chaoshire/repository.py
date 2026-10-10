@@ -16,8 +16,27 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from uuid import uuid4
+
+_SQLITE_WAL_LOCK = Lock()
+
+
+def _ensure_wal(connection: sqlite3.Connection, path: str) -> None:
+    """Set persistent WAL mode without racing concurrent connection opens.
+
+    Reissuing ``PRAGMA journal_mode=WAL`` on every connection races when
+    concurrent uploads open the same SQLite file. The mode persists in the DB
+    file, so serialize the check and only change it when needed. Rechecking the
+    file also handles an operator replacing a local database at the same path.
+    """
+    if path == ":memory:":
+        return
+    with _SQLITE_WAL_LOCK:
+        mode = connection.execute("PRAGMA journal_mode").fetchone()
+        if mode is None or str(mode[0]).lower() != "wal":
+            connection.execute("PRAGMA journal_mode=WAL")
 
 
 def _postgres_active() -> bool:
@@ -37,7 +56,7 @@ def connect() -> Iterator[sqlite3.Connection]:
     connection = sqlite3.connect(path, timeout=10)
     try:
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
+        _ensure_wal(connection, path)
         connection.execute("PRAGMA foreign_keys=ON")
         yield connection
         connection.commit()
