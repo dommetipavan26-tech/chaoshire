@@ -81,6 +81,6 @@ truststore==0.10.4
 typing-extensions==4.16.0
 typing-inspection==0.4.4
 urllib3==2.8.0
-uv==0.12.21
+uv==0.12.22
 uvicorn==0.54.0
 zopfli==0.4.3
