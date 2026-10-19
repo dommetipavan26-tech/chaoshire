@@ -72,7 +72,7 @@ scipy==1.18.1
 setuptools==84.0.0
 six==1.17.0
 sortedcontainers==2.4.0
-starlette==1.7.0
+starlette==1.8.0
 stevedore==5.9.1
 threadpoolctl==3.7.0
 tomli==2.5.0
