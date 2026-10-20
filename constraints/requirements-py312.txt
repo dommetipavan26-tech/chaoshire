@@ -77,7 +77,7 @@ stevedore==5.9.1
 threadpoolctl==3.7.0
 tomli==2.5.0
 tomli-w==1.2.0
-truststore==0.10.4
+truststore==0.10.5
 typing-extensions==4.16.0
 typing-inspection==0.4.4
 urllib3==2.8.0
