@@ -51,7 +51,7 @@ pip-audit==2.10.1
 pip-requirements-parser==32.0.1
 platformdirs==4.13.3
 playwright==1.63.0
-pluggy==1.6.0
+pluggy==1.7.0
 psycopg2-binary==2.9.13
 py-serializable==2.1.0
 pydantic==2.14.1
