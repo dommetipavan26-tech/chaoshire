@@ -4,7 +4,7 @@
 
 ChaosHire's application code and package build are healthy. After the dependency remediation in this branch, local Python 3.11 verification passes all **507 default tests at 97.10% package coverage**, as well as lint, formatting, typing, model reproducibility, the fairness gate, and an isolated installed-wheel smoke test.
 
-The initial audit found advisories in the dependency resolutions and an `httpx2`/`httpcore2` version mismatch. Both were corrected locally, and the regenerated Python 3.11/3.12 locks now pass `pip-audit`. The remaining verification gate is hosted CI for the changed branch—especially Python 3.12, PostgreSQL, browser, and Trivy—before preparing the unreleased `0.24.0` tag. This report does not certify production use or authorize real applicant data.
+The initial audit found advisories in the dependency resolutions and an `httpx2`/`httpcore2` version mismatch. Both were corrected locally, and the regenerated Python 3.11/3.12 locks now pass `pip-audit`. The remediation has now passed hosted CI on [PR #86](https://github.com/dommetipavan26-tech/chaoshire/pull/86), including Python 3.11/3.12, PostgreSQL, browser, dependency audit, Trivy, CodeQL, and container smoke. The PR is open and mergeable; it has not been merged, deployed, or released. This report does not certify production use or authorize real applicant data.
 
 ## Remediation follow-up (27 October 2026)
 
@@ -16,7 +16,7 @@ The initial findings below were acted on in the current Arena branch:
 - Applied the setup-python and CodeQL action commit updates represented by Dependabot PRs #84 and #85. Added a weekly Docker ecosystem to Dependabot to track the Dockerfile base image.
 - The report's inventory/index are refreshed. No application scoring, API, or model behavior was changed.
 
-**Still pending:** GitHub Actions has not yet run against this changed branch, so Python 3.12, real PostgreSQL, browser/Chromium, and Trivy results still need a hosted pull-request run. Docker and a PostgreSQL service are unavailable locally. I attempted to enable Dependabot alerts through the GitHub API, but the connected integration returned HTTP 403 (`Resource not accessible by integration`); a repository admin must turn on alerts/security updates in GitHub settings. No deployment or release tag was created.
+**Hosted validation — PR #86:** all 13 reported checks passed, including [quality, PostgreSQL, and container smoke](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/40578244144), [browser/Chromium](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/40578244050), [dependency audit, Trivy, CodeQL, Gitleaks, and workflow lint](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/40578244045), and the [fairness gate](https://github.com/dommetipavan26-tech/chaoshire/actions/runs/40578244085). The PR is `OPEN` with merge state `CLEAN`; no review decision is recorded. The live-site workflow is push-to-main/manual and has not run for this proposed revision. Docker and PostgreSQL remain unavailable locally. I attempted to enable Dependabot alerts through the GitHub API, but the connected integration returned HTTP 403 (`Resource not accessible by integration`); a repository admin must turn on alerts/security updates in GitHub settings. No deployment or release tag was created.
 
 ## Snapshot and scope
 
@@ -80,26 +80,26 @@ The initial `pip-audit` run against both committed Linux/Python constraint files
 
 These findings were reproduced for both `constraints/requirements-py311.txt` and `constraints/requirements-py312.txt`. The regenerated files now use Brotli 1.2.1, certifi 2026.10.23, filelock 4.2.4, setuptools 84.2.1, and uv 0.13.6. A new audit of each full resolution reports **no known vulnerabilities**.
 
-The Trivy job also exits nonzero on the latest scheduled run. Its exact finding list was not available through the sandbox's GitHub log-download route, and Docker is not installed locally; **do not infer its cause from the pip-audit results**. Inspect the job log in GitHub Actions before changing the image or suppressing anything.
+The 26 October Trivy failure was on the pre-remediation base revision; its detailed finding list was not available through the sandbox's GitHub log-download route, and Docker is not installed locally. The updated image scan passes on PR #86 under the workflow's fixed CRITICAL/HIGH policy (`ignore-unfixed: true`); this is not a claim of zero unfixed findings. No suppression or speculative base-image change was made.
 
 ## Remaining actions, in priority order
 
-### P0 — dependency audit (resolved locally; hosted gate pending)
+### P0 — dependency audit (resolved locally and in hosted checks)
 
 - Both constraint files were regenerated. The five advisory packages are fixed at Brotli 1.2.1, certifi 2026.10.23, filelock 4.2.4, setuptools 84.2.1, and uv 0.13.6. Both `pip-audit` runs now report no known vulnerabilities.
 - The `uv` maintenance range is now `>=0.13.5,<0.14`. `httpx2` and `httpcore2` are both 2.16.0, resolving the exact-pin conflict that blocked PR #81.
-- The full 507-test Python 3.11 suite, lint, typing, trained-model check, fairness gate, build, isolated distribution smoke, and all-manifest installs pass locally. A hosted run is still needed for Python 3.12, PostgreSQL, Chromium, and Trivy.
+- The full 507-test Python 3.11 suite, lint, typing, trained-model check, fairness gate, build, isolated distribution smoke, and all-manifest installs pass locally. PR #86 also passed hosted Python 3.11/3.12, PostgreSQL, browser, Trivy, and container-smoke checks.
 - GitHub Dependabot security alerts could not be enabled with the connected integration (HTTP 403). A repository admin must enable alerts/security updates in GitHub settings; version-update scheduling alone does not do this.
 
 ### P1 — hosted security and release
 
-- Inspect the 26 October Trivy findings in GitHub Actions once the remediation branch's run is available. Docker is not installed locally, so the scan was not independently reproduced here. Avoid suppression or a base-image change until the actual finding is confirmed.
+- PR #86's Trivy scan passes. Its policy ignores unfixed findings, so an owner may review the 26 October base-run details if they want full advisory context; no suppression or unverified base-image change is needed for the current gate.
 - The `python:3.12-slim` tag is mutable. A weekly Docker update entry has now been added to Dependabot; consider pinning a reviewed image digest after verifying the image and Trivy result.
 - The constraint refresh incorporates the updates from Dependabot PRs #79–#83; the compatible HTTPX2/Core2 pair is included. The workflow commits represented by PRs #84–#85 are also updated in this branch. Those original PRs' existing check statuses remain historical until their heads or this branch are rerun.
 
 ### P1 — prepare the `0.24.0` release
 
-Once security checks and the normal quality gates pass, decide whether to publish the already-declared package version `0.24.0`. The current latest GitHub Release is `v0.23.3`. Follow the [release checklist](RELEASE-CHECKLIST.md), then verify the first `0.24.0` SBOM/provenance attestations; no `0.24.0` release or attestation has been verified yet. Reconcile the historical pending-tag entries in [`docs/planning/TODO.md`](../planning/TODO.md) rather than blindly creating obsolete tags.
+Security and quality gates pass on PR #86. After owner review/merge, decide whether to publish the already-declared package version `0.24.0`; the current latest GitHub Release is `v0.23.3`. Follow the [release checklist](RELEASE-CHECKLIST.md), then verify the first `0.24.0` SBOM/provenance attestations. No `0.24.0` release or attestation has been created yet. Reconcile the historical pending-tag entries in [`docs/planning/TODO.md`](../planning/TODO.md) rather than blindly creating obsolete tags.
 
 ### P2 — owner / product decisions before real applicant data
 
@@ -109,7 +109,7 @@ Manual gradient-contrast, screen-reader, and physical-device checks are also sti
 
 ## Verification commands
 
-From the repository root, after updating the manifests/constraints:
+From the repository root, to repeat the current verification:
 
 ```bash
 python scripts/compile_constraints.py
