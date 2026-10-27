@@ -13,6 +13,7 @@ are relative to the **repository root**.
 
 ## Operations
 
+- [Repository verification and update plan — 27 October 2026](operations/REPOSITORY-VERIFICATION-2026-10-27.md) — local quality gates, live hosted-CI status, dependency findings, and prioritized next actions.
 - [Repository audit and completed updates — 1 October 2026](operations/REPOSITORY-AUDIT.md) — findings, executed checks, limits, and prioritized next updates.
 - [Repository follow-up — 11 October 2026](operations/REPOSITORY-UPDATES-2026-10-11.md) — private-mode guardrails, new security gates, release provenance, and remaining owner-only work.
 - [Every-file inventory](operations/REPOSITORY-INVENTORY.md) — responsibilities and structural checks for every source file.
