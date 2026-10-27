@@ -10,7 +10,7 @@ Regenerate from the repository root with:
 python scripts/check_repository.py --require-node --inventory docs/operations/REPOSITORY-INVENTORY.md
 ```
 
-Files checked: **150**.
+Files checked: **153**.
 
 ## Application
 
@@ -50,7 +50,7 @@ Files checked: **150**.
 
 | File | Responsibility | Structural checks | Result |
 |---|---|---|---|
-| `.github/dependabot.yml` | Scheduled Python and GitHub Actions dependency updates | UTF-8/nonempty; limited secret-signature scan; YAML parse/unique keys | PASS |
+| `.github/dependabot.yml` | Scheduled Python, Docker and GitHub Actions dependency updates | UTF-8/nonempty; limited secret-signature scan; YAML parse/unique keys | PASS |
 | `.github/workflows/browser.yml` | Browser GitHub Actions workflow | UTF-8/nonempty; limited secret-signature scan; immutable external Action refs; YAML parse/unique keys | PASS |
 | `.github/workflows/fairness-gate.yml` | Fairness Gate GitHub Actions workflow | UTF-8/nonempty; limited secret-signature scan; immutable external Action refs; YAML parse/unique keys | PASS |
 | `.github/workflows/live-site.yml` | Live Site GitHub Actions workflow | UTF-8/nonempty; limited secret-signature scan; immutable external Action refs; YAML parse/unique keys | PASS |
@@ -90,6 +90,8 @@ Files checked: **150**.
 | `docs/operations/RELEASE-CHECKLIST.md` | Release checklist | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
 | `docs/operations/REPOSITORY-AUDIT.md` | Repository audit and completed updates — 1 October 2026 | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
 | `docs/operations/REPOSITORY-INVENTORY.md` | Repository file inventory | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
+| `docs/operations/REPOSITORY-UPDATES-2026-10-11.md` | Repository follow-up — 11 October 2026 | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
+| `docs/operations/REPOSITORY-VERIFICATION-2026-10-27.md` | Repository verification and update plan — 27 October 2026 | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
 | `docs/operations/WEBSITE-READINESS.md` | Website readiness and page-speed check | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
 
 ## Documentation: planning
@@ -174,6 +176,7 @@ Files checked: **150**.
 | `tests/api/test_api.py` | Public API contract tests. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `tests/api/test_appeals_redaction.py` | `GET /api/appeals` serves redacted copies, never the raw queue. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `tests/api/test_configurable_upload.py` | Tests for configurable bring-your-own-model audits. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
+| `tests/api/test_private_mode.py` | Opt-in single-operator protection for shared applicant-related data. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `tests/api/test_request_safety.py` | Regression tests for request/evidence edge cases found in the repository audit. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `tests/api/test_shap_adapter.py` | Tests for the SHAP-compatible explanation adapter (chaoshire.explain). | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `tests/api/test_status_contract.py` | HTTP semantics for business failures (v0.23.0 status contract). | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |

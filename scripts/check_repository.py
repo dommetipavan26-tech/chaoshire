@@ -168,7 +168,7 @@ def role(path: str) -> str:
     if path.startswith(".github/workflows/"):
         return Path(path).stem.replace("-", " ").title() + " GitHub Actions workflow"
     if path == ".github/dependabot.yml":
-        return "Scheduled Python and GitHub Actions dependency updates"
+        return "Scheduled Python, Docker and GitHub Actions dependency updates"
     if path.endswith((".png", ".ico")):
         return (
             "Portfolio screenshot"
