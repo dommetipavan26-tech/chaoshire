@@ -2,7 +2,7 @@
 
 ## 20-second recruiter summary
 
-ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. The current repository baseline has 507 tests and 97.1% package coverage, measured from a real local run and guarded by a CI job that fails on drift. The hand-managed public Render deployment may lag until the owner deploys this revision.
+ChaosHire is an open-source responsible-AI platform that stress-tests automated hiring decisions before they affect candidates. It combines statistical group audits, five controlled counterfactual experiments, candidate-level evidence, appeals, and a CI/CD fairness gate. The current repository baseline has 507 tests and 97.0% package coverage, measured from a real local run and guarded by a CI job that fails on drift. The hand-managed public Render deployment may lag until the owner deploys this revision.
 
 ## Three-minute live-demo script
 
@@ -40,13 +40,13 @@ Open **Who Got Filtered Out**, then candidate **C-1046**.
 
 Open **Mitigations** and run the combined simulation.
 
-> “Blind screening and proxy removal improve the synthetic fixture from 32/F to 80/B. This is a controlled simulation, not a claim that remediation is complete. Per-group threshold calibration is not offered: 42 U.S.C. § 2000e-2(l) makes different cutoff scores by race, colour, religion, sex or national origin an unlawful employment practice.”
+> “Blind screening and proxy removal in this separate mitigation simulation move the synthetic fixture from 32/F to 80/B. The trained TalentFit v4 reference is a different result: 85/B under one global cutoff, with lower accuracy and more false positives than v3. Neither is a claim that remediation is complete or that a real system is fair. Per-group threshold calibration is not offered: 42 U.S.C. § 2000e-2(l) bars different cutoff scores by race, colour, religion, sex or national origin.”
 
 ### 2:25–2:50 — Enforce the standard
 
-Open **Release Gate** and compare LegacyCorp with MeritFirst.
+Open **Release Gate** and compare LegacyCorp with TalentFit v4.
 
-> “The same checks can block a weaker model in CI/CD, so fairness becomes an engineering release condition rather than a one-time report.”
+> “The gate checks risk score, resilience, disparate impact, and an 80% accuracy floor against the bundled synthetic label. TalentFit v4 passes this fixture; raising the floor to 84% blocks it. This is a demo guardrail—not a real-world performance estimate.”
 
 ### 2:50–3:00 — Close
 
@@ -56,12 +56,12 @@ Open **Release Gate** and compare LegacyCorp with MeritFirst.
 
 ### One line
 
-Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **507 tests and 97.1% coverage**.
+Built **ChaosHire**, an open-source FastAPI responsible-AI platform that audits hiring decisions with statistical fairness metrics, five counterfactual Chaos experiments, candidate evidence, and CI/CD release gates; achieved **507 tests and 97.0% coverage**.
 
 ### Two bullets
 
 - Engineered a deterministic hiring-AI audit platform with group/intersectional metrics, Wilson confidence intervals, counterfactual identity swaps, mitigation simulations, appeals, tamper-evident evidence, and automated model-release policy.
-- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, and scikit-learn adapter example; the current repository baseline adds browser/mobile automation, **507 tests**, and **97.1% package coverage**. Verify the live revision before citing these figures for the deployed site.
+- Shipped a free public Render deployment with a responsive dependency-free UI, OpenAPI documentation, and scikit-learn adapter example; the current repository baseline adds browser/mobile automation, **507 tests**, and **97.0% package coverage**. Verify the live revision before citing these figures for the deployed site.
 
 ## Evidence checklist
 

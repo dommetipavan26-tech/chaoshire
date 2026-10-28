@@ -53,14 +53,17 @@ The public JSON and Python interfaces retain the historical `certificate` field 
 ## The bundled trained model
 
 Since v0.24.0 ChaosHire also ships a first-party trained model: the `trained`
-reference model (TalentFit v3) is a `LogisticRegression` fitted to the demo
-fixture by `chaoshire/training.py` and pinned to
+reference model (TalentFit v4) is a `LogisticRegression` fitted to the seed-29
+demo fixture by `chaoshire/training.py` and pinned to
 `chaoshire/artifacts/trained_model.json`. Regenerate it with
 `python -m chaoshire train --write` (development dependency: scikit-learn) and
 verify reproducibility with `python -m chaoshire train --check`. The model uses
 merit features only (protected attributes and proxy features are rejected by the
-artifact loader) and a cost-sensitive decision policy — one global cutoff at
-P(qualified) ≥ 1/3, i.e. a false rejection costs 2× a false acceptance — pinned
-in the artifact as `decision_policy`. `python -m chaoshire train --holdout`
-audits it against the original v3 and MeritFirst on 49 synthetic populations it
-never saw. See `METHODOLOGY.md` for the calibration and the audit findings.
+artifact loader). Its fairness-prioritised policy applies one global cutoff at
+P(qualified) ≥ 1/4, corresponding to a synthetic 3:1 false-rejection cost. The
+policy study evaluates a fixed cost grid on 49 synthetic tuning populations
+under a mean-accuracy guardrail, then validates on a disjoint 50-population
+holdout. Reproduce those reports with `python -m chaoshire train --policy-study`
+and `python -m chaoshire train --holdout`; see `METHODOLOGY.md` for results,
+limits and the accuracy/false-positive trade-off. These synthetic findings are
+not a basis for real hiring decisions.

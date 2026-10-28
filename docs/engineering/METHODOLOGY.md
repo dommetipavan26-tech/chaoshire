@@ -203,90 +203,92 @@ discrimination. Per-group threshold calibration is deliberately **not** part of
 it and not available as a mitigation; see `SECURITY.md` and
 [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2).
 
-## Why a more accurate model can score lower
+## Fairness-prioritised model update and its trade-offs
 
-The fairness risk score and model accuracy measure different things, and a
-fitted model optimises only the second. TalentFit v3's history shows this
-directly. Every figure below is computed at runtime by
-`chaoshire.training.disparity_diagnostics()` / `holdout_comparison()` and pinned
-in `tests/core/test_trained_model.py`.
+The fairness risk score and accuracy measure different things. TalentFit v4
+changes the global decision cutoff to prioritise more equal selection rates and
+fewer missed qualified candidates, while explicitly reporting the resulting
+accuracy and false-positive trade-off. Every figure is reproducible with
+`python -m chaoshire train --policy-study` or `--holdout`, and pinned in
+`tests/core/test_trained_model.py`.
 
-| Decisions (fixture) | Agreement with `qualified` | Accepted | Qualified rejected | Worst disparate impact | Score |
+| Model decisions on the 1,000-row fixture | Agreement with `qualified` | Accepted | Qualified rejected | Worst disparate impact | Score |
 |---|---:|---:|---:|---:|---:|
 | MeritFirst v2 (hand-written) | 87.3% | 459 | 34 | 0.873 (age band) | 84/B |
 | Original v3 (proxies kept, cutoff 0.5) | 89.4% | 376 | 65 | 0.727 (age band) | 66/C |
-| Upgraded v3 (merit only, cutoff 1/3) | 87.6% | 482 | 21 | 0.814 (age band) | 80/B |
+| Previous TalentFit v3 (merit only, cutoff 1/3) | 87.6% | 482 | 21 | 0.814 (age band) | 80/B |
+| **TalentFit v4 (merit only, cutoff 1/4)** | **83.1%** | **547** | **11** | **0.874 (gender)** | **85/B** |
 | Perfect predictor (accept exactly the qualified) | 100% | 400 | 0 | 0.663 (gender) | 68/C |
 
-**Base rates.** Disparate impact and the parity gap compare selection rates
-only. When the ground-truth label's positive rate differs between groups, an
-accurate model must select those groups at different rates. It then loses
-disparate-impact and parity points even though its equal-opportunity gap can be
-small. This is the standard incompatibility between demographic parity and
-accuracy under unequal base rates; it is not a defect in the model. On this
-fixture the base-rate differences are sampling noise: the merit formula never
-reads identity, but 1,000 draws give 45% of women, 37% of men and 30% of 57
-non-binary candidates a qualified label. The original v3, fitted closely to that
-label at the error-rate cutoff, inherited the gap.
+**The label is still limited.** Disparate impact and parity compare selection
+rates. The fixture's merit formula never reads identity, but 1,000 random draws
+give different qualified-label rates (45% of women, 37% of men, and 30% of the
+57 non-binary candidates). Even a perfect predictor of that label scores 68/C.
+That is a synthetic sampling effect—not evidence about a real population—and a
+model trained to reproduce the label can inherit its group differences.
 
-**Decision cost, not threshold tuning.** The probability-0.5 cutoff minimises
-the error rate, which treats a wrongly rejected qualified candidate and a
-wrongly advanced unqualified one as equally bad. For a first-round screen they
-are not: the first is lost for good, the second is caught at interview. With a
-false rejection costing *k* times a false acceptance, the Bayes-optimal rule
-accepts when P(qualified) ≥ 1/(1+*k*). The upgraded v3 fixes *k* = 2 (cutoff 1/3)
-as policy, recorded in the artifact's `decision_policy`, and applies it as **one
-global cutoff**. Per-group cutoffs remain refused (42 U.S.C. § 2000e-2(l)).
+**Global cutoff selection.** A wrongly rejected qualified candidate is lost at
+this first screen, while a wrongly advanced candidate receives human review.
+With false-rejection cost *k* times false-acceptance cost, the Bayes-optimal
+probability cutoff is P(qualified) ≥ 1/(1+*k*). TalentFit v4 uses **one global
+cutoff**, never per-group thresholds (42 U.S.C. § 2000e-2(l)). Unlike v3's
+2:1 cutoff, v4's 3:1 operating point was selected by a documented, synthetic
+policy study: compare the fixed candidate grid below on 49 tuning populations
+(seeds 1–50, excluding training fixture seed 29), maximize mean fairness risk
+score among candidates with mean accuracy ≥ 0.80, then validate the choice on a
+disjoint 50-population holdout (seeds 51–100). The accuracy floor avoids
+selecting a near-always-advance rule solely because it narrows selection-rate
+gaps. These synthetic costs and outcomes are not estimates or guarantees for
+real hiring.
 
-Why *k* was fixed in advance rather than chosen from the results: the fixture
-score is noisy in the cutoff, while the unseen-population mean is not.
+| False-rejection cost *k* | Probability cutoff | Mean score on 49 tuning populations | Mean accuracy | Mean recall | Mean false-positive rate | Meets ≥80% accuracy guardrail? |
+|---:|---:|---:|---:|---:|---:|:---:|
+| 2.0 | 0.3333 | 76.04 | 85.04% | 95.47% | 21.92% | Yes |
+| 2.5 | 0.2857 | 77.63 | 83.02% | 97.16% | 26.41% | Yes |
+| **3.0** | **0.2500** | **78.63** | **80.91%** | **98.13%** | **30.58%** | **Yes — selected** |
+| 3.5 | 0.2222 | 80.71 | 79.13% | 98.70% | 33.92% | No |
+| 4.0 | 0.2000 | 81.65 | 77.53% | 99.05% | 36.81% | No |
 
-| Cutoff P(qualified) ≥ | Cost *k* | Fixture score | Fixture qualified rejected | Unseen mean score | Unseen mean accuracy |
-|---|---:|---:|---:|---:|---:|
-| 0.50 | 1.00 | 58 | 63 | 69.2 | 88.7% |
-| 0.45 | 1.22 | 55 | 53 | 72.0 | 88.4% |
-| 0.40 | 1.50 | 65 | 42 | 74.7 | 87.4% |
-| 0.35 | 1.86 | 76 | 26 | 75.9 | 85.8% |
-| **0.333** | **2.00** | **80** | **21** | **76.0** | **85.0%** |
-| 0.30 | 2.33 | 82 | 15 | 77.0 | 83.7% |
-| 0.25 | 3.00 | 85 | 11 | 78.6 | 80.9% |
+The automated release gate also applies a default 80% accuracy floor against
+this bundled synthetic label; operators may set it explicitly. That is a
+non-degeneracy guard, not a real-world performance estimate or hiring-quality
+criterion. The policy study is explicit that a higher fairness score is partly
+mechanical: advancing more candidates narrows selection-rate ratios. On the fixture, v4's
+accuracy is 83.1% (vs v3's 87.6%), its recall rises to 97.3% (from 94.8%), and
+its false-positive rate rises to 26.3% (from 17.2%). The score is a screening
+signal for human review, not an objective to maximize without utility limits.
 
-(Merit features only; 49 unseen populations drawn with seeds 1–50 excluding the
-fixture seed 29.) Rechecked locally on 1 October 2026 with scikit-learn 1.9.1;
-cutoffs were evaluated exactly and the displayed cost ratios/means rounded.
-The 0.45-cutoff mean is 71.96, shown as 72.0 rather than the earlier 71.9.
-Lower cutoffs trade accuracy and precision for recall and a
-higher fairness score. Part of that score gain is mechanical: accepting more
-candidates narrows ratios between selection rates, which is one reason
-four-fifths results should be compared at matched acceptance rates. A cost of 3
-now scores 85 on the fixture, one point *above* MeritFirst's 84; picking it
-*because* it wins would be tuning to the audit.
+### Independent holdout comparison
 
-### Holdout comparison across model variants
+`python -m chaoshire train --holdout` compares the frozen models on the 50
+synthetic populations with seeds 51–100, disjoint from both the training fixture
+and policy-tuning seeds. No model is refit on those populations.
 
-`python -m chaoshire train --holdout` audits the fixed MeritFirst control and both
-TalentFit versions, without refitting or threshold tuning, on 49 unseen populations
-(seeds 1–50 excluding fixture seed 29):
+| Mean across 50 holdout populations | MeritFirst v2 | Original v3 | Previous TalentFit v3 | **TalentFit v4** |
+|---|---:|---:|---:|---:|
+| Fairness risk score | 74.04 | 71.88 | 74.62 | **78.40** |
+| Mean worst disparate impact | 0.8103 | 0.7884 | 0.8158 | **0.8343** |
+| Worst-DI four-fifths pass rate | 56% | 50% | 68% | **74%** |
+| Qualified candidates wrongly rejected | 24.84 | 56.16 | 19.84 | **9.02** |
+| Recall on qualified candidates | 93.79% | 85.96% | 95.04% | **97.75%** |
+| False-positive rate | 19.72% | 9.93% | 21.61% | **30.18%** |
+| Accuracy against synthetic label | 85.68% | **88.42%** | 85.05% | **80.99%** |
 
-| Mean across 49 populations | MeritFirst v2 | Original v3 | Upgraded v3 |
-|---|---:|---:|---:|
-| Fairness risk score | 74.4 | 69.5 | **76.0** |
-| Qualified candidates wrongly rejected | 23.9 | 53.4 | **18.1** |
-| Recall on qualified candidates | 94.0% | 86.7% | **95.5%** |
-| Accuracy | 85.7% | **88.6%** | 85.0% |
-
-Both the cutoff-sweep and cross-model holdout means were re-derived after the
-equal-opportunity minimum-qualified-count rule was added (see [Minimum group size](#minimum-group-size)).
-The rule raised each model's average score by about two points without changing
-the ranking. Fixture results above are unaffected; the cutoff sweep remains a
-separate sensitivity analysis for the upgraded TalentFit.
+On this simulator, v4 has a +3.78-point mean score, +0.0185 mean worst disparate
+impact, and +6-point four-fifths pass rate versus v3; it also has about 54.5%
+fewer missed qualified rows. The cost is about 4.1 percentage points lower
+accuracy and an 8.6-point higher false-positive rate. These are generated
+populations from one known process, not independent real-world evidence. Results
+must not be generalized to actual applicants or employers.
 
 **Proxies.** The original v3 was offered college prestige and career gap. The
 label never uses them, so they received near-zero weight (+0.012 and +0.030,
 the positive gap weight a chance correlation) and zeroing them changed 23
-decisions. The upgrade drops them (the platform's own proxy-removal mitigation),
-and re-adding them under the new cutoff scores lower (69 vs 80). On real data,
-where proxies can carry signal, this has to be measured, not assumed.
+decisions. TalentFit v4 continues to drop both (the platform's own
+proxy-removal mitigation); refitting them on this fixture ties the fairness
+score at 85 but changes decisions on a random correlation. They are not restored
+because the label contains no legitimate signal for them. On real data, where
+proxies can carry signal, this has to be independently measured, not assumed.
 
 **Resilience.** A counterfactual swap can only flip a decision if the model
 reads the swapped signal. MeritFirst and TalentFit carry no weight on gender,
@@ -296,7 +298,11 @@ experiments pass **by construction**. The `/api/chaos` payload labels them
 resilience score shows what a model does not read directly. It is not evidence
 of equal outcomes.
 
-Training for accuracy therefore gives no reason to expect a better fairness
-score. If a release policy needs one, the decision rule has to encode it
-explicitly (here, the cost of false rejections), the label has to be audited
-first, and the result has to be checked on data the model was not tuned on.
+Optimising accuracy alone gives no reason to expect a better fairness score.
+TalentFit v4 makes that trade-off explicit with one global threshold, a minimum
+accuracy guardrail, a separate synthetic holdout, and visible false-positive
+rates. The study is not a fairness guarantee: real use would require
+representative, legally collected data, domain-led cost assumptions, independent
+subgroup and uncertainty analysis, human oversight, and appropriate legal,
+privacy, and security review. ChaosHire's synthetic reference must not be used to
+make real employment decisions.

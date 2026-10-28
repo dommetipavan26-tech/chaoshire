@@ -15,21 +15,22 @@ Design rules that keep the platform honest and reproducible:
   a meaningless *positive* weight on career gaps. Dropping them follows the
   platform's own proxy-removal mitigation. The artifact loader rejects any
   weight on either group of features.
-* **A cost-sensitive decision rule, fixed before looking at the audit.** A
-  first-round screen that wrongly rejects a qualified candidate loses them for
-  good, while a wrongly advanced candidate is caught at interview. The model
-  therefore treats a false rejection as :data:`FALSE_REJECTION_COST` times as
-  costly as a false acceptance, which gives the standard Bayes-optimal cutoff
-  ``P(qualified) >= 1 / (1 + cost)`` — one global cutoff for every candidate,
-  never a per-group threshold (42 U.S.C. § 2000e-2(l)). The original v3 used
-  the error-rate cutoff (probability 0.5), which treats both errors as equal.
+* **One global cost-sensitive cutoff, selected transparently for the synthetic
+  fairness demo.** A wrongly rejected qualified candidate is lost at the first
+  screen, while a wrongly advanced candidate receives human review. The model
+  uses the Bayes-optimal cutoff ``P(qualified) >= 1 / (1 + cost)`` for one
+  global cost ratio, never a per-group threshold (42 U.S.C. § 2000e-2(l)). The
+  current 3:1 operating point was selected from a fixed grid on 49 deterministic
+  synthetic tuning populations, subject to a minimum 0.80 mean-accuracy guardrail,
+  then validated on a disjoint 50-population holdout. It is not a real-world cost
+  estimate or evidence of fair hiring outcomes.
 * **Why the upgrade was needed.** A model fitted to the label reproduces the
   label's group gaps: by sampling chance the fixture's ``qualified`` rate
   differs between groups, and a perfect predictor of it scores 68/C.
-  :func:`disparity_diagnostics` reports this at runtime without scikit-learn,
-  and :func:`holdout_comparison` checks the upgrade on synthetic populations
-  the model never saw, so the improvement cannot be an artefact of tuning on
-  the audited fixture.
+  :func:`disparity_diagnostics` reports this at runtime without scikit-learn;
+  :func:`policy_study` reproduces the threshold selection, and
+  :func:`holdout_comparison` evaluates the frozen choice on synthetic populations
+  the policy study did not use.
 * Training is a **build-time tool**. The fitted coefficients are affinely
   calibrated onto the platform's [0, 1] score convention (the cost-sensitive
   probability cutoff lands exactly on ``DECISION_THRESHOLD``) and pinned to
@@ -51,7 +52,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .config import DECISION_THRESHOLD
+from .config import DECISION_THRESHOLD, DEMO_SEED
 from .data import DEMO_DATA
 from .models import Coefficients, feature_components
 
@@ -67,10 +68,22 @@ PROTECTED_FEATURES: tuple[str, ...] = (
     "age_36-50",
     "age_50+",
 )
-#: Relative cost of rejecting a qualified candidate versus advancing an
-#: unqualified one. Chosen on product grounds (first-round screen, humans
-#: review everyone advanced), not by searching for the best audit score.
-FALSE_REJECTION_COST = 2.0
+#: Operating point for the fairness-prioritised synthetic reference model.
+#: One global cost-sensitive cutoff is selected from a fixed candidate grid on
+#: deterministic synthetic tuning populations, subject to a minimum mean
+#: accuracy guardrail. This is not a real-world cost estimate or approval to use
+#: the model for employment decisions.
+FALSE_REJECTION_COST = 3.0
+POLICY_COST_CANDIDATES: tuple[float, ...] = (2.0, 2.5, 3.0, 3.5, 4.0)
+POLICY_MINIMUM_MEAN_ACCURACY = 0.80
+POLICY_TUNING_SEEDS: tuple[int, ...] = tuple(seed for seed in range(1, 51) if seed != DEMO_SEED)
+POLICY_HOLDOUT_SEEDS: tuple[int, ...] = tuple(range(51, 101))
+POLICY_SELECTION_RULE = (
+    "Select the candidate with the highest mean fairness risk score among fixed "
+    "global cost ratios whose mean accuracy is at least 0.80 on the 49 synthetic "
+    "tuning populations; validate once on the disjoint 50-population holdout."
+)
+MODEL_VERSION = 4
 ALGORITHM = "LogisticRegression(C=1.0, solver='lbfgs', max_iter=1000)"
 
 
@@ -93,9 +106,16 @@ DECISION_POLICY = {
     "probability_cutoff": round(PROBABILITY_CUTOFF, 6),
     "cutoff_scope": "one global cutoff for every candidate; never per group",
     "rationale": (
-        "First-round screen: a wrongly rejected qualified candidate is lost, a wrongly "
-        "advanced one is caught at interview. Fixed before auditing, not tuned to the score."
+        "First-round screen: a wrongly rejected qualified candidate is lost, while a "
+        "wrongly advanced candidate receives human review. The 3:1 operating point was "
+        "selected on synthetic tuning populations to prioritise group fairness while "
+        "keeping mean accuracy at or above 0.80; this is not a real-world cost estimate."
     ),
+    "selection_method": POLICY_SELECTION_RULE,
+    "candidate_false_rejection_costs": list(POLICY_COST_CANDIDATES),
+    "minimum_tuning_mean_accuracy": POLICY_MINIMUM_MEAN_ACCURACY,
+    "tuning_seeds": list(POLICY_TUNING_SEEDS),
+    "holdout_seeds": list(POLICY_HOLDOUT_SEEDS),
 }
 #: The original v3 configuration (proxies kept, error-rate cutoff 0.5), kept
 #: reproducible as the before/after baseline. See :func:`original_v3_coefficients`.
@@ -111,6 +131,23 @@ ORIGINAL_V3_COEFFICIENTS: Coefficients = {
     "prestige": 0.011506,
     "gap": 0.029778,
     "intercept": -0.304035,
+    "gender_M": 0.0,
+    "gender_NB": 0.0,
+    "eth_G2": 0.0,
+    "eth_G3": 0.0,
+    "age_36-50": 0.0,
+    "age_50+": 0.0,
+}
+#: Last pinned TalentFit v3 coefficients (merit-only, 2:1 global cost cutoff).
+#: Retained as a frozen comparator for the v4 operating-point change.
+PREVIOUS_TALENTFIT_V3_COEFFICIENTS: Coefficients = {
+    "skills": 0.560542,
+    "experience": 0.345054,
+    "education": 0.248977,
+    "certs": 0.165299,
+    "intercept": -0.257049,
+    "prestige": 0.0,
+    "gap": 0.0,
     "gender_M": 0.0,
     "gender_NB": 0.0,
     "eth_G2": 0.0,
@@ -204,10 +241,19 @@ def original_v3_coefficients(data: pd.DataFrame | None = None) -> Coefficients:
     )
 
 
+def _payload_digest(payload: Any) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def coefficient_digest(coefficients: Coefficients) -> str:
     """Return a stable SHA-256 digest over the coefficient mapping."""
-    canonical = json.dumps(coefficients, sort_keys=True, separators=(",", ":"))
-    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return _payload_digest(coefficients)
+
+
+def policy_digest(policy: dict[str, Any]) -> str:
+    """Return a stable SHA-256 digest over the decision-policy metadata."""
+    return _payload_digest(policy)
 
 
 def build_artifact(coefficients: Coefficients | None = None) -> dict[str, Any]:
@@ -217,12 +263,14 @@ def build_artifact(coefficients: Coefficients | None = None) -> dict[str, Any]:
     fitted = train_coefficients() if coefficients is None else coefficients
     return {
         "model_id": "trained",
+        "model_version": MODEL_VERSION,
         "label": LABEL_COLUMN,
         "algorithm": ALGORITHM,
         "train_features": list(TRAIN_FEATURES),
         "excluded_protected_features": list(PROTECTED_FEATURES),
         "excluded_proxy_features": list(PROXY_FEATURES),
         "decision_policy": DECISION_POLICY,
+        "decision_policy_digest": policy_digest(DECISION_POLICY),
         "calibration": CALIBRATION,
         "rows": int(len(DEMO_DATA)),
         "sklearn_version": sklearn.__version__,
@@ -247,6 +295,15 @@ def load_artifact(path: Path | None = None) -> dict[str, Any]:
             f"Trained-model artifact missing at {target}. Run `python -m chaoshire train --write`."
         )
     artifact = json.loads(target.read_text(encoding="utf-8"))
+    if artifact.get("model_version") != MODEL_VERSION:
+        raise ValueError(f"Trained-model artifact at {target} has an outdated model version.")
+    policy = artifact.get("decision_policy")
+    if not isinstance(policy, dict):
+        raise ValueError(f"Trained-model artifact at {target} has no valid decision policy.")
+    if artifact.get("decision_policy_digest") != policy_digest(policy):
+        raise ValueError(f"Trained-model artifact at {target} failed its policy digest check.")
+    if policy != DECISION_POLICY:
+        raise ValueError(f"Trained-model artifact at {target} has an outdated decision policy.")
     coefficients: Coefficients = {
         key: float(value) for key, value in artifact["coefficients"].items()
     }
@@ -288,12 +345,17 @@ def decision_summary(result: dict[str, Any], decisions: pd.DataFrame) -> dict[st
 
     qualified = decisions[LABEL_COLUMN].astype(bool).to_numpy()
     accepted = decisions["accepted"].to_numpy().astype(bool)
+    unqualified = ~qualified
     return {
         "total": result["certificate"]["total"],
         "grade": result["certificate"]["grade"],
         "worst_disparate_impact": worst_disparate_impact(result),
         "accuracy": round(_accuracy(decisions), 4),
         "recall": round(float(accepted[qualified].mean()), 4) if qualified.any() else None,
+        "false_positive_rate": (
+            round(float(accepted[unqualified].mean()), 4) if unqualified.any() else None
+        ),
+        "acceptance_rate": round(float(accepted.mean()), 4) if len(accepted) else None,
         "qualified_rejected": int((qualified & ~accepted).sum()),
         "selected": int(accepted.sum()),
     }
@@ -386,27 +448,30 @@ def disparity_diagnostics(
 
 
 def holdout_comparison(
-    seeds: Iterable[int] = range(1, 51),
+    seeds: Iterable[int] = POLICY_HOLDOUT_SEEDS,
     coefficients: dict[str, Coefficients] | None = None,
 ) -> dict[str, Any]:
-    """Audit fixed coefficients on synthetic populations the model never saw.
+    """Audit fixed coefficients on synthetic populations not used for tuning.
 
-    Every model here is fitted (or hand-written) against the seed-29 fixture, so
-    its fixture score can flatter it. This re-draws whole populations from the
-    same generator with other seeds and audits the *unchanged* coefficients on
-    each, which is the honest test of whether an upgrade generalises. The
-    fixture seed itself is skipped. Runtime-safe (no scikit-learn).
+    By default this uses the disjoint policy holdout (seeds 51–100). Every
+    model is fitted or specified against the seed-29 fixture; none is refitted
+    on the holdout populations. The fixture seed is always skipped. Runtime-safe
+    (no scikit-learn).
     """
-    from .config import DEMO_SEED
     from .data import generate_demo_data
     from .metrics import audit
     from .models import FAIR, build_decisions
 
-    models = coefficients or {
-        "fair": FAIR,
-        "original_v3": ORIGINAL_V3_COEFFICIENTS,
-        "trained": trained_coefficients(),
-    }
+    models = (
+        coefficients
+        if coefficients is not None
+        else {
+            "fair": FAIR,
+            "original_v3": ORIGINAL_V3_COEFFICIENTS,
+            "previous_talentfit_v3": PREVIOUS_TALENTFIT_V3_COEFFICIENTS,
+            "trained": trained_coefficients(),
+        }
+    )
     used = [seed for seed in seeds if seed != DEMO_SEED]
     rows: dict[str, list[dict[str, Any]]] = {name: [] for name in models}
     for seed in used:
@@ -423,9 +488,114 @@ def holdout_comparison(
             "mean_total": round(float(np.mean([row["total"] for row in rows[name]])), 2),
             "mean_accuracy": mean(name, "accuracy"),
             "mean_recall": mean(name, "recall"),
+            "mean_false_positive_rate": mean(name, "false_positive_rate"),
+            "mean_acceptance_rate": mean(name, "acceptance_rate"),
             "mean_qualified_rejected": mean(name, "qualified_rejected"),
             "mean_selected": mean(name, "selected"),
+            "mean_worst_disparate_impact": round(
+                float(
+                    np.mean(
+                        [row["worst_disparate_impact"]["disparate_impact"] for row in rows[name]]
+                    )
+                ),
+                4,
+            ),
+            "p10_worst_disparate_impact": round(
+                float(
+                    np.quantile(
+                        [row["worst_disparate_impact"]["disparate_impact"] for row in rows[name]],
+                        0.10,
+                    )
+                ),
+                4,
+            ),
+            "worst_disparate_impact_pass_rate": round(
+                float(np.mean([row["worst_disparate_impact"]["di_pass"] for row in rows[name]])),
+                4,
+            ),
         }
         for name in models
     }
     return {"populations": len(used), "seeds": used, "models": summary}
+
+
+def policy_study() -> dict[str, Any]:
+    """Reproduce the fairness-prioritised global-cost policy selection.
+
+    The model is fitted once to the seed-29 fixture. Candidate global cost
+    ratios are compared on 49 independent synthetic tuning populations, subject
+    to a minimum mean-accuracy guardrail; the chosen model is then evaluated on
+    the separate 50-seed holdout. No protected attributes are model inputs and
+    no group-specific thresholds are considered.
+    """
+    from .data import generate_demo_data
+    from .metrics import audit
+    from .models import build_decisions
+
+    populations = {seed: generate_demo_data(seed=seed) for seed in POLICY_TUNING_SEEDS}
+    candidate_models: dict[float, Coefficients] = {}
+    candidate_results: list[dict[str, Any]] = []
+    for cost in POLICY_COST_CANDIDATES:
+        coefficients = train_coefficients(false_rejection_cost=cost)
+        candidate_models[cost] = coefficients
+        rows = []
+        for population in populations.values():
+            decisions = build_decisions(coefficients, data=population)
+            rows.append(decision_summary(audit(decisions), decisions))
+        worst_di = [row["worst_disparate_impact"]["disparate_impact"] for row in rows]
+        mean_accuracy = float(np.mean([row["accuracy"] for row in rows]))
+        result = {
+            "false_rejection_cost": cost,
+            "probability_cutoff": round(probability_cutoff(cost), 6),
+            "mean_fairness_risk_score": round(float(np.mean([row["total"] for row in rows])), 2),
+            "mean_accuracy": round(mean_accuracy, 4),
+            "mean_recall": round(float(np.mean([row["recall"] for row in rows])), 4),
+            "mean_false_positive_rate": round(
+                float(np.mean([row["false_positive_rate"] for row in rows])), 4
+            ),
+            "mean_acceptance_rate": round(
+                float(np.mean([row["acceptance_rate"] for row in rows])), 4
+            ),
+            "mean_qualified_rejected": round(
+                float(np.mean([row["qualified_rejected"] for row in rows])), 2
+            ),
+            "mean_worst_disparate_impact": round(float(np.mean(worst_di)), 4),
+            "worst_disparate_impact_pass_rate": round(
+                float(np.mean([row["worst_disparate_impact"]["di_pass"] for row in rows])),
+                4,
+            ),
+            "eligible": mean_accuracy >= POLICY_MINIMUM_MEAN_ACCURACY,
+        }
+        candidate_results.append(result)
+
+    eligible = [candidate for candidate in candidate_results if candidate["eligible"]]
+    if not eligible:
+        raise ValueError("No global-cost policy candidate met the mean-accuracy guardrail.")
+    selected = max(
+        eligible,
+        key=lambda candidate: (
+            candidate["mean_fairness_risk_score"],
+            -candidate["false_rejection_cost"],
+        ),
+    )
+    selected_cost = float(selected["false_rejection_cost"])
+    holdout = holdout_comparison(
+        seeds=POLICY_HOLDOUT_SEEDS,
+        coefficients={
+            "previous_talentfit_v3": PREVIOUS_TALENTFIT_V3_COEFFICIENTS,
+            "candidate": candidate_models[selected_cost],
+        },
+    )
+    return {
+        "training_seed": DEMO_SEED,
+        "tuning_seeds": list(POLICY_TUNING_SEEDS),
+        "holdout_seeds": list(POLICY_HOLDOUT_SEEDS),
+        "candidate_false_rejection_costs": list(POLICY_COST_CANDIDATES),
+        "minimum_tuning_mean_accuracy": POLICY_MINIMUM_MEAN_ACCURACY,
+        "selection_rule": POLICY_SELECTION_RULE,
+        "candidates": candidate_results,
+        "selected_false_rejection_cost": selected_cost,
+        "selected_probability_cutoff": round(probability_cutoff(selected_cost), 6),
+        "selected_coefficients_digest": coefficient_digest(candidate_models[selected_cost]),
+        "independent_holdout": holdout,
+    }

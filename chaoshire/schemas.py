@@ -86,6 +86,15 @@ class FairnessGateRequest(BaseModel):
     minimum_certificate: int = Field(default=75, ge=0, le=100)
     minimum_resilience: int = Field(default=80, ge=0, le=100)
     minimum_disparate_impact: float = Field(default=0.8, ge=0, le=1)
+    minimum_accuracy: float = Field(
+        default=0.8,
+        ge=0,
+        le=1,
+        description=(
+            "Minimum agreement with the bundled synthetic qualification label; "
+            "not a real-world performance estimate."
+        ),
+    )
     maximum_certificate_regression: int = Field(default=0, ge=0, le=100)
     maximum_resilience_regression: int = Field(default=0, ge=0, le=100)
 

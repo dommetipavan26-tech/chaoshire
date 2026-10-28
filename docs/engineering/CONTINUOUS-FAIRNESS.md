@@ -82,6 +82,7 @@ The gate enforces absolute floors and regression tolerances:
 - Minimum fairness risk score
 - Minimum chaos resilience
 - Minimum worst-case disparate impact
+- Minimum accuracy against the bundled synthetic label (default 0.80), to prevent a near-always-advance policy from gaming selection-rate parity
 - Maximum risk-score regression
 - Maximum resilience regression
 
@@ -95,7 +96,8 @@ python -m chaoshire gate \
   --candidate fair \
   --min-certificate 75 \
   --min-resilience 80 \
-  --min-di 0.80
+  --min-di 0.80 \
+  --min-accuracy 0.80
 ```
 
 The process exits `0` for PASS and `1` for BLOCK, so CI platforms can stop a release. `.github/workflows/fairness-gate.yml` demonstrates this pattern.

@@ -89,6 +89,7 @@ REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
     "data-style": {
         "at.statistical_test.significant_at_0_05?'var(--rose)':'var(--green)'",
         "col",
+        "dcol(r.delta.accuracy)",
         "dcol(r.delta.certificate)",
         "dcol(r.delta.chaos_resilience)",
         "dcol(r.delta.worst_disparate_impact)",

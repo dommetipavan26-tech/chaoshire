@@ -8,8 +8,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- **TalentFit v3 upgraded: 66/C → 80/B.** The original v3 was the most accurate
-  model (89.4% agreement with `qualified`) yet failed the four-fifths rule
+- **TalentFit v4 fairness-prioritised operating point.** The merit-only model still
+  excludes protected and proxy features and still uses one global cutoff for every
+  applicant. Its false-rejection cost moves from 2:1 to 3:1 (P(qualified) ≥ 1/4).
+  `train --policy-study` evaluates the fixed cost grid on 49 deterministic synthetic
+  tuning populations, selects the highest fairness risk score among policies with at
+  least 80% mean accuracy, and validates once on a separate 50-population holdout.
+  On the fixture v4 scores **85/B** (worst disparate impact 0.874 on gender), rejects
+  11 of 400 qualified candidates (v3 rejected 21), and has 83.1% accuracy. On the
+  disjoint holdout it averages **78.40** vs v3's 74.62, mean worst DI 0.8343 vs
+  0.8158, and 9.02 vs 19.84 missed qualified rows. The trade-off is explicit:
+  holdout accuracy falls from 85.05% to 80.99% and false-positive rate rises from
+  21.61% to 30.18%. Part of the fairness-score gain is mechanical because v4 advances
+  more candidates. All data is synthetic; this does not establish fairness in actual
+  employment. The pinned artifact records the policy, seeds and guardrail. The CI/CD
+  gate adds a default 80% floor against the bundled synthetic label; increasing it to
+  84% blocks v4 on the demo fixture, showing the utility check remains independently
+  configurable. It is not a real-world performance estimate.
+- **Previous TalentFit v3 upgrade (superseded by the v4 policy update above): 66/C → 80/B.**
+  These are results from the prior v3 iteration; TalentFit v4 is the current
+  model. The original v3 was the most accurate model (89.4% agreement with
+  `qualified`) yet failed the four-fifths rule
   (worst disparate impact 0.727). It reproduced group gaps already present in
   its label: by sampling chance the fixture's qualified rate differs between
   groups, and a perfect predictor of it scores 68/C. The upgrade changes two
@@ -33,10 +52,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   and the ranking is unchanged). Stated trade-offs: it is
   slightly less accurate than MeritFirst out of sample (85.0% vs 85.7%), it
   advances more candidates, and MeritFirst still scores 4 points higher on the
-  fixture. The cutoff was not tuned to close that gap. The release gate now
-  passes LegacyCorp → TalentFit and blocks MeritFirst → TalentFit on that
-  regression. Resilience stays 100/100, by construction. LegacyCorp **32/F**
-  and MeritFirst **84/B** are unchanged.
+  fixture. At that earlier v3 stage, the cutoff was not tuned to close that
+  gap and the release gate blocked MeritFirst → TalentFit on the score regression.
+  TalentFit v4 now scores above MeritFirst on the fixture; see the current
+  v4 release-gate and accuracy-guard results above. Resilience stays 100/100,
+  by construction. LegacyCorp **32/F** and MeritFirst **84/B** are unchanged.
 - `train_coefficients()` takes `features` and `false_rejection_cost`;
   `original_v3_coefficients()` re-fits the pre-upgrade model exactly, and
   `ORIGINAL_V3_COEFFICIENTS` keeps it available without scikit-learn. New
@@ -47,8 +67,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   finding card. A wide screen shows three large cards (name, grade, one-line
   role); a phone shows three full-width rows so the names do not wrap into
   narrow columns. The selected model carries a brass rule and a check.
-  LegacyCorp stays **32 / F**, MeritFirst **84 / B**, TalentFit **66 / C**
-  (before the upgrade above).
+  LegacyCorp stays **32 / F**, MeritFirst **84 / B**, and TalentFit now shows
+  **85 / B** (v4; the earlier layout snapshot showed 66 / C).
 
 ### Fixed
 
@@ -74,8 +94,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   flags the affected true-positive rates. On Adult the race gap falls from
   0.345/0.248/0.342 to **0.161/0.089/0.074** (naive/blind/blind_no_age), the
   fixture's gender gap from 0.196 to 0.127, and unseen-population means rise by
-  ~2 points for all three models. Fixture grades are unchanged: LegacyCorp
-  **32/F**, MeritFirst **84/B**, TalentFit **80/B**.
+  ~2 points for all three models. At that historical v3 snapshot, fixture grades
+  were unchanged: LegacyCorp **32/F**, MeritFirst **84/B**, TalentFit **80/B**;
+  TalentFit v4 now scores **85/B** (see the current upgrade above).
   (`tests/core/test_equal_opportunity_reliability.py`)
 - **TalentFit's result is now explained by what was measured.** The blurb,
   landing page, guided demo, README, case study and `training.py` said the
@@ -84,9 +105,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   that: zeroing the proxies changed 23 of 1,000 decisions, and retraining
   without them at the same cutoff scored 58/D. The actual cause was the label's
   group base rates, plus the error-rate cutoff that rejected 65 qualified
-  candidates. `METHODOLOGY.md` has a new section, "Why a more accurate model
-  can score lower", with a cutoff sweep on the fixture and on unseen
-  populations.
+  candidates. The methodology now documents this label ceiling and the v4
+  fairness-prioritised policy study, including its accuracy trade-off and
+  disjoint synthetic holdout.
 - **The quoted disparate impact is the one the score uses.** "Disparate impact
   0.78" was gender only; the fairness risk score uses the worst attribute (age
   band, 0.727 for the original v3). New `metrics.worst_disparate_impact()`. The

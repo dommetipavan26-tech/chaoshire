@@ -19,7 +19,12 @@ from .services import (
     filtered_candidates,
     mitigate,
 )
-from .training import disparity_diagnostics
+from .training import (
+    FALSE_REJECTION_COST,
+    POLICY_MINIMUM_MEAN_ACCURACY,
+    PROBABILITY_CUTOFF,
+    disparity_diagnostics,
+)
 
 
 @lru_cache(maxsize=1)
@@ -117,21 +122,25 @@ def guided_demo() -> dict[str, Any]:
                 "id": 7,
                 "title": "Audit the model we trained ourselves",
                 "message": (
-                    f"TalentFit v3 — a logistic regression on merit features only, "
+                    f"TalentFit v4 — a logistic regression on merit features only, "
                     f"with protected attributes and proxy signals withheld — scores "
                     f"{trained_audit['certificate']['total']}"
                     f"/{trained_audit['certificate']['grade']} and its worst disparate "
                     f"impact is {trained_worst['disparate_impact']} on "
-                    f"{trained_worst['attribute']}. Fitting the label alone was not "
-                    f"enough: the label itself is uneven across groups (accepting exactly "
-                    f"the qualified candidates scores {ceiling['total']}/{ceiling['grade']}). "
-                    f"The upgrade is a cost-sensitive cutoff, one for everyone, that "
-                    f"treats a wrongly rejected qualified candidate as twice as costly "
-                    f"as a wrongly advanced one: it rejects "
+                    f"{trained_worst['attribute']}. The label remains uneven by sampling "
+                    f"chance (a perfect predictor scores {ceiling['total']}/{ceiling['grade']}). "
+                    f"The synthetic policy study selected "
+                    f"one global P(qualified) cutoff of {PROBABILITY_CUTOFF:.2f} "
+                    f"(false-rejection cost {FALSE_REJECTION_COST:g}:1), subject to a "
+                    f"{POLICY_MINIMUM_MEAN_ACCURACY:.0%} mean-accuracy guardrail. It rejects "
                     f"{trained_diagnostics['model']['qualified_rejected']} of "
-                    f"{trained_diagnostics['qualified']} qualified candidates. Resilience "
-                    f"{trained_chaos['resilience']}/100 holds by construction: a model "
-                    f"with no protected inputs cannot flip on a swap."
+                    f"{trained_diagnostics['qualified']} qualified candidates, with "
+                    f"{trained_diagnostics['model']['accuracy']:.1%} fixture accuracy and "
+                    f"{trained_diagnostics['model']['false_positive_rate']:.1%} false-positive "
+                    f"rate. It advances more candidates; this synthetic result is not a "
+                    f"real-world fairness guarantee. Resilience {trained_chaos['resilience']}/100 "
+                    f"holds by construction: a model with no protected inputs cannot flip "
+                    f"on a swap."
                 ),
                 "evidence": {
                     "certificate": trained_audit["certificate"],

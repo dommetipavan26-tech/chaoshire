@@ -84,14 +84,16 @@ MODEL_META = {
     },
     "trained": {
         "id": "trained",
-        "title": "TalentFit v3 (trained)",
+        "title": "TalentFit v4 (trained)",
         "blurb": (
             "Logistic regression on merit features only — protected attributes and "
-            "proxy signals withheld — with a cost-sensitive cutoff that treats "
-            "rejecting a qualified candidate as twice as costly as advancing an "
-            "unqualified one. 80/B, passes the four-fifths rule (worst disparate "
-            "impact 0.81), and wrongly rejects 21 qualified candidates versus 34 for "
-            "MeritFirst. Resilience 100/100 holds by construction."
+            "proxy signals withheld — with one global cutoff P(qualified) ≥ 0.25. "
+            "Its fairness-prioritised 3:1 false-rejection cost was selected on synthetic "
+            "tuning populations with an 80% mean-accuracy guardrail. On the demo fixture "
+            "it scores 85/B, has worst disparate impact 0.874 (gender), rejects 11 of "
+            "400 qualified candidates versus 34 for MeritFirst, and has 83.1% accuracy. "
+            "This synthetic result is not a real-world fairness guarantee. Resilience "
+            "100/100 holds by construction."
         ),
     },
 }

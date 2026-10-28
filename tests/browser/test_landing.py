@@ -115,7 +115,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         expect(page.locator("#home-resilience")).to_have_text("100")
 
         page.get_by_role("button", name=models["trained"]["title"]).click()
-        expect(page.locator("#home-score")).to_have_text("80 / B")
+        expect(page.locator("#home-score")).to_have_text("85 / B")
         # Resilience 100 holds by construction (no protected inputs).
         expect(page.locator("#home-resilience")).to_have_text("100")
 
@@ -163,6 +163,37 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         browser.close()
 
 
+def test_release_gate_blocks_a_higher_synthetic_accuracy_floor() -> None:
+    """The release gate surfaces its label limits and enforces the accuracy input."""
+    with running_app() as url, sync_playwright() as playwright:
+        browser = launch_chromium(playwright)
+        try:
+            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            page.goto(url, wait_until="networkidle")
+            page.get_by_role("button", name="Review", exact=True).click()
+            page.get_by_role("button", name="Release gate", exact=True).click()
+
+            expect(page.locator("#gateaccuracy")).to_have_value("0.8")
+            expect(page.locator("#tab-compare")).to_contain_text(
+                "Accuracy is measured only against the bundled synthetic qualification label"
+            )
+            page.get_by_role("button", name="Evaluate release gate").click()
+            expect(page.locator("#gateout")).to_contain_text("PASS: release approved")
+            expect(page.locator("#gateout")).to_contain_text(
+                "Accuracy against synthetic label ≥ 0.8"
+            )
+
+            page.locator("#gateaccuracy").fill("0.84")
+            page.get_by_role("button", name="Evaluate release gate").click()
+            expect(page.locator("#gateout")).to_contain_text("BLOCK: release blocked")
+            expect(page.locator("#gateout")).to_contain_text(
+                "Accuracy against synthetic label ≥ 0.84"
+            )
+            expect(page.locator("#gateout")).to_contain_text("FAIL")
+        finally:
+            browser.close()
+
+
 def test_audit_models_lead_every_tab_and_the_demo_cta_fits() -> None:
     """The three models stay above the nav, and the landing CTA clears the fold."""
     with running_app() as url, sync_playwright() as playwright:
@@ -192,7 +223,7 @@ def test_audit_models_lead_every_tab_and_the_demo_cta_fits() -> None:
                 expect(buttons).to_have_count(3)
                 expect(page.locator('#modelsel button[data-m="legacy"]')).to_contain_text("32 / F")
                 expect(page.locator('#modelsel button[data-m="fair"]')).to_contain_text("84 / B")
-                expect(page.locator('#modelsel button[data-m="trained"]')).to_contain_text("80 / B")
+                expect(page.locator('#modelsel button[data-m="trained"]')).to_contain_text("85 / B")
                 boxes = [buttons.nth(i).bounding_box() for i in range(3)]
                 assert all(box is not None for box in boxes)
                 if width >= 900:
