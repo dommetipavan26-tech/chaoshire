@@ -48,8 +48,8 @@ This result is explicitly a trade-off, not “fairness solved.” Part of the fa
 - `python -m chaoshire gate --baseline legacy --candidate trained` passes the fixture gates, including the default 0.80 synthetic-label accuracy floor.
 - Raising `--min-accuracy` to 0.84 blocks TalentFit v4, demonstrating that the fairness score cannot by itself override the utility guard.
 - Tests pin the selection protocol, cost grid, tuning/holdout separation, artifact policy digest, fixture results, holdout results, no-proxy/no-protected invariants, and the accuracy-gate block. The full default suite passed: **507 tests**, **97.01% package coverage**.
-- Ruff lint/format checks, mypy (Python 3.11), JavaScript syntax check, strict repository inventory (154 files, zero warnings), `train --check`, `train --policy-study`, and `train --holdout` all passed. The wheel and source distribution also passed the isolated Python 3.11 installed-wheel smoke, including model scores and release-gate behavior.
-- UI cards and guided-demo text report the updated model and trade-off. Archived portfolio screenshots still show earlier model states and are not current evidence; they were not regenerated because a browser binary was unavailable locally, so real-browser verification remains for hosted CI.
+- Ruff lint/format checks, mypy (Python 3.11), JavaScript syntax check, strict repository inventory (154 files, zero warnings), `train --check`, `train --policy-study`, and `train --holdout` all passed. The wheel and source distribution passed the isolated Python 3.11 installed-wheel smoke, including model scores and release-gate behavior.
+- Hosted PR #87 checks passed on Python 3.11 and 3.12, including installed-wheel verification, PostgreSQL integration, fairness gate, browser/mobile tests, CodeQL, dependency and container scans, secret-history scan, and workflow lint. The browser suite verifies the updated gate UI; portfolio screenshots still show earlier model states and are not current evidence, so they were not reused or regenerated.
 
 ## Limitations and next steps
 
