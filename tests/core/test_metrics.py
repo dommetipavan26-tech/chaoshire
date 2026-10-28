@@ -63,7 +63,7 @@ def test_small_groups_are_flagged_and_excluded_from_worst_case():
 
 def test_lawful_mitigations_improve_but_do_not_overstate_grade():
     # Mirrors the endpoint's two-strategy algorithm while checking that the
-    # public result remains the reviewed 32/F -> 80/B demonstration.
+    # public result remains the reviewed 32/F -> 85/B demonstration.
     response = backend.api_mitigate(backend.MitigateReq(strategies=["blind", "proxy"]))
     assert response["before"]["certificate"]["total"] == 32
     assert response["before"]["certificate"]["grade"] == "F"

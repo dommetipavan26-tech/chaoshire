@@ -8,15 +8,22 @@ from .models import MODEL_META, build_decisions, get_model
 
 
 def model_snapshot(model: str) -> dict[str, Any]:
-    audited = audit(build_decisions(get_model(model)))
+    decisions = build_decisions(get_model(model))
+    audited = audit(decisions)
     chaos = run_chaos_suite(model, evidence_limit=0)
     worst_di = min(attribute["disparate_impact"] for attribute in audited["attributes"])
+    accuracy = (
+        float((decisions["accepted"].astype(bool) == decisions["qualified"].astype(bool)).mean())
+        if "qualified" in decisions.columns and len(decisions)
+        else None
+    )
     return {
         "model": MODEL_META[model],
         "certificate": audited["certificate"],
         "chaos_resilience": chaos["resilience"],
         "worst_disparate_impact": worst_di,
         "accept_rate": audited["stats"]["accept_rate"],
+        "accuracy": round(accuracy, 4) if accuracy is not None else None,
         "attributes": audited["attributes"],
         "experiment_id": chaos["experiment_id"],
     }
@@ -35,6 +42,7 @@ def compare_models(baseline_model: str = "legacy", candidate_model: str = "fair"
                 candidate["worst_disparate_impact"] - baseline["worst_disparate_impact"], 4
             ),
             "accept_rate": round(candidate["accept_rate"] - baseline["accept_rate"], 4),
+            "accuracy": round(candidate["accuracy"] - baseline["accuracy"], 4),
         },
     }
 
@@ -47,6 +55,7 @@ def evaluate_fairness_gate(
     minimum_disparate_impact: float = 0.8,
     maximum_certificate_regression: int = 0,
     maximum_resilience_regression: int = 0,
+    minimum_accuracy: float = 0.80,
 ) -> dict:
     comparison = compare_models(baseline_model, candidate_model)
     baseline = comparison["baseline"]
@@ -69,6 +78,13 @@ def evaluate_fairness_gate(
             "label": f"Worst disparate impact ≥ {minimum_disparate_impact}",
             "actual": candidate["worst_disparate_impact"],
             "passed": candidate["worst_disparate_impact"] >= minimum_disparate_impact,
+        },
+        {
+            "id": "minimum_accuracy",
+            "label": f"Accuracy against synthetic label ≥ {minimum_accuracy}",
+            "actual": candidate["accuracy"],
+            "passed": candidate["accuracy"] is not None
+            and candidate["accuracy"] >= minimum_accuracy,
         },
         {
             "id": "certificate_regression",
@@ -101,6 +117,7 @@ def evaluate_fairness_gate(
             "minimum_certificate": minimum_certificate,
             "minimum_resilience": minimum_resilience,
             "minimum_disparate_impact": minimum_disparate_impact,
+            "minimum_accuracy": minimum_accuracy,
             "maximum_certificate_regression": maximum_certificate_regression,
             "maximum_resilience_regression": maximum_resilience_regression,
         },

@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--min-certificate", type=int, default=75)
     gate.add_argument("--min-resilience", type=int, default=80)
     gate.add_argument("--min-di", type=float, default=0.8)
+    gate.add_argument("--min-accuracy", type=float, default=0.8)
     report = commands.add_parser("report", help="Generate a self-contained HTML or PDF report")
     report.add_argument("--model", choices=["legacy", "fair", "trained"], default="legacy")
     report.add_argument("--format", choices=["html", "pdf"], default="html")
@@ -57,8 +58,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--holdout",
         action="store_true",
         help=(
-            "audit the pinned models on synthetic populations the trained model never "
-            "saw (no scikit-learn needed) and print the comparison"
+            "audit pinned models on the disjoint synthetic holdout populations, "
+            "seeds 51–100 (no scikit-learn needed)"
+        ),
+    )
+    train.add_argument(
+        "--policy-study",
+        action="store_true",
+        help=(
+            "reproduce global-cutoff selection on synthetic tuning seeds and report "
+            "the separate holdout; never reads real applicant data"
         ),
     )
     train.add_argument(
@@ -171,7 +180,8 @@ def run_train_command(
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
     if args.command == "gate":
         result = evaluate_fairness_gate(
             baseline_model=args.baseline,
@@ -179,9 +189,20 @@ def main(argv: list[str] | None = None) -> int:
             minimum_certificate=args.min_certificate,
             minimum_resilience=args.min_resilience,
             minimum_disparate_impact=args.min_di,
+            minimum_accuracy=args.min_accuracy,
         )
         print(json.dumps(result, indent=2))
         return 0 if result["passed"] else 1
+    if args.command == "train" and args.policy_study:
+        if args.write or args.check or args.include_protected or args.holdout:
+            parser.error(
+                "--policy-study cannot be combined with --write, --check, "
+                "--include-protected, or --holdout"
+            )
+        from .training import policy_study
+
+        print(json.dumps(policy_study(), indent=2))
+        return 0
     if args.command == "train" and args.holdout:
         from .training import holdout_comparison
 

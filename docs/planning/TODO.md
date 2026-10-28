@@ -117,6 +117,17 @@ Scores: LegacyCorp `32/F` and MeritFirst `84/B` preserved; TalentFit `66/C` → 
 - [x] Check the upgrade on 49 unseen populations (`holdout_comparison()`, `train --holdout`): 74.1 vs MeritFirst 72.1 vs original 66.2
 - [x] Pin the before/after, the out-of-sample figures and the trade-offs in `tests/core/test_trained_model.py`; update the landing page, blurb, guided demo, README, METHODOLOGY, case study and browser assertions
 
+## Unreleased — TalentFit v4 fairness-prioritised operating point
+
+Scores on the deterministic fixture: LegacyCorp `32/F`, MeritFirst `84/B`, previous TalentFit v3 `80/B`, current TalentFit v4 `85/B`. This remains a synthetic demonstration, not a production hiring model.
+
+- [x] Keep protected attributes and résumé proxies out of the fitted features; retain one global cutoff and reject per-group threshold adjustments.
+- [x] Reproduce a fixed global cost-policy grid on 49 synthetic tuning populations; select the highest fairness score among candidates meeting the 80% mean-accuracy guardrail (3:1 cost, P ≥ 1/4).
+- [x] Validate the frozen policy on 50 separate synthetic populations (seeds 51–100): mean score 78.40 vs 74.62 for v3; disclose the accuracy and false-positive trade-off.
+- [x] Pin policy, seeds and coefficient digest in the trained-model artifact; add `train --policy-study` and update holdout reporting.
+- [x] Add a configurable 80% accuracy guard against the synthetic label to the API, CLI and release-gate UI; test a higher floor blocking v4.
+- [x] Update current model UI, browser/core assertions, README, changelog, methodology, case study and integration guide; preserve v3 as a named baseline.
+
 ## Future engineering
 
 - [ ] Per-audit access control so published uploads are not world-readable

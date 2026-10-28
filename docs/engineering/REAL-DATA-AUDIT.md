@@ -75,9 +75,10 @@ equal-opportunity gap is actually estimated from:
 1. **Unequal labels come first.** In the 1994 data, women were about a third
    as likely as men to earn over $50K. A model that predicts the label
    perfectly (51/D) still fails the four-fifths rule on sex, race and age.
-   This is the same "label inequality" effect the README describes for
-   TalentFit v3, but here it's much larger and comes from real data rather
-   than sampling noise. On this dataset, disparate impact measures inequality
+   This is the same "label inequality" limitation that the README and v4
+   methodology describe for the synthetic fixture, but here it is much larger
+   and comes from real data rather than sampling noise. On this dataset,
+   disparate impact measures inequality
    in the world as much as bias in the model.
 
 2. **Removing sex and race isn't enough.** The blind model still selects women

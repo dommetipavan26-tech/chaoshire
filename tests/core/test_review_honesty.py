@@ -121,13 +121,13 @@ def test_the_fairness_review_is_not_marketed_as_an_ai_agent():
 
 def test_the_talentfit_blurb_reports_the_measured_outcome():
     blurb = MODEL_META["trained"]["blurb"]
-    # Pinned fixture results (tests/core/test_trained_model.py): 80/B, worst DI
-    # 0.8137 on age band, 21 qualified rejections vs 34, resilience 100/100.
-    assert "80/B" in blurb
-    assert "0.81" in blurb
-    assert "passes the four-fifths rule" in blurb
-    assert "21 qualified candidates" in blurb and "34" in blurb
-    assert "twice as costly" in blurb
+    # Pinned fixture results (tests/core/test_trained_model.py): 85/B, worst DI
+    # 0.8735 on gender, 11 qualified rejections vs 34, resilience 100/100.
+    assert "85/B" in blurb
+    assert "0.874" in blurb
+    assert "not a real-world fairness guarantee" in blurb
+    assert "11 of 400 qualified candidates" in blurb and "34" in blurb
+    assert "3:1 false-rejection cost" in blurb
     assert "proxy signals withheld" in blurb
     assert "100/100" in blurb
     assert "by construction" in blurb
@@ -169,11 +169,15 @@ def test_no_current_surface_blames_talentfit_disparity_on_proxies():
 
 def test_guided_demo_quotes_the_upgrade_and_the_label_ceiling():
     step = next(step for step in guided_demo()["steps"] if step["id"] == 7)
-    assert "80/B" in step["message"]
-    assert "0.8137 on age_band" in step["message"]
+    assert "85/B" in step["message"]
+    assert "0.8735 on gender" in step["message"]
     assert "68/C" in step["message"]
-    assert "rejects 21 of 400" in step["message"]
-    assert "twice as costly" in step["message"]
+    assert "rejects 11 of 400" in step["message"]
+    assert "cutoff of 0.25" in step["message"]
+    assert "false-rejection cost 3:1" in step["message"]
+    assert "83.1% fixture accuracy" in step["message"]
+    assert "26.3% false-positive rate" in step["message"]
+    assert "not a real-world fairness guarantee" in step["message"]
     assert "by construction" in step["message"]
     assert step["evidence"]["diagnostics"]["label_ceiling"]["total"] == 68
 

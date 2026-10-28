@@ -61,13 +61,34 @@ def test_unknown_comparison_model_returns_400():
     assert response.status_code == 400
 
 
-def test_release_gate_passes_improvement_and_blocks_regression():
+def test_release_gate_passes_improvement_blocks_regression_and_guards_utility():
     passed = client.post(
         "/api/gate", json={"baseline_model": "legacy", "candidate_model": "fair"}
     ).json()
     assert passed["status"] == "PASS"
     assert passed["passed"] is True
     assert all(check["passed"] for check in passed["checks"])
+
+    trained = client.post(
+        "/api/gate", json={"baseline_model": "legacy", "candidate_model": "trained"}
+    ).json()
+    accuracy = next(check for check in trained["checks"] if check["id"] == "minimum_accuracy")
+    assert trained["status"] == "PASS"
+    assert accuracy["actual"] == 0.831
+    assert accuracy["passed"] is True
+
+    accuracy_block = client.post(
+        "/api/gate",
+        json={
+            "baseline_model": "legacy",
+            "candidate_model": "trained",
+            "minimum_accuracy": 0.84,
+        },
+    ).json()
+    assert accuracy_block["status"] == "BLOCK"
+    assert [check["id"] for check in accuracy_block["checks"] if not check["passed"]] == [
+        "minimum_accuracy"
+    ]
 
     blocked = client.post(
         "/api/gate", json={"baseline_model": "fair", "candidate_model": "legacy"}
@@ -96,6 +117,13 @@ def test_uploaded_report_requires_an_upload():
 def test_cli_gate_exit_codes(capsys):
     assert main(["gate", "--baseline", "legacy", "--candidate", "fair"]) == 0
     assert '"status": "PASS"' in capsys.readouterr().out
+    assert (
+        main(["gate", "--baseline", "legacy", "--candidate", "trained", "--min-accuracy", "0.84"])
+        == 1
+    )
+    blocked = capsys.readouterr().out
+    assert '"status": "BLOCK"' in blocked
+    assert '"id": "minimum_accuracy"' in blocked
     assert main(["gate", "--baseline", "fair", "--candidate", "legacy"]) == 1
     assert '"status": "BLOCK"' in capsys.readouterr().out
 

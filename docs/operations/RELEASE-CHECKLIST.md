@@ -19,9 +19,9 @@ it described.
 - [ ] Every collected test passes
 - [ ] Coverage exceeds the 90% gate
 - [ ] `python scripts/check_build_info.py --coverage-json coverage.json` reports no drift
-- [ ] `python -m chaoshire train --check` confirms the pinned TalentFit v3 digest
+- [ ] `python -m chaoshire train --check` confirms the pinned TalentFit v4 digest
 - [ ] Frontend JavaScript parses
-- [ ] Fairness gate returns PASS for LegacyCorp to MeritFirst
+- [ ] Fairness gate (including the configured synthetic-label accuracy floor) returns PASS for LegacyCorp to MeritFirst
 - [ ] Render reports the tagged API version
 - [ ] Quality, fairness-gate, security, and browser workflows pass
 - [ ] Local dependency audit reports no known vulnerabilities
