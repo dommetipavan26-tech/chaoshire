@@ -152,7 +152,7 @@ with TestClient(app) as client:
         assert r.status_code == 200, (path,r.status_code)
     assert "__JS_VERSION__" not in client.get("/").text
     assert client.get("/api/meta").json()["build"]["version"] == expected_version
-    for model,total in (("legacy",32),("fair",84),("trained",80)):
+    for model,total in (("legacy",32),("fair",84),("trained",85)):
         assert client.get("/api/audit",params={"model":model}).json()["certificate"]["total"] == total
     bad=client.post("/api/evidence/verify",json={"bundle":{"payload":{},"integrity":{"digest":"é"}}})
     assert bad.status_code == 200 and bad.json()["valid"] is False
@@ -163,10 +163,13 @@ def command(args, code=0):
     return r
 command(["--help"])
 assert json.loads(command(["gate","--baseline","legacy","--candidate","trained"]).stdout)["passed"]
-assert not json.loads(command(["gate","--baseline","fair","--candidate","trained"],1).stdout)["passed"]
+assert json.loads(command(["gate","--baseline","fair","--candidate","trained"]).stdout)["passed"]
+blocked=json.loads(command(["gate","--baseline","legacy","--candidate","trained","--min-accuracy","0.84"],1).stdout)
+assert blocked["status"]=="BLOCK"
+assert any(c["id"]=="minimum_accuracy" and not c["passed"] for c in blocked["checks"])
 command(["review","--model","legacy"])
 command(["report","--model","trained","--output","audit.html"])
-assert "80" in Path("audit.html").read_text()
+assert "85" in Path("audit.html").read_text()
 command(["report","--model","trained","--format","pdf","--output","audit.pdf"])
 assert Path("audit.pdf").read_bytes().startswith(b"%PDF")
 command(["evidence","--model","trained","--output","evidence.json"])
