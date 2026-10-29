@@ -93,6 +93,37 @@ TAB_READY: dict[str, str] = {
     "agent": "() => !!document.querySelector('#tab-agent .agent-head')",
     "demo": "() => !!document.querySelector('#tab-demo .demo-steps')",
 }
+TAB_READY_TIMEOUT_MS = 60_000
+BROWSER_DIAGNOSTIC_TAIL = 5
+
+
+def _compact_browser_events(events: list[str]) -> str:
+    """Keep only the most recent, single-line browser errors for a failure summary."""
+    recent = [re.sub(r"\s+", " ", event).strip() for event in events[-BROWSER_DIAGNOSTIC_TAIL:]]
+    return " | ".join(event[:240] for event in recent if event) or "none"
+
+
+def format_tab_readiness_timeout(
+    *,
+    width: int,
+    height: int,
+    tab: str,
+    predicate: str,
+    url: str,
+    title: str,
+    diagnostics: dict[str, list[str]],
+    screenshot: str,
+) -> str:
+    """Build a useful CI failure when a lazy tab never reaches its ready state."""
+    predicate = re.sub(r"\s+", " ", predicate).strip()
+    return (
+        f"{width}x{height}px tab={tab}: readiness predicate timed out after "
+        f"{TAB_READY_TIMEOUT_MS}ms ({predicate}); url={url!r}; title={title!r}; "
+        f"console_errors=[{_compact_browser_events(diagnostics.get('console', []))}]; "
+        f"page_errors=[{_compact_browser_events(diagnostics.get('page', []))}]; "
+        f"failed_requests=[{_compact_browser_events(diagnostics.get('request', []))}]; "
+        f"screenshot={screenshot}"
+    )
 
 
 @dataclass
@@ -432,10 +463,13 @@ def check_server_speed(client: httpx.Client, base: str, results: Results) -> Non
 def check_browser(base: str, insecure: bool, results: Results) -> None:
     """Layout and consent checks in Chromium. Imported lazily: HTTP-only runs need no browser."""
     from playwright.sync_api import Browser, Page, Route, sync_playwright
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 
-    def open_page(browser: Browser, width: int, height: int) -> tuple[Page, list[str]]:
+    def open_page(
+        browser: Browser, width: int, height: int
+    ) -> tuple[Page, list[str], dict[str, list[str]]]:
         context = browser.new_context(
             viewport={"width": width, "height": height},
             service_workers="block",
@@ -443,14 +477,37 @@ def check_browser(base: str, insecure: bool, results: Results) -> None:
         )
         page = context.new_page()
         beacons: list[str] = []
+        diagnostics = {"console": [], "page": [], "request": []}
+
+        def remember(category: str, message: str) -> None:
+            events = diagnostics[category]
+            events.append(re.sub(r"\s+", " ", message).strip()[:400])
+            del events[:-BROWSER_DIAGNOSTIC_TAIL]
+
+        def on_console(message: Any) -> None:
+            if message.type == "error":
+                remember("console", message.text)
+
+        def on_page_error(error: Any) -> None:
+            remember("page", str(error))
+
+        def on_request_failed(request: Any) -> None:
+            parsed = urlsplit(request.url)
+            target = f"{request.method} {parsed.path}"
+            if request.failure:
+                target += f" ({request.failure})"
+            remember("request", target)
 
         def intercept(route: Route) -> None:
             # Answer the beacon locally so production analytics are never incremented.
             beacons.append(route.request.method)
             route.fulfill(status=204, body="")
 
+        page.on("console", on_console)
+        page.on("pageerror", on_page_error)
+        page.on("requestfailed", on_request_failed)
         page.route(f"**{BEACON_PATH}", intercept)
-        return page, beacons
+        return page, beacons, diagnostics
 
     def load(page: Page, path: str) -> None:
         page.goto(base + path, wait_until="networkidle", timeout=90_000)
@@ -462,7 +519,7 @@ def check_browser(base: str, insecure: bool, results: Results) -> None:
         browser = playwright.chromium.launch()
         try:
             for width, height in ((1440, 1000), (390, 844), (320, 700)):
-                page, beacons = open_page(browser, width, height)
+                page, beacons, diagnostics = open_page(browser, width, height)
                 load(page, "/")
                 page.wait_for_function(
                     "() => document.querySelectorAll('#modelsel button[data-m]').length >= 3",
@@ -496,7 +553,32 @@ def check_browser(base: str, insecure: bool, results: Results) -> None:
                         sub = page.locator(f'#subnav button[data-t="{tab}"]')
                         if sub.count():
                             sub.click()
-                    page.wait_for_function(ready, timeout=60_000)
+                    print(
+                        f"[INFO] Browser readiness: waiting for {width}x{height}px tab={tab}",
+                        flush=True,
+                    )
+                    try:
+                        page.wait_for_function(ready, timeout=TAB_READY_TIMEOUT_MS)
+                    except PlaywrightTimeoutError:
+                        screenshot = EVIDENCE_DIR / f"tab-timeout-{width}-{tab}.png"
+                        screenshot_note = str(screenshot.relative_to(REPO_ROOT))
+                        try:
+                            page.screenshot(path=str(screenshot), full_page=True, timeout=10_000)
+                        except Exception as error:
+                            screenshot_note = f"capture failed: {type(error).__name__}: {error}"
+                        detail = format_tab_readiness_timeout(
+                            width=width,
+                            height=height,
+                            tab=tab,
+                            predicate=ready,
+                            url=page.url,
+                            title=page.title(),
+                            diagnostics=diagnostics,
+                            screenshot=screenshot_note,
+                        )
+                        results.check("Layout", False, detail)
+                        return
+                    print(f"[PASS] Browser readiness: {width}x{height}px tab={tab}", flush=True)
                     tab_overflow[tab] = overflow(page)
                 worst_tab, worst_overflow = max(tab_overflow.items(), key=lambda item: item[1])
                 load(page, "/privacy")
@@ -517,7 +599,7 @@ def check_browser(base: str, insecure: bool, results: Results) -> None:
                     "before a choice",
                 )
             for choice, stored_value in (("Reject optional", "no"), ("Allow analytics", "yes")):
-                page, beacons = open_page(browser, 390, 844)
+                page, beacons, _ = open_page(browser, 390, 844)
                 load(page, "/")
                 before = len(beacons)
                 page.get_by_role("button", name=choice).click()
