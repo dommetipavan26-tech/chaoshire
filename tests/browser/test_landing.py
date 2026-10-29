@@ -72,7 +72,14 @@ def running_app():
             yield url
         finally:
             process.terminate()
-            process.wait(timeout=10)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # A browser assertion can close while a synchronous API request is
+                # still draining. Do not let a stuck request turn teardown into a
+                # second, unrelated test failure.
+                process.kill()
+                process.wait(timeout=5)
 
 
 def api(url: str, path: str) -> dict:

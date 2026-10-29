@@ -78,6 +78,10 @@ CARD_ESCAPE_PROBE = r"""
     if (cr.width === 0) continue;
     for (const el of card.querySelectorAll('*')) {
       if (el.closest('.honeypot')) continue;
+      // Closed <details> content is not visible. Some browser engines still
+      // expose descendant computed styles while measuring it, so skip it here;
+      // the release-gate test below opens the trade-off panel explicitly.
+      if (el.closest('details:not([open])')) continue;
       if (!rendered(el)) continue;
       let scrollable = false;
       for (let p = el.parentElement; p && p !== card.parentElement; p = p.parentElement) {
@@ -163,6 +167,12 @@ def test_every_tab_fits_the_viewport_and_its_cards() -> None:
                     open_section(page, tab)
                     page.wait_for_function(TAB_READY[tab], timeout=30_000)
                     _assert_tab_fits(page, width, tab)
+                    if tab == "compare":
+                        # The gate's holdout trade-off controls are intentionally
+                        # disclosed on demand; also verify the expanded form fits.
+                        page.locator("#tab-compare details summary").click()
+                        page.locator("#gateholdmeanacc").wait_for(state="visible")
+                        _assert_tab_fits(page, width, "compare-expanded-gate-limits")
                 context.close()
         finally:
             browser.close()
