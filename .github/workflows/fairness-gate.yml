@@ -28,7 +28,16 @@ jobs:
         run: >-
           python -m chaoshire gate
           --baseline legacy
-          --candidate fair
+          --candidate trained
           --min-certificate 75
           --min-resilience 80
           --min-di 0.80
+          --min-accuracy 0.80
+          --min-holdout-mean-accuracy 0.78
+          --min-holdout-p10-accuracy 0.70
+          --min-holdout-mean-recall 0.90
+          --min-holdout-p10-recall 0.80
+          --max-holdout-mean-fpr 0.40
+          --max-holdout-p90-fpr 0.50
+          --min-holdout-p10-di 0.55
+          --min-holdout-di-pass-rate 0.25

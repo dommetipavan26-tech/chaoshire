@@ -76,6 +76,25 @@ def test_release_gate_passes_improvement_blocks_regression_and_guards_utility():
     assert trained["status"] == "PASS"
     assert accuracy["actual"] == 0.831
     assert accuracy["passed"] is True
+    holdout = trained["holdout"]
+    assert holdout["evaluation_design"]["population_count"] == 100
+    assert holdout["evaluation_design"]["holdout_disjoint_from_policy_selection"] is True
+    assert set(holdout["evaluation_design"]["scenario_design"]["stress"]) == {
+        "group_imbalance",
+        "label_base_rate_shift",
+        "label_noise",
+        "proxy_correlation_shift",
+        "merit_distribution_shift",
+    }
+    candidate_holdout = holdout["models"]["candidate"]
+    assert candidate_holdout["metrics"]["accuracy"]["mean"] == 0.8129
+    assert candidate_holdout["metrics"]["accuracy"]["p10"] == 0.782
+    assert candidate_holdout["metrics"]["accuracy"]["mean_ci95"]["low"] < 0.8129
+    assert candidate_holdout["metrics"]["recall"]["mean"] == 0.9621
+    assert candidate_holdout["metrics"]["false_positive_rate"]["p90"] == 0.3383
+    assert candidate_holdout["metrics"]["worst_disparate_impact"]["p10"] == 0.6497
+    assert candidate_holdout["four_fifths_pass_rate"]["rate"] == 0.63
+    assert len(holdout["threshold_sensitivity"]["thresholds"]) == 5
 
     accuracy_block = client.post(
         "/api/gate",
@@ -90,12 +109,37 @@ def test_release_gate_passes_improvement_blocks_regression_and_guards_utility():
         "minimum_accuracy"
     ]
 
+    fpr_block = client.post(
+        "/api/gate",
+        json={
+            "baseline_model": "legacy",
+            "candidate_model": "trained",
+            "maximum_holdout_p90_false_positive_rate": 0.30,
+        },
+    ).json()
+    assert fpr_block["status"] == "BLOCK"
+    assert [check["id"] for check in fpr_block["checks"] if not check["passed"]] == [
+        "maximum_holdout_p90_false_positive_rate"
+    ]
+
     blocked = client.post(
         "/api/gate", json={"baseline_model": "fair", "candidate_model": "legacy"}
     ).json()
     assert blocked["status"] == "BLOCK"
     assert blocked["passed"] is False
     assert any(not check["passed"] for check in blocked["checks"])
+
+
+def test_release_gate_rejects_holdout_limits_outside_probability_range():
+    response = client.post(
+        "/api/gate",
+        json={
+            "baseline_model": "legacy",
+            "candidate_model": "trained",
+            "maximum_holdout_p90_false_positive_rate": 1.01,
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_reference_html_report_is_self_contained():

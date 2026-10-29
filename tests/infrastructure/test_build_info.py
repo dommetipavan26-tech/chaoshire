@@ -182,6 +182,8 @@ DOCUMENTED_FILES = ("README.md", "SECURITY.md", "CONTRIBUTING.md")
 HISTORICAL_DOCS = {
     Path("docs/planning/TODO.md"),
     Path("docs/operations/REPOSITORY-AUDIT.md"),
+    Path("docs/operations/REPOSITORY-VERIFICATION-2026-10-27.md"),
+    Path("docs/operations/MODEL-UPGRADE-2026-10-28.md"),
 }
 
 TEST_COUNT_PATTERN = re.compile(r"(\d{2,4}) (?:automated )?tests")

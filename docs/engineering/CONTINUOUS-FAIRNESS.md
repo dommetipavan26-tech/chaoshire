@@ -69,7 +69,7 @@ Evidence explains *which decisions changed*; it does not itself determine whethe
 GET /api/compare?baseline=legacy&candidate=fair
 ```
 
-The response compares fairness risk score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs. The same endpoint also accepts `candidate=trained`; the CI example above intentionally compares `legacy` with `fair`.
+The response compares fairness risk score, chaos resilience, worst disparate impact, acceptance rate, and experiment IDs. The same endpoint accepts `candidate=trained`; the CI gate compares the current TalentFit v4 reference with `legacy`.
 
 ## Fairness release gate
 
@@ -77,30 +77,47 @@ The response compares fairness risk score, chaos resilience, worst disparate imp
 POST /api/gate
 ```
 
-The gate enforces absolute floors and regression tolerances:
+The gate enforces demo-fixture floors, regression tolerances, and limits over a
+**frozen 100-population synthetic holdout**: 50 baseline seeds (51–100) plus ten
+populations for each of five evaluation-only stress scenarios (seeds 101–110).
+The stress scenarios are kept separate from policy selection. The response reports
+mean, p10/p90, bootstrap intervals for population means, per-scenario summaries,
+four-fifths pass rate, and sensitivity to five score-space perturbations of the
+single global cutoff.
 
-- Minimum fairness risk score
-- Minimum chaos resilience
-- Minimum worst-case disparate impact
-- Minimum accuracy against the bundled synthetic label (default 0.80), to prevent a near-always-advance policy from gaming selection-rate parity
-- Maximum risk-score regression
-- Maximum resilience regression
+In addition to the existing risk-score, resilience, demo-disparate-impact, and
+synthetic-label accuracy checks, the default holdout limits are:
 
-A successful candidate returns `PASS`; any failed check returns `BLOCK`.
+- Mean accuracy ≥0.78 and p10 accuracy ≥0.70
+- Mean recall ≥0.90 and p10 recall ≥0.80
+- Mean false-positive rate ≤0.40 and p90 false-positive rate ≤0.50
+- p10 worst disparate impact ≥0.55 and four-fifths pass rate ≥0.25
+
+The API/CLI/UI let operators state different limits explicitly. They are
+synthetic demonstration guardrails, not real-world thresholds, legal findings,
+or production-readiness evidence. A successful candidate returns `PASS`; any
+failed check returns `BLOCK`.
 
 ### Command line
 
 ```bash
 python -m chaoshire gate \
   --baseline legacy \
-  --candidate fair \
+  --candidate trained \
   --min-certificate 75 \
   --min-resilience 80 \
   --min-di 0.80 \
-  --min-accuracy 0.80
+  --min-accuracy 0.80 \
+  --min-holdout-mean-accuracy 0.78 \
+  --min-holdout-p10-di 0.55 \
+  --max-holdout-p90-fpr 0.50
+
+python -m chaoshire train --robust-holdout
+python -m chaoshire train --calibration-study  # build-time; requires scikit-learn
+python -m chaoshire train --policy-study --max-mean-fpr 0.32 --min-mean-recall 0.95
 ```
 
-The process exits `0` for PASS and `1` for BLOCK, so CI platforms can stop a release. `.github/workflows/fairness-gate.yml` demonstrates this pattern.
+The gate process exits `0` for PASS and `1` for BLOCK, so CI platforms can stop a release. The policy-study command reports a Pareto frontier and applies optional utility bounds before selecting an operating point. `.github/workflows/fairness-gate.yml` demonstrates the gate pattern.
 
 The current adapter compares transparent built-in reference models. Production integration requires a scoring adapter or versioned decision datasets; the policy engine itself is model-agnostic.
 

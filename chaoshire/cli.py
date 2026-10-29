@@ -6,6 +6,16 @@ from pathlib import Path
 
 from .agent import review_audit
 from .chaos import run_chaos_suite
+from .config import (
+    GATE_MAX_HOLDOUT_MEAN_FALSE_POSITIVE_RATE,
+    GATE_MAX_HOLDOUT_P90_FALSE_POSITIVE_RATE,
+    GATE_MIN_HOLDOUT_FOUR_FIFTHS_PASS_RATE,
+    GATE_MIN_HOLDOUT_MEAN_ACCURACY,
+    GATE_MIN_HOLDOUT_MEAN_RECALL,
+    GATE_MIN_HOLDOUT_P10_ACCURACY,
+    GATE_MIN_HOLDOUT_P10_RECALL,
+    GATE_MIN_HOLDOUT_P10_WORST_DI,
+)
 from .evidence import build_evidence_bundle
 from .metrics import audit, worst_disparate_impact
 from .models import build_decisions, get_model
@@ -19,16 +29,56 @@ from .reporting import render_html_report
 CONTRAST_REPORT_PATH = Path("reports/generated/protected-contrast.json")
 
 
+def _unit_interval(value: str) -> float:
+    try:
+        number = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a number between 0 and 1") from error
+    if not 0.0 <= number <= 1.0:
+        raise argparse.ArgumentTypeError("must be between 0 and 1")
+    return number
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="chaoshire", description="Continuous fairness utilities")
     commands = parser.add_subparsers(dest="command", required=True)
     gate = commands.add_parser("gate", help="Evaluate a reference model release gate")
     gate.add_argument("--baseline", choices=["legacy", "fair", "trained"], default="legacy")
-    gate.add_argument("--candidate", choices=["legacy", "fair", "trained"], default="fair")
+    gate.add_argument("--candidate", choices=["legacy", "fair", "trained"], default="trained")
     gate.add_argument("--min-certificate", type=int, default=75)
     gate.add_argument("--min-resilience", type=int, default=80)
-    gate.add_argument("--min-di", type=float, default=0.8)
-    gate.add_argument("--min-accuracy", type=float, default=0.8)
+    gate.add_argument("--min-di", type=_unit_interval, default=0.8)
+    gate.add_argument("--min-accuracy", type=_unit_interval, default=0.8)
+    gate.add_argument(
+        "--min-holdout-mean-accuracy", type=_unit_interval, default=GATE_MIN_HOLDOUT_MEAN_ACCURACY
+    )
+    gate.add_argument(
+        "--min-holdout-p10-accuracy", type=_unit_interval, default=GATE_MIN_HOLDOUT_P10_ACCURACY
+    )
+    gate.add_argument(
+        "--min-holdout-mean-recall", type=_unit_interval, default=GATE_MIN_HOLDOUT_MEAN_RECALL
+    )
+    gate.add_argument(
+        "--min-holdout-p10-recall", type=_unit_interval, default=GATE_MIN_HOLDOUT_P10_RECALL
+    )
+    gate.add_argument(
+        "--max-holdout-mean-fpr",
+        type=_unit_interval,
+        default=GATE_MAX_HOLDOUT_MEAN_FALSE_POSITIVE_RATE,
+    )
+    gate.add_argument(
+        "--max-holdout-p90-fpr",
+        type=_unit_interval,
+        default=GATE_MAX_HOLDOUT_P90_FALSE_POSITIVE_RATE,
+    )
+    gate.add_argument(
+        "--min-holdout-p10-di", type=_unit_interval, default=GATE_MIN_HOLDOUT_P10_WORST_DI
+    )
+    gate.add_argument(
+        "--min-holdout-di-pass-rate",
+        type=_unit_interval,
+        default=GATE_MIN_HOLDOUT_FOUR_FIFTHS_PASS_RATE,
+    )
     report = commands.add_parser("report", help="Generate a self-contained HTML or PDF report")
     report.add_argument("--model", choices=["legacy", "fair", "trained"], default="legacy")
     report.add_argument("--format", choices=["html", "pdf"], default="html")
@@ -68,6 +118,32 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "reproduce global-cutoff selection on synthetic tuning seeds and report "
             "the separate holdout; never reads real applicant data"
+        ),
+    )
+    train.add_argument(
+        "--max-mean-fpr",
+        type=_unit_interval,
+        help="optional policy-study constraint: reject candidates above this mean FPR",
+    )
+    train.add_argument(
+        "--min-mean-recall",
+        type=_unit_interval,
+        help="optional policy-study constraint: reject candidates below this mean recall",
+    )
+    train.add_argument(
+        "--robust-holdout",
+        action="store_true",
+        help=(
+            "evaluate frozen models on baseline seeds 51–100 and five separate "
+            "stress scenarios (seeds 101–110); no model fitting"
+        ),
+    )
+    train.add_argument(
+        "--calibration-study",
+        action="store_true",
+        help=(
+            "run build-time raw-probability calibration diagnostics on the frozen "
+            "synthetic holdout (requires scikit-learn)"
         ),
     )
     train.add_argument(
@@ -190,25 +266,83 @@ def main(argv: list[str] | None = None) -> int:
             minimum_resilience=args.min_resilience,
             minimum_disparate_impact=args.min_di,
             minimum_accuracy=args.min_accuracy,
+            minimum_holdout_mean_accuracy=args.min_holdout_mean_accuracy,
+            minimum_holdout_p10_accuracy=args.min_holdout_p10_accuracy,
+            minimum_holdout_mean_recall=args.min_holdout_mean_recall,
+            minimum_holdout_p10_recall=args.min_holdout_p10_recall,
+            maximum_holdout_mean_false_positive_rate=args.max_holdout_mean_fpr,
+            maximum_holdout_p90_false_positive_rate=args.max_holdout_p90_fpr,
+            minimum_holdout_p10_worst_disparate_impact=args.min_holdout_p10_di,
+            minimum_holdout_four_fifths_pass_rate=args.min_holdout_di_pass_rate,
         )
         print(json.dumps(result, indent=2))
         return 0 if result["passed"] else 1
-    if args.command == "train" and args.policy_study:
-        if args.write or args.check or args.include_protected or args.holdout:
-            parser.error(
-                "--policy-study cannot be combined with --write, --check, "
-                "--include-protected, or --holdout"
-            )
-        from .training import policy_study
-
-        print(json.dumps(policy_study(), indent=2))
-        return 0
-    if args.command == "train" and args.holdout:
-        from .training import holdout_comparison
-
-        print(json.dumps(holdout_comparison(), indent=2))
-        return 0
     if args.command == "train":
+        study_modes = sum(
+            bool(value)
+            for value in (
+                args.policy_study,
+                args.holdout,
+                args.robust_holdout,
+                args.calibration_study,
+            )
+        )
+        if study_modes > 1:
+            parser.error(
+                "--policy-study, --holdout, --robust-holdout, and --calibration-study "
+                "are mutually exclusive"
+            )
+        if (
+            args.max_mean_fpr is not None or args.min_mean_recall is not None
+        ) and not args.policy_study:
+            parser.error("--max-mean-fpr and --min-mean-recall require --policy-study")
+        if args.policy_study:
+            if args.write or args.check or args.include_protected:
+                parser.error(
+                    "--policy-study cannot be combined with --write, --check, or "
+                    "--include-protected"
+                )
+            from .training import policy_study
+
+            print(
+                json.dumps(
+                    policy_study(
+                        maximum_mean_false_positive_rate=args.max_mean_fpr,
+                        minimum_mean_recall=args.min_mean_recall,
+                    ),
+                    indent=2,
+                )
+            )
+            return 0
+        if args.holdout:
+            if args.write or args.check or args.include_protected:
+                parser.error(
+                    "--holdout cannot be combined with --write, --check, or --include-protected"
+                )
+            from .training import holdout_comparison
+
+            print(json.dumps(holdout_comparison(), indent=2))
+            return 0
+        if args.robust_holdout:
+            if args.write or args.check or args.include_protected:
+                parser.error(
+                    "--robust-holdout cannot be combined with --write, --check, or "
+                    "--include-protected"
+                )
+            from .training import robust_holdout_comparison
+
+            print(json.dumps(robust_holdout_comparison(), indent=2))
+            return 0
+        if args.calibration_study:
+            if args.write or args.check or args.include_protected:
+                parser.error(
+                    "--calibration-study cannot be combined with --write, --check, or "
+                    "--include-protected"
+                )
+            from .training import calibration_study
+
+            print(json.dumps(calibration_study(), indent=2))
+            return 0
         return run_train_command(
             write=args.write,
             check=args.check,

@@ -13,7 +13,8 @@ are relative to the **repository root**.
 
 ## Operations
 
-- [TalentFit v4 model upgrade — 28 October 2026](operations/MODEL-UPGRADE-2026-10-28.md) — fairness-focused global-cutoff study, guardrails, holdout results, trade-offs, and synthetic-only limits.
+- [TalentFit v4 model upgrade — 28 October 2026](operations/MODEL-UPGRADE-2026-10-28.md) — original fairness-focused global-cutoff study and synthetic-only limits.
+- [TalentFit v4 model card and governance record](operations/MODEL-CARD-TALENTFIT-V4.md) — intended use, frozen baseline/stress evaluation, uncertainty, calibration, cutoff sensitivity, artifact digest, failure modes, and required human review.
 - [Repository verification and update plan — 27 October 2026](operations/REPOSITORY-VERIFICATION-2026-10-27.md) — local quality gates, live hosted-CI status, dependency findings, and prioritized next actions.
 - [Repository audit and completed updates — 1 October 2026](operations/REPOSITORY-AUDIT.md) — findings, executed checks, limits, and prioritized next updates.
 - [Repository follow-up — 11 October 2026](operations/REPOSITORY-UPDATES-2026-10-11.md) — private-mode guardrails, new security gates, release provenance, and remaining owner-only work.

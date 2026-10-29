@@ -2,7 +2,7 @@
 
 ### Chaos testing for fair hiring AI
 
-[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Docs index](docs/README.md) · [Architecture](#architecture) · [Case study](docs/portfolio/PORTFOLIO-CASE-STUDY.md) · [Methodology](docs/engineering/METHODOLOGY.md) · [Privacy](chaoshire/web/privacy.html) · [Terms](chaoshire/web/terms.html)
+[Live demo](https://chaoshire.onrender.com) · [API docs](https://chaoshire.onrender.com/docs) · [Docs index](docs/README.md) · [Architecture](#architecture) · [Case study](docs/portfolio/PORTFOLIO-CASE-STUDY.md) · [Methodology](docs/engineering/METHODOLOGY.md) · [TalentFit v4 model card](docs/operations/MODEL-CARD-TALENTFIT-V4.md) · [Privacy](chaoshire/web/privacy.html) · [Terms](chaoshire/web/terms.html)
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
@@ -50,11 +50,18 @@ qualified candidates incorrectly rejected by LegacyCorp. TalentFit v4 excludes
 protected and proxy features and uses one global P(qualified) ≥ 1/4 cutoff. The 3:1
 false-rejection operating point was selected from a fixed grid on 49 synthetic tuning
 populations with an 80% mean-accuracy guardrail, then checked on a disjoint 50-population
-holdout. It improves measured fairness and recall over v3, but lowers accuracy and
+holdout. The release gate now evaluates those 50 frozen baseline populations plus 50
+additional stress populations varying group sizes, label base rates/noise, proxy
+correlations, and merit-feature distributions. It reports uncertainty intervals,
+lower-tail fairness/utility metrics, four-fifths pass rates, FPR limits, and a global
+cutoff sensitivity analysis; none of the stress data is used for policy selection.
+The model improves measured fairness and recall over v3, but lowers accuracy and
 advances more unqualified candidates for human review. See the
 [methodology guide](docs/engineering/METHODOLOGY.md#fairness-prioritised-model-update-and-its-trade-offs)
-for the complete table and limitations, and the
-[Fairness Risk Score formula](docs/engineering/METHODOLOGY.md#fairness-risk-score).
+for the policy table and the [TalentFit v4 model card](docs/operations/MODEL-CARD-TALENTFIT-V4.md)
+for evaluation results, intended use, limits, and human-review requirements. The
+[Fairness Risk Score formula](docs/engineering/METHODOLOGY.md#fairness-risk-score)
+is documented separately.
 All results are synthetic only, not findings about real employers or applicants.
 
 ## Capabilities
@@ -70,9 +77,10 @@ All results are synthetic only, not findings about real employers or applicants.
   only available as a refused-by-default research contrast
 - Pluggable decision-adapter contract — audit CSV outcomes without exposing model
   weights — plus named audit IDs and SQLite/PostgreSQL aggregate history
-- Model-version comparison and CI/CD fairness release gates with a documented
-  synthetic-label accuracy guard, deterministic fairness review, tamper-evident
-  SHA-256 evidence bundles, self-contained HTML and native PDF reports
+- Model-version comparison and CI/CD fairness release gates over frozen synthetic
+  baseline/stress populations, with bootstrap uncertainty, tail metrics, explicit
+  accuracy/recall/FPR/four-fifths limits, Pareto and global-cutoff sensitivity reports;
+  plus deterministic review, tamper-evident evidence, HTML and PDF reports
 - API-key write protection, optional single-operator private mode, rate limits, a nonce
   CSP, and an accessible dependency-free web/PWA dashboard
 
@@ -133,7 +141,7 @@ python -m pytest -q
 
 GitHub Actions runs linting, type checking, the trained-model drift check, and the test
 suite on Python 3.11 and 3.12, with a separate browser workflow. The **current source
-baseline**, measured locally, contains **507 tests with 97.0% package coverage**; the
+baseline**, measured locally, contains **513 tests with 96.6% package coverage**; the
 quality gate requires a 90% minimum and the tagged release may lag this revision.
 `chaoshire/build_info.py` is the single source of truth for every number this README
 quotes, and `scripts/check_build_info.py` re-derives the test and coverage figures from
@@ -160,12 +168,18 @@ compatible synthetic sample is served at `/api/sample.csv`.
 
 ```bash
 # exits 0 when the candidate passes, 1 when the release must be blocked
-python -m chaoshire gate --baseline legacy --candidate fair \
+python -m chaoshire gate --baseline legacy --candidate trained \
   --min-certificate 75 --min-resilience 80 --min-di 0.80 --min-accuracy 0.80
 
 python -m chaoshire report --model legacy --output chaoshire-report.html   # or --format pdf
 python -m chaoshire review --model legacy
 python -m chaoshire evidence --model legacy --output chaoshire-evidence.json
+
+# Frozen baseline + stress holdouts, global cutoff sensitivity, and raw probability calibration
+python -m chaoshire train --robust-holdout
+python -m chaoshire train --calibration-study  # build-time; requires scikit-learn
+# Optional utility constraints on the separate policy study (choose limits for the task)
+python -m chaoshire train --policy-study --max-mean-fpr 0.32 --min-mean-recall 0.95
 ```
 
 Runnable integrations: the

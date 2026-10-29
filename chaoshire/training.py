@@ -46,14 +46,21 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .config import DECISION_THRESHOLD, DEMO_SEED
-from .data import DEMO_DATA
+from .config import DECISION_THRESHOLD, DEMO_SEED, MIN_CELL_SIZE
+from .data import (
+    DEMO_DATA,
+    STRESS_SCENARIO_DESCRIPTIONS,
+    STRESS_SCENARIOS,
+    generate_demo_data,
+    generate_stress_population,
+)
 from .models import Coefficients, feature_components
 
 LABEL_COLUMN = "qualified"
@@ -78,6 +85,14 @@ POLICY_COST_CANDIDATES: tuple[float, ...] = (2.0, 2.5, 3.0, 3.5, 4.0)
 POLICY_MINIMUM_MEAN_ACCURACY = 0.80
 POLICY_TUNING_SEEDS: tuple[int, ...] = tuple(seed for seed in range(1, 51) if seed != DEMO_SEED)
 POLICY_HOLDOUT_SEEDS: tuple[int, ...] = tuple(range(51, 101))
+#: Additional synthetic stress populations. These seeds and scenarios are held
+#: out from both fitting and policy selection; they are evaluation only.
+STRESS_HOLDOUT_SEEDS: tuple[int, ...] = tuple(range(101, 111))
+ROBUST_HOLDOUT_POPULATION_COUNT = len(POLICY_HOLDOUT_SEEDS) + len(STRESS_SCENARIOS) * len(
+    STRESS_HOLDOUT_SEEDS
+)
+BOOTSTRAP_RESAMPLES = 1_000
+THRESHOLD_SENSITIVITY_VALUES: tuple[float, ...] = (0.45, 0.475, 0.5, 0.525, 0.55)
 POLICY_SELECTION_RULE = (
     "Select the candidate with the highest mean fairness risk score among fixed "
     "global cost ratios whose mean accuracy is at least 0.80 on the 49 synthetic "
@@ -519,7 +534,487 @@ def holdout_comparison(
     return {"populations": len(used), "seeds": used, "models": summary}
 
 
-def policy_study() -> dict[str, Any]:
+def _robust_holdout_population_templates() -> tuple[tuple[str, int, pd.DataFrame], ...]:
+    """Build the frozen baseline and stress populations once per process."""
+    populations: list[tuple[str, int, pd.DataFrame]] = [
+        ("baseline", seed, generate_demo_data(seed=seed)) for seed in POLICY_HOLDOUT_SEEDS
+    ]
+    populations.extend(
+        (scenario, seed, generate_stress_population(seed=seed, scenario=scenario))
+        for scenario in STRESS_SCENARIOS
+        for seed in STRESS_HOLDOUT_SEEDS
+    )
+    return tuple(populations)
+
+
+@lru_cache(maxsize=1)
+def _cached_robust_holdout_population_templates() -> tuple[tuple[str, int, pd.DataFrame], ...]:
+    return _robust_holdout_population_templates()
+
+
+def _policy_metrics(
+    coefficients: Coefficients,
+    population: pd.DataFrame,
+    threshold: float | None = None,
+) -> dict[str, float | bool | int]:
+    """Measure a frozen policy without fitting or using intersections as gate inputs."""
+    from .metrics import attribute_metrics
+    from .models import build_decisions
+
+    decisions = build_decisions(coefficients, threshold=threshold, data=population)
+    qualified = decisions[LABEL_COLUMN].astype(bool).to_numpy()
+    accepted = decisions["accepted"].astype(bool).to_numpy()
+    unqualified = ~qualified
+    attributes = [
+        attribute_metrics(decisions, name) for name in ("gender", "ethnicity", "age_band")
+    ]
+    impacts = [float(result["disparate_impact"]) for result in attributes]
+    return {
+        "accuracy": float(np.mean(accepted == qualified)) if len(qualified) else 0.0,
+        "recall": float(np.mean(accepted[qualified])) if qualified.any() else 0.0,
+        "false_positive_rate": (
+            float(np.mean(accepted[unqualified])) if unqualified.any() else 0.0
+        ),
+        "worst_disparate_impact": min(impacts) if impacts else 0.0,
+        "four_fifths_pass": all(bool(result["di_pass"]) for result in attributes),
+        "acceptance_rate": float(np.mean(accepted)) if len(accepted) else 0.0,
+        "qualified_rejected": int(np.sum(qualified & ~accepted)),
+    }
+
+
+def _bootstrap_seed(namespace: str) -> int:
+    return int.from_bytes(hashlib.sha256(namespace.encode("utf-8")).digest()[:8], "big")
+
+
+def _population_metric_summary(values: Iterable[float], namespace: str) -> dict[str, Any]:
+    """Summarise population-level values with a deterministic bootstrap CI for the mean."""
+    observations = np.asarray(list(values), dtype=float)
+    if not len(observations):
+        raise ValueError("Cannot summarize an empty population metric.")
+    rng = np.random.default_rng(_bootstrap_seed(namespace))
+    samples = rng.integers(
+        0,
+        len(observations),
+        size=(BOOTSTRAP_RESAMPLES, len(observations)),
+    )
+    bootstrap_means = observations[samples].mean(axis=1)
+    lower, upper = np.quantile(bootstrap_means, [0.025, 0.975])
+    return {
+        "population_count": int(len(observations)),
+        "mean": round(float(observations.mean()), 4),
+        "p10": round(float(np.quantile(observations, 0.10)), 4),
+        "p90": round(float(np.quantile(observations, 0.90)), 4),
+        "mean_ci95": {"low": round(float(lower), 4), "high": round(float(upper), 4)},
+    }
+
+
+def _summarize_population_rows(
+    rows: list[dict[str, Any]],
+    namespace: str,
+) -> dict[str, Any]:
+    metrics = {
+        metric: _population_metric_summary(
+            (float(row[metric]) for row in rows), f"{namespace}:{metric}"
+        )
+        for metric in (
+            "accuracy",
+            "recall",
+            "false_positive_rate",
+            "worst_disparate_impact",
+            "acceptance_rate",
+        )
+    }
+    pass_rate = _population_metric_summary(
+        (float(bool(row["four_fifths_pass"])) for row in rows),
+        f"{namespace}:four_fifths_pass_rate",
+    )
+    return {
+        "population_count": len(rows),
+        "metrics": metrics,
+        "four_fifths_pass_rate": {
+            "rate": pass_rate["mean"],
+            "mean_ci95": pass_rate["mean_ci95"],
+        },
+        "mean_qualified_rejected": round(
+            float(np.mean([float(row["qualified_rejected"]) for row in rows])), 2
+        ),
+    }
+
+
+@lru_cache(maxsize=3)
+def _cached_robust_model_summary(model_name: str) -> dict[str, Any]:
+    """Cached deterministic summary for a bundled reference model."""
+    from .models import get_model
+
+    coefficients = get_model(model_name)
+    populations = _cached_robust_holdout_population_templates()
+    rows = [
+        {
+            "scenario": scenario,
+            "seed": seed,
+            **_policy_metrics(coefficients, population),
+        }
+        for scenario, seed, population in populations
+    ]
+    by_scenario: dict[str, dict[str, Any]] = {}
+    for scenario in ("baseline", *STRESS_SCENARIOS):
+        scenario_rows = [row for row in rows if row["scenario"] == scenario]
+        scenario_seeds = [int(row["seed"]) for row in scenario_rows]
+        by_scenario[scenario] = {
+            "seeds": scenario_seeds,
+            **_summarize_population_rows(scenario_rows, f"{model_name}:{scenario}"),
+        }
+    return {
+        "reference_model": model_name,
+        **_summarize_population_rows(rows, f"{model_name}:all"),
+        "scenarios": by_scenario,
+    }
+
+
+def _scenario_seed_design() -> dict[str, Any]:
+    return {
+        "baseline": {
+            "generator": "generate_demo_data",
+            "seeds": list(POLICY_HOLDOUT_SEEDS),
+            "population_count": len(POLICY_HOLDOUT_SEEDS),
+        },
+        "stress": {
+            scenario: {
+                "description": description,
+                "seeds": list(STRESS_HOLDOUT_SEEDS),
+                "population_count": len(STRESS_HOLDOUT_SEEDS),
+            }
+            for scenario, description in STRESS_SCENARIO_DESCRIPTIONS.items()
+        },
+    }
+
+
+def _threshold_sensitivity_for_model(model_name: str) -> dict[str, Any]:
+    from .models import get_model
+
+    coefficients = get_model(model_name)
+    populations = _cached_robust_holdout_population_templates()
+    thresholds = []
+    for threshold in THRESHOLD_SENSITIVITY_VALUES:
+        rows = [
+            {
+                "scenario": scenario,
+                "seed": seed,
+                **_policy_metrics(coefficients, population, threshold=threshold),
+            }
+            for scenario, seed, population in populations
+        ]
+        summary = _summarize_population_rows(rows, f"{model_name}:threshold:{threshold:.3f}")
+        thresholds.append(
+            {
+                "score_threshold": threshold,
+                "delta_from_default": round(threshold - DECISION_THRESHOLD, 3),
+                **summary,
+            }
+        )
+    return {
+        "model": model_name,
+        "scope": (
+            "The same platform-score threshold is applied to every candidate and group. "
+            "These are score-space perturbations around the one global 0.5 cutoff, not "
+            "group-specific thresholds or probability recalibration."
+        ),
+        "thresholds": thresholds,
+    }
+
+
+@lru_cache(maxsize=3)
+def _cached_threshold_sensitivity(model_name: str) -> dict[str, Any]:
+    return _threshold_sensitivity_for_model(model_name)
+
+
+def robust_holdout_comparison(
+    models: dict[str, str] | None = None,
+    threshold_sensitivity_model: str | None = "trained",
+) -> dict[str, Any]:
+    """Evaluate frozen reference policies over baseline and stress holdouts.
+
+    The 50 baseline seeds are the original disjoint holdout. Five additional
+    stress scenarios contribute ten populations each (50 total); all use seeds
+    101–110 and are excluded from fitting and policy selection. The uncertainty
+    intervals describe resampling across these synthetic populations only.
+    """
+    from .models import MODEL_META
+
+    selected = {name: name for name in MODEL_META} if models is None else models
+    if not selected:
+        raise ValueError("At least one reference model is required for robust holdout evaluation.")
+    unknown = sorted(set(selected.values()) - set(MODEL_META))
+    if unknown:
+        raise ValueError(f"Unknown reference model(s): {', '.join(unknown)}.")
+    result: dict[str, Any] = {
+        "evaluation_design": {
+            "synthetic_only": True,
+            "training_seed": DEMO_SEED,
+            "tuning_seeds": list(POLICY_TUNING_SEEDS),
+            "baseline_holdout_seeds": list(POLICY_HOLDOUT_SEEDS),
+            "stress_holdout_seeds_per_scenario": list(STRESS_HOLDOUT_SEEDS),
+            "scenario_design": _scenario_seed_design(),
+            "population_count": ROBUST_HOLDOUT_POPULATION_COUNT,
+            "holdout_disjoint_from_policy_selection": True,
+            "uncertainty_method": (
+                f"95% percentile bootstrap interval for the mean across independent "
+                f"synthetic population seeds ({BOOTSTRAP_RESAMPLES} resamples); not a "
+                "real-world confidence interval."
+            ),
+            "threshold_scope": "one global platform-score cutoff; never per group",
+        },
+        "models": {
+            label: _cached_robust_model_summary(model_name)
+            for label, model_name in selected.items()
+        },
+    }
+    if threshold_sensitivity_model is not None:
+        sensitivity_label = next(
+            (
+                label
+                for label, model_name in selected.items()
+                if model_name == threshold_sensitivity_model
+            ),
+            None,
+        )
+        if sensitivity_label is not None:
+            result["threshold_sensitivity"] = {
+                "label": sensitivity_label,
+                **_cached_threshold_sensitivity(threshold_sensitivity_model),
+            }
+    return result
+
+
+def _calibration_metrics(probabilities: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+    clipped = np.clip(np.asarray(probabilities, dtype=float), 0.0, 1.0)
+    truth = np.asarray(labels, dtype=int)
+    if not len(truth):
+        return {"brier_score": 0.0, "expected_calibration_error": 0.0}
+    bin_ids = np.minimum((clipped * 10).astype(int), 9)
+    error = 0.0
+    for bin_index in range(10):
+        mask = bin_ids == bin_index
+        if mask.any():
+            error += float(mask.mean()) * abs(
+                float(clipped[mask].mean()) - float(truth[mask].mean())
+            )
+    return {
+        "brier_score": float(np.mean((clipped - truth) ** 2)),
+        "expected_calibration_error": error,
+    }
+
+
+def _reliability_bins(probabilities: np.ndarray, labels: np.ndarray) -> list[dict[str, Any]]:
+    from .metrics import wilson_interval
+
+    clipped = np.clip(np.asarray(probabilities, dtype=float), 0.0, 1.0)
+    truth = np.asarray(labels, dtype=int)
+    bin_ids = np.minimum((clipped * 10).astype(int), 9)
+    bins = []
+    for bin_index in range(10):
+        mask = bin_ids == bin_index
+        count = int(mask.sum())
+        if not count:
+            continue
+        positives = int(truth[mask].sum())
+        bins.append(
+            {
+                "lower_probability": round(bin_index / 10, 1),
+                "upper_probability": round((bin_index + 1) / 10, 1),
+                "count": count,
+                "mean_predicted_probability": round(float(clipped[mask].mean()), 4),
+                "observed_rate": round(float(truth[mask].mean()), 4),
+                "observed_rate_wilson_ci95": wilson_interval(positives, count),
+            }
+        )
+    return bins
+
+
+def calibration_study() -> dict[str, Any]:
+    """Evaluate raw logistic probabilities and subgroup calibration diagnostics.
+
+    The classifier is fitted once to the seed-29 synthetic fixture and frozen
+    before the same 100 baseline/stress holdout populations are evaluated. This
+    build-time diagnostic requires scikit-learn; runtime scoring remains
+    sklearn-free. Subgroup summaries are uncertainty diagnostics only and never
+    set or adjust a decision threshold.
+    """
+    from sklearn.linear_model import LogisticRegression
+
+    classifier = LogisticRegression(C=1.0, solver="lbfgs", max_iter=1000)
+    classifier.fit(
+        build_design_matrix(DEMO_DATA).to_numpy(),
+        DEMO_DATA[LABEL_COLUMN].to_numpy(dtype=int),
+    )
+    populations = _cached_robust_holdout_population_templates()
+    overall_rows: list[dict[str, Any]] = []
+    scenario_values: dict[str, tuple[list[np.ndarray], list[np.ndarray]]] = {}
+    subgroup_values: dict[str, dict[str, list[dict[str, float]]]] = {
+        attribute: {} for attribute in ("gender", "ethnicity", "age_band")
+    }
+    subgroup_supported: dict[str, dict[str, int]] = {
+        attribute: {} for attribute in ("gender", "ethnicity", "age_band")
+    }
+
+    for scenario, _seed, population in populations:
+        probabilities = classifier.predict_proba(build_design_matrix(population).to_numpy())[:, 1]
+        labels = population[LABEL_COLUMN].to_numpy(dtype=int)
+        overall_rows.append({"scenario": scenario, **_calibration_metrics(probabilities, labels)})
+        scenario_probabilities, scenario_labels = scenario_values.setdefault(scenario, ([], []))
+        scenario_probabilities.append(probabilities)
+        scenario_labels.append(labels)
+
+        for attribute in subgroup_values:
+            for group in sorted(population[attribute].astype(str).unique()):
+                group_mask = population[attribute].astype(str).to_numpy() == group
+                count = int(group_mask.sum())
+                subgroup_supported[attribute][group] = subgroup_supported[attribute].get(
+                    group, 0
+                ) + int(count >= MIN_CELL_SIZE)
+                if count < MIN_CELL_SIZE:
+                    continue
+                subgroup_values[attribute].setdefault(group, []).append(
+                    {
+                        "n": float(count),
+                        **_calibration_metrics(probabilities[group_mask], labels[group_mask]),
+                    }
+                )
+
+    metric_names = ("brier_score", "expected_calibration_error")
+    overall = {
+        metric: _population_metric_summary(
+            (float(row[metric]) for row in overall_rows), f"calibration:all:{metric}"
+        )
+        for metric in metric_names
+    }
+    scenario_metrics = {}
+    reliability = {}
+    for scenario, (probability_rows, label_rows) in scenario_values.items():
+        scenario_rows = [row for row in overall_rows if row["scenario"] == scenario]
+        scenario_metrics[scenario] = {
+            "population_count": len(scenario_rows),
+            "metrics": {
+                metric: _population_metric_summary(
+                    (float(row[metric]) for row in scenario_rows),
+                    f"calibration:{scenario}:{metric}",
+                )
+                for metric in metric_names
+            },
+        }
+        reliability[scenario] = _reliability_bins(
+            np.concatenate(probability_rows), np.concatenate(label_rows)
+        )
+
+    subgroup_diagnostics: dict[str, Any] = {}
+    for attribute, groups in subgroup_values.items():
+        subgroup_diagnostics[attribute] = {}
+        for group, rows in sorted(groups.items()):
+            subgroup_diagnostics[attribute][group] = {
+                "population_count": len(rows),
+                "supported_population_rate": round(
+                    subgroup_supported[attribute].get(group, 0) / max(1, len(populations)), 4
+                ),
+                "mean_candidates": round(float(np.mean([row["n"] for row in rows])), 2),
+                "metrics": {
+                    metric: _population_metric_summary(
+                        (float(row[metric]) for row in rows),
+                        f"calibration:subgroup:{attribute}:{group}:{metric}",
+                    )
+                    for metric in metric_names
+                },
+            }
+    return {
+        "model": "trained",
+        "fit": {
+            "training_seed": DEMO_SEED,
+            "training_rows": len(DEMO_DATA),
+            "training_features": list(TRAIN_FEATURES),
+            "frozen_before_holdout": True,
+        },
+        "probability_source": (
+            "Raw LogisticRegression.predict_proba output from the seed-29 fit, before the "
+            "affine transformation used by the runtime platform score. The runtime score "
+            "is not itself a calibrated probability."
+        ),
+        "evaluation_design": {
+            "baseline_holdout_seeds": list(POLICY_HOLDOUT_SEEDS),
+            "stress_holdout_seeds_per_scenario": list(STRESS_HOLDOUT_SEEDS),
+            "stress_scenarios": _scenario_seed_design()["stress"],
+            "population_count": len(overall_rows),
+            "subgroup_minimum_rows_per_population": MIN_CELL_SIZE,
+            "training_and_tuning_data_excluded": True,
+        },
+        "population_count": len(overall_rows),
+        "overall_metrics": overall,
+        "scenario_metrics": scenario_metrics,
+        "reliability_bins_by_scenario": reliability,
+        "subgroup_diagnostics": subgroup_diagnostics,
+        "subgroup_interpretation": (
+            "Diagnostic only: intervals are bootstrapped across synthetic holdout populations. "
+            "No subgroup-specific cutoff is selected, calibrated, or recommended."
+        ),
+        "limitations": (
+            "These are synthetic calibration diagnostics, not validation of probability "
+            "calibration for real applicants, employers, job families, or future data."
+        ),
+    }
+
+
+def _pareto_frontier(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return candidates not dominated on DI, accuracy, recall, and false-positive rate."""
+    objective_names = (
+        "mean_worst_disparate_impact",
+        "mean_accuracy",
+        "mean_recall",
+        "mean_false_positive_rate",
+    )
+
+    def vector(candidate: dict[str, Any]) -> tuple[float, ...]:
+        values = [float(candidate[name]) for name in objective_names]
+        values[-1] *= -1.0  # lower false-positive rate is better
+        return tuple(values)
+
+    frontier = []
+    for candidate in candidates:
+        current = vector(candidate)
+        dominated = False
+        for other in candidates:
+            if other is candidate:
+                continue
+            comparison = vector(other)
+            if all(left >= right for left, right in zip(comparison, current, strict=True)) and any(
+                left > right for left, right in zip(comparison, current, strict=True)
+            ):
+                dominated = True
+                break
+        if not dominated:
+            frontier.append(candidate)
+    return frontier
+
+
+def _policy_candidate_eligible(
+    mean_accuracy: float,
+    mean_false_positive_rate: float,
+    mean_recall: float,
+    maximum_mean_false_positive_rate: float | None,
+    minimum_mean_recall: float | None,
+) -> bool:
+    """Apply explicit utility bounds before any Pareto or score-based selection."""
+    return (
+        mean_accuracy >= POLICY_MINIMUM_MEAN_ACCURACY
+        and (
+            maximum_mean_false_positive_rate is None
+            or mean_false_positive_rate <= maximum_mean_false_positive_rate
+        )
+        and (minimum_mean_recall is None or mean_recall >= minimum_mean_recall)
+    )
+
+
+def policy_study(
+    maximum_mean_false_positive_rate: float | None = None,
+    minimum_mean_recall: float | None = None,
+) -> dict[str, Any]:
     """Reproduce the fairness-prioritised global-cost policy selection.
 
     The model is fitted once to the seed-29 fixture. Candidate global cost
@@ -531,6 +1026,13 @@ def policy_study() -> dict[str, Any]:
     from .data import generate_demo_data
     from .metrics import audit
     from .models import build_decisions
+
+    for name, value in (
+        ("maximum_mean_false_positive_rate", maximum_mean_false_positive_rate),
+        ("minimum_mean_recall", minimum_mean_recall),
+    ):
+        if value is not None and not 0.0 <= value <= 1.0:
+            raise ValueError(f"{name} must be between 0 and 1.")
 
     populations = {seed: generate_demo_data(seed=seed) for seed in POLICY_TUNING_SEEDS}
     candidate_models: dict[float, Coefficients] = {}
@@ -544,15 +1046,22 @@ def policy_study() -> dict[str, Any]:
             rows.append(decision_summary(audit(decisions), decisions))
         worst_di = [row["worst_disparate_impact"]["disparate_impact"] for row in rows]
         mean_accuracy = float(np.mean([row["accuracy"] for row in rows]))
+        mean_recall = float(np.mean([row["recall"] for row in rows]))
+        mean_false_positive_rate = float(np.mean([row["false_positive_rate"] for row in rows]))
+        eligible_for_constraints = _policy_candidate_eligible(
+            mean_accuracy,
+            mean_false_positive_rate,
+            mean_recall,
+            maximum_mean_false_positive_rate,
+            minimum_mean_recall,
+        )
         result = {
             "false_rejection_cost": cost,
             "probability_cutoff": round(probability_cutoff(cost), 6),
             "mean_fairness_risk_score": round(float(np.mean([row["total"] for row in rows])), 2),
             "mean_accuracy": round(mean_accuracy, 4),
-            "mean_recall": round(float(np.mean([row["recall"] for row in rows])), 4),
-            "mean_false_positive_rate": round(
-                float(np.mean([row["false_positive_rate"] for row in rows])), 4
-            ),
+            "mean_recall": round(mean_recall, 4),
+            "mean_false_positive_rate": round(mean_false_positive_rate, 4),
             "mean_acceptance_rate": round(
                 float(np.mean([row["acceptance_rate"] for row in rows])), 4
             ),
@@ -564,13 +1073,19 @@ def policy_study() -> dict[str, Any]:
                 float(np.mean([row["worst_disparate_impact"]["di_pass"] for row in rows])),
                 4,
             ),
-            "eligible": mean_accuracy >= POLICY_MINIMUM_MEAN_ACCURACY,
+            "eligible_under_constraints": eligible_for_constraints,
+            "eligible": eligible_for_constraints,
         }
         candidate_results.append(result)
 
+    pareto_frontier = _pareto_frontier(candidate_results)
+    pareto_costs = {candidate["false_rejection_cost"] for candidate in pareto_frontier}
+    for candidate in candidate_results:
+        candidate["pareto_efficient"] = candidate["false_rejection_cost"] in pareto_costs
+
     eligible = [candidate for candidate in candidate_results if candidate["eligible"]]
     if not eligible:
-        raise ValueError("No global-cost policy candidate met the mean-accuracy guardrail.")
+        raise ValueError("No global-cost policy candidate met the requested utility constraints.")
     selected = max(
         eligible,
         key=lambda candidate: (
@@ -586,13 +1101,39 @@ def policy_study() -> dict[str, Any]:
             "candidate": candidate_models[selected_cost],
         },
     )
+    selection_rule = POLICY_SELECTION_RULE
+    constraint_notes = []
+    if maximum_mean_false_positive_rate is not None:
+        constraint_notes.append(f"mean false-positive rate <= {maximum_mean_false_positive_rate}")
+    if minimum_mean_recall is not None:
+        constraint_notes.append(f"mean recall >= {minimum_mean_recall}")
+    if constraint_notes:
+        selection_rule += (
+            " Explicit analyst constraints also apply: "
+            + " and ".join(constraint_notes)
+            + "; candidates outside any bound are ineligible before selection."
+        )
     return {
         "training_seed": DEMO_SEED,
         "tuning_seeds": list(POLICY_TUNING_SEEDS),
         "holdout_seeds": list(POLICY_HOLDOUT_SEEDS),
         "candidate_false_rejection_costs": list(POLICY_COST_CANDIDATES),
         "minimum_tuning_mean_accuracy": POLICY_MINIMUM_MEAN_ACCURACY,
-        "selection_rule": POLICY_SELECTION_RULE,
+        "selection_constraints": {
+            "minimum_mean_accuracy": POLICY_MINIMUM_MEAN_ACCURACY,
+            "maximum_mean_false_positive_rate": maximum_mean_false_positive_rate,
+            "minimum_mean_recall": minimum_mean_recall,
+        },
+        "selection_rule": selection_rule,
+        "pareto_objectives": {
+            "maximize": [
+                "mean_worst_disparate_impact",
+                "mean_accuracy",
+                "mean_recall",
+            ],
+            "minimize": ["mean_false_positive_rate"],
+        },
+        "pareto_frontier": pareto_frontier,
         "candidates": candidate_results,
         "selected_false_rejection_cost": selected_cost,
         "selected_probability_cutoff": round(probability_cutoff(selected_cost), 6),

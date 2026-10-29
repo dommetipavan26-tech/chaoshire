@@ -72,7 +72,14 @@ def running_app():
             yield url
         finally:
             process.terminate()
-            process.wait(timeout=10)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # A browser assertion can close while a synchronous API request is
+                # still draining. Do not let a stuck request turn teardown into a
+                # second, unrelated test failure.
+                process.kill()
+                process.wait(timeout=5)
 
 
 def api(url: str, path: str) -> dict:
@@ -164,7 +171,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
 
 
 def test_release_gate_blocks_a_higher_synthetic_accuracy_floor() -> None:
-    """The release gate surfaces its label limits and enforces the accuracy input."""
+    """The release gate surfaces its limits and evaluates the frozen holdout."""
     with running_app() as url, sync_playwright() as playwright:
         browser = launch_chromium(playwright)
         try:
@@ -178,10 +185,15 @@ def test_release_gate_blocks_a_higher_synthetic_accuracy_floor() -> None:
                 "Accuracy is measured only against the bundled synthetic qualification label"
             )
             page.get_by_role("button", name="Evaluate release gate").click()
-            expect(page.locator("#gateout")).to_contain_text("PASS: release approved")
+            expect(page.locator("#gateout")).to_contain_text(
+                "PASS: release approved", timeout=60_000
+            )
             expect(page.locator("#gateout")).to_contain_text(
                 "Accuracy against synthetic label ≥ 0.8"
             )
+            expect(page.locator("#gateout")).to_contain_text("Frozen synthetic holdout")
+            expect(page.locator("#gateout")).to_contain_text("100 populations")
+            expect(page.locator("#gateout")).to_contain_text("Global cutoff sensitivity")
 
             page.locator("#gateaccuracy").fill("0.84")
             page.get_by_role("button", name="Evaluate release gate").click()
