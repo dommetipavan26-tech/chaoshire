@@ -56,3 +56,13 @@ This result is explicitly a trade-off, not “fairness solved.” Part of the fa
 The `qualified` field is a synthetic merit-threshold label, not a validated hiring outcome. The study cannot measure construct validity, real group distributions, label bias, calibration under shift, job-relatedness, disparate impact in a real workforce, or legal compliance. The fairness-risk score is a screening indicator and should be reviewed alongside uncertainty, acceptance volume, accuracy, recall, and false-positive rates—not maximized in isolation.
 
 Any future use with actual applicant data would require a separate, representative and lawfully collected validation set; job-specific domain ownership of error costs; pre-registered evaluation and subgroup analysis; human review and appeal paths; independent legal, privacy and security review; and an authorized deployment decision. No real applicant data, deployment, or release was performed for this update.
+
+## Follow-up evaluation record — 29 October 2026
+
+The original v4 coefficients and global cutoff remain frozen. The release gate and
+build-time diagnostics have since been extended to frozen baseline/stress holdouts,
+bootstrap uncertainty, global-cutoff sensitivity, a Pareto frontier with optional
+FPR/recall constraints, probability-calibration diagnostics, and a model card. See
+the [TalentFit v4 model card](MODEL-CARD-TALENTFIT-V4.md) for the current governance
+record and results. The follow-up is synthetic evaluation only; it does not change
+the model into a validated employment system and includes no deployment or release.

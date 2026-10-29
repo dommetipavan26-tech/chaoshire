@@ -23,6 +23,7 @@ from chaoshire.training import (
     PROTECTED_FEATURES,
     PROXY_FEATURES,
     TRAIN_FEATURES,
+    calibration_study,
     coefficient_digest,
     decision_agreement,
     decision_summary,
@@ -33,6 +34,7 @@ from chaoshire.training import (
     policy_digest,
     policy_study,
     probability_cutoff,
+    robust_holdout_comparison,
     train_coefficients,
 )
 
@@ -58,6 +60,21 @@ def test_get_model_trained_matches_the_artifact_deterministically():
     pinned = load_artifact()["coefficients"]
     assert get_model("trained") == pinned
     assert get_model("trained") == get_model("trained")
+
+
+def test_model_card_records_the_current_artifact_digest_and_human_review():
+    import hashlib
+
+    card = Path(__file__).parents[2] / "docs/operations/MODEL-CARD-TALENTFIT-V4.md"
+    text = card.read_text(encoding="utf-8")
+    artifact = load_artifact()
+    digest = hashlib.sha256(ARTIFACT_PATH.read_bytes()).hexdigest()
+    assert f"SHA-256 of the exact artifact file: `{digest}`" in text
+    assert f"Coefficient digest: `{artifact['coefficient_digest']}`" in text
+    assert f"Decision-policy digest: `{artifact['decision_policy_digest']}`" in text
+    assert "Not intended" in text
+    assert "human reconsideration" in text
+    assert "not real-world validation" in text
 
 
 def test_trained_model_is_auditable_end_to_end():
@@ -336,6 +353,10 @@ def test_fairness_policy_selection_is_global_bounded_and_reproducible():
     candidate = next(row for row in study["candidates"] if row["false_rejection_cost"] == 3.0)
     too_liberal = next(row for row in study["candidates"] if row["false_rejection_cost"] == 3.5)
     assert candidate["eligible"] is True
+    assert candidate["pareto_efficient"] is True
+    assert study["selection_constraints"]["maximum_mean_false_positive_rate"] is None
+    assert "mean_false_positive_rate" in study["pareto_objectives"]["minimize"]
+    assert candidate in study["pareto_frontier"]
     assert candidate["mean_fairness_risk_score"] == pytest.approx(78.63, abs=0.01)
     assert candidate["mean_accuracy"] == pytest.approx(0.8091, abs=1e-4)
     assert too_liberal["eligible"] is False
@@ -412,6 +433,131 @@ def test_the_upgrade_generalises_to_unseen_populations():
     assert trained["mean_false_positive_rate"] > previous["mean_false_positive_rate"]
 
 
+def test_stress_populations_are_deterministic_and_isolate_proxy_shift():
+    from pandas.testing import assert_frame_equal
+
+    from chaoshire.data import (
+        DEMO_DATA,
+        STRESS_SCENARIOS,
+        generate_demo_data,
+        generate_stress_population,
+    )
+
+    assert STRESS_SCENARIOS == (
+        "group_imbalance",
+        "label_base_rate_shift",
+        "label_noise",
+        "proxy_correlation_shift",
+        "merit_distribution_shift",
+    )
+    assert_frame_equal(DEMO_DATA, generate_demo_data())
+    baseline = generate_demo_data(seed=101)
+    for scenario in STRESS_SCENARIOS:
+        first = generate_stress_population(seed=101, scenario=scenario)
+        second = generate_stress_population(seed=101, scenario=scenario)
+        assert_frame_equal(first, second)
+        assert list(first.columns) == list(baseline.columns)
+
+    imbalanced = generate_stress_population(seed=101, scenario="group_imbalance")
+    assert not imbalanced["gender"].equals(baseline["gender"])
+    noisy = generate_stress_population(seed=101, scenario="label_noise")
+    assert (noisy["qualified"] != baseline["qualified"]).sum() > 50
+    shifted = generate_stress_population(seed=101, scenario="merit_distribution_shift")
+    assert (
+        shifted.loc[shifted["ethnicity"] == "G3", "skills"].mean()
+        < baseline.loc[baseline["ethnicity"] == "G3", "skills"].mean()
+    )
+
+    proxy_shift = generate_stress_population(seed=101, scenario="proxy_correlation_shift")
+    trained = get_model("trained")
+    baseline_decisions = build_decisions(trained, data=baseline)
+    proxy_decisions = build_decisions(trained, data=proxy_shift)
+    assert not baseline["prestige"].equals(proxy_shift["prestige"])
+    assert not baseline["gap"].equals(proxy_shift["gap"])
+    assert baseline_decisions["score"].equals(proxy_decisions["score"])
+    assert baseline_decisions["accepted"].equals(proxy_decisions["accepted"])
+
+
+def test_robust_holdout_reports_uncertainty_tail_metrics_and_global_sensitivity():
+    report = robust_holdout_comparison({"candidate": "trained"})
+    design = report["evaluation_design"]
+    assert design["population_count"] == 100
+    assert design["baseline_holdout_seeds"] == list(range(51, 101))
+    assert design["stress_holdout_seeds_per_scenario"] == list(range(101, 111))
+    assert design["holdout_disjoint_from_policy_selection"] is True
+    candidate = report["models"]["candidate"]
+    assert candidate["population_count"] == 100
+    assert candidate["metrics"]["accuracy"]["mean"] == pytest.approx(0.8129, abs=1e-4)
+    assert candidate["metrics"]["accuracy"]["p10"] == pytest.approx(0.782, abs=1e-4)
+    assert candidate["metrics"]["recall"]["mean"] == pytest.approx(0.9621, abs=1e-4)
+    assert candidate["metrics"]["false_positive_rate"]["p90"] == pytest.approx(0.3383, abs=1e-4)
+    assert candidate["metrics"]["worst_disparate_impact"]["p10"] == pytest.approx(0.6497, abs=1e-4)
+    assert candidate["four_fifths_pass_rate"]["rate"] == pytest.approx(0.63, abs=1e-4)
+    for scenario in design["scenario_design"]["stress"]:
+        assert candidate["scenarios"][scenario]["population_count"] == 10
+
+    sensitivity = report["threshold_sensitivity"]
+    assert "same platform-score threshold" in sensitivity["scope"]
+    points = {row["score_threshold"]: row for row in sensitivity["thresholds"]}
+    low, default, high = points[0.45], points[0.5], points[0.55]
+    assert low["metrics"]["accuracy"]["mean"] < default["metrics"]["accuracy"]["mean"]
+    assert low["metrics"]["recall"]["mean"] > high["metrics"]["recall"]["mean"]
+    assert (
+        low["metrics"]["false_positive_rate"]["mean"]
+        > high["metrics"]["false_positive_rate"]["mean"]
+    )
+
+
+def test_calibration_study_is_probability_based_and_subgroup_only():
+    pytest.importorskip("sklearn")
+    report = calibration_study()
+    assert report["fit"]["training_seed"] == DEMO_SEED
+    assert report["fit"]["frozen_before_holdout"] is True
+    assert "runtime score is not itself a calibrated probability" in report["probability_source"]
+    assert report["population_count"] == 100
+    assert report["evaluation_design"]["training_and_tuning_data_excluded"] is True
+    assert report["evaluation_design"]["subgroup_minimum_rows_per_population"] == 30
+    brier = report["overall_metrics"]["brier_score"]
+    ece = report["overall_metrics"]["expected_calibration_error"]
+    assert 0 <= brier["mean"] <= 1
+    assert brier["mean_ci95"]["low"] <= brier["mean_ci95"]["high"]
+    assert 0 <= ece["mean"] <= 1
+    assert len(report["reliability_bins_by_scenario"]["baseline"]) > 0
+    assert report["subgroup_diagnostics"]["gender"]["NB"]["population_count"] == 100
+    assert "Diagnostic only" in report["subgroup_interpretation"]
+    assert "No subgroup-specific cutoff" in report["subgroup_interpretation"]
+
+
+def test_pareto_frontier_and_explicit_utility_constraints():
+    from chaoshire.training import _pareto_frontier, _policy_candidate_eligible
+
+    first = {
+        "mean_worst_disparate_impact": 0.8,
+        "mean_accuracy": 0.85,
+        "mean_recall": 0.95,
+        "mean_false_positive_rate": 0.2,
+        "false_rejection_cost": 2.0,
+    }
+    tradeoff = {
+        "mean_worst_disparate_impact": 0.9,
+        "mean_accuracy": 0.82,
+        "mean_recall": 0.98,
+        "mean_false_positive_rate": 0.3,
+        "false_rejection_cost": 3.0,
+    }
+    dominated = {
+        "mean_worst_disparate_impact": 0.7,
+        "mean_accuracy": 0.8,
+        "mean_recall": 0.9,
+        "mean_false_positive_rate": 0.35,
+        "false_rejection_cost": 4.0,
+    }
+    assert _pareto_frontier([first, tradeoff, dominated]) == [first, tradeoff]
+    assert _policy_candidate_eligible(0.80, 0.30, 0.95, 0.30, 0.95)
+    assert not _policy_candidate_eligible(0.80, 0.31, 0.95, 0.30, 0.95)
+    assert not _policy_candidate_eligible(0.80, 0.30, 0.94, 0.30, 0.95)
+
+
 def test_the_label_itself_fails_the_four_fifths_rule():
     """Why the upgrade was needed: a perfect predictor of `qualified` is not fair here."""
     diagnostics = disparity_diagnostics()
@@ -480,9 +626,24 @@ def test_cli_holdout_and_policy_study_print_their_reports(capsys, monkeypatch):
         "trained",
     }
 
-    monkeypatch.setattr(training, "policy_study", lambda: {"selected_cost": 3.0})
-    assert main(["train", "--policy-study"]) == 0
+    captured_constraints = {}
+
+    def fake_policy_study(**constraints):
+        captured_constraints.update(constraints)
+        return {"selected_cost": 3.0}
+
+    monkeypatch.setattr(training, "policy_study", fake_policy_study)
+    assert main(["train", "--policy-study", "--max-mean-fpr", "0.31"]) == 0
     assert json.loads(capsys.readouterr().out) == {"selected_cost": 3.0}
+    assert captured_constraints["maximum_mean_false_positive_rate"] == 0.31
+    assert captured_constraints["minimum_mean_recall"] is None
+
+    monkeypatch.setattr(training, "robust_holdout_comparison", lambda: {"robust": True})
+    assert main(["train", "--robust-holdout"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"robust": True}
+    monkeypatch.setattr(training, "calibration_study", lambda: {"calibration": True})
+    assert main(["train", "--calibration-study"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"calibration": True}
 
 
 def test_train_write_replaces_an_artifact_that_fails_current_rules(tmp_path, monkeypatch, capsys):

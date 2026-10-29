@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **TalentFit v4 evaluation and governance follow-up (29 October 2026).** The release gate now evaluates 50 frozen baseline holdouts plus 50 separate stress populations covering group-size imbalance, label base-rate shifts, label noise, proxy-correlation shifts, and merit-feature distribution shift. Reports include mean and tail accuracy/recall/FPR/worst-DI, four-fifths pass rates, population-bootstrap intervals, and global-cutoff sensitivity; no per-group threshold is introduced. The policy study reports a fairness/utility Pareto frontier and accepts explicit mean-FPR and recall constraints. A build-time calibration study reports raw-probability Brier/ECE plus subgroup uncertainty as diagnostics only. A TalentFit v4 model card records intended use, synthetic-data limitations, rationale, known failures, exact artifact digest, and mandatory human-review conditions. These are synthetic evaluation/governance upgrades only: no model refit, deployment, production approval, or release was performed.
 - **TalentFit v4 fairness-prioritised operating point.** The merit-only model still
   excludes protected and proxy features and still uses one global cutoff for every
   applicant. Its false-rejection cost moves from 2:1 to 3:1 (P(qualified) ≥ 1/4).

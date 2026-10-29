@@ -10,7 +10,7 @@ Regenerate from the repository root with:
 python scripts/check_repository.py --require-node --inventory docs/operations/REPOSITORY-INVENTORY.md
 ```
 
-Files checked: **154**.
+Files checked: **155**.
 
 ## Application
 
@@ -85,6 +85,7 @@ Files checked: **154**.
 
 | File | Responsibility | Structural checks | Result |
 |---|---|---|---|
+| `docs/operations/MODEL-CARD-TALENTFIT-V4.md` | Model card and governance record — TalentFit v4 | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
 | `docs/operations/MODEL-UPGRADE-2026-10-28.md` | TalentFit v4 model update — 28 October 2026 | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
 | `docs/operations/MONITORING.md` | Free deployment monitoring | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |
 | `docs/operations/PERSISTENCE.md` | Audit-history persistence and privacy | UTF-8/nonempty; limited secret-signature scan; relative Markdown links/headings | PASS |

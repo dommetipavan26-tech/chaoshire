@@ -4,6 +4,16 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .config import (
+    GATE_MAX_HOLDOUT_MEAN_FALSE_POSITIVE_RATE,
+    GATE_MAX_HOLDOUT_P90_FALSE_POSITIVE_RATE,
+    GATE_MIN_HOLDOUT_FOUR_FIFTHS_PASS_RATE,
+    GATE_MIN_HOLDOUT_MEAN_ACCURACY,
+    GATE_MIN_HOLDOUT_MEAN_RECALL,
+    GATE_MIN_HOLDOUT_P10_ACCURACY,
+    GATE_MIN_HOLDOUT_P10_RECALL,
+    GATE_MIN_HOLDOUT_P10_WORST_DI,
+)
 from .site import ANALYTICS_PAGES
 
 
@@ -82,7 +92,7 @@ class ChaosRunRequest(BaseModel):
 
 class FairnessGateRequest(BaseModel):
     baseline_model: str = Field(default="legacy", pattern="^(legacy|fair|trained)$")
-    candidate_model: str = Field(default="fair", pattern="^(legacy|fair|trained)$")
+    candidate_model: str = Field(default="trained", pattern="^(legacy|fair|trained)$")
     minimum_certificate: int = Field(default=75, ge=0, le=100)
     minimum_resilience: int = Field(default=80, ge=0, le=100)
     minimum_disparate_impact: float = Field(default=0.8, ge=0, le=1)
@@ -94,6 +104,54 @@ class FairnessGateRequest(BaseModel):
             "Minimum agreement with the bundled synthetic qualification label; "
             "not a real-world performance estimate."
         ),
+    )
+    minimum_holdout_mean_accuracy: float = Field(
+        default=GATE_MIN_HOLDOUT_MEAN_ACCURACY,
+        ge=0,
+        le=1,
+        description="Minimum mean accuracy across frozen synthetic holdout populations.",
+    )
+    minimum_holdout_p10_accuracy: float = Field(
+        default=GATE_MIN_HOLDOUT_P10_ACCURACY,
+        ge=0,
+        le=1,
+        description="Minimum tenth-percentile accuracy across frozen synthetic populations.",
+    )
+    minimum_holdout_mean_recall: float = Field(
+        default=GATE_MIN_HOLDOUT_MEAN_RECALL,
+        ge=0,
+        le=1,
+        description="Minimum mean recall across frozen synthetic holdout populations.",
+    )
+    minimum_holdout_p10_recall: float = Field(
+        default=GATE_MIN_HOLDOUT_P10_RECALL,
+        ge=0,
+        le=1,
+        description="Minimum tenth-percentile recall across frozen synthetic populations.",
+    )
+    maximum_holdout_mean_false_positive_rate: float = Field(
+        default=GATE_MAX_HOLDOUT_MEAN_FALSE_POSITIVE_RATE,
+        ge=0,
+        le=1,
+        description="Maximum mean false-positive rate across synthetic populations.",
+    )
+    maximum_holdout_p90_false_positive_rate: float = Field(
+        default=GATE_MAX_HOLDOUT_P90_FALSE_POSITIVE_RATE,
+        ge=0,
+        le=1,
+        description="Maximum ninetieth-percentile false-positive rate across synthetic populations.",
+    )
+    minimum_holdout_p10_worst_disparate_impact: float = Field(
+        default=GATE_MIN_HOLDOUT_P10_WORST_DI,
+        ge=0,
+        le=1,
+        description="Minimum tenth-percentile worst disparate impact across populations.",
+    )
+    minimum_holdout_four_fifths_pass_rate: float = Field(
+        default=GATE_MIN_HOLDOUT_FOUR_FIFTHS_PASS_RATE,
+        ge=0,
+        le=1,
+        description="Minimum population share passing the four-fifths rule on all primary attributes.",
     )
     maximum_certificate_regression: int = Field(default=0, ge=0, le=100)
     maximum_resilience_regression: int = Field(default=0, ge=0, le=100)

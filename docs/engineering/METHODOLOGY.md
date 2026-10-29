@@ -281,6 +281,46 @@ accuracy and an 8.6-point higher false-positive rate. These are generated
 populations from one known process, not independent real-world evidence. Results
 must not be generalized to actual applicants or employers.
 
+### Frozen stress holdout, uncertainty, and diagnostics (29 October 2026)
+
+The release gate now evaluates more than the demo fixture. The command
+`python -m chaoshire train --robust-holdout` keeps the 50 baseline holdouts (seeds 51–100) and adds
+five evaluation-only scenarios with ten populations each (seeds 101–110):
+group-size imbalance, label base-rate shift, 8% label noise, stronger protected-
+attribute/proxy correlations, and community-specific merit-feature shift. These
+scenarios are not used for training or policy selection. The gate reports results
+by scenario as well as over all 100 populations.
+
+At the fixed global 0.5 platform-score cutoff, TalentFit v4's combined synthetic
+holdout mean accuracy is **81.29%** (95% population-bootstrap interval
+80.73–81.86%, p10 78.20%); mean recall is **96.21%** (95.62–96.72%, p10
+90.98%); mean false-positive rate is **28.72%** (27.68–29.68%, p90 33.83%);
+mean worst disparate impact is **0.7979** (0.7761–0.8191, p10 0.6497); and
+**63%** of populations pass the four-fifths check on all three primary
+attributes (bootstrap interval 54–72%). The intervals describe variation across
+these generated populations, not uncertainty about real employers or applicants.
+The merit-feature shift scenario has high accuracy but 0% four-fifths passes and
+p10 worst DI 0.4742, demonstrating why aggregate averages alone are insufficient.
+
+The default population guardrails are explicit: mean accuracy ≥0.78, p10 accuracy
+≥0.70, mean recall ≥0.90, p10 recall ≥0.80, mean FPR ≤0.40, p90 FPR ≤0.50,
+p10 worst-DI ≥0.55, and four-fifths pass rate ≥0.25. Operators can set these
+limits independently through the API, CLI, or gate panel. They are synthetic
+demo limits, not recommendations or production-readiness thresholds.
+
+The same study reports global score-cutoff sensitivity at 0.45, 0.475, 0.50,
+0.525, and 0.55, applying each threshold uniformly to every candidate and group.
+Lower thresholds raise recall and FPR; higher thresholds reduce FPR and recall,
+with fairness metrics also moving. `train --calibration-study` separately reports
+raw logistic-probability Brier/ECE diagnostics and subgroup uncertainty; those
+subgroup results are diagnostics only and never set thresholds. The runtime
+platform score is affine and is not itself a calibrated probability. The policy
+study also reports a Pareto frontier across worst DI, accuracy, recall, and FPR,
+and accepts optional maximum-FPR/minimum-recall constraints before selection.
+See the [TalentFit v4 model card](../operations/MODEL-CARD-TALENTFIT-V4.md)
+for scenario tables, intervals, calibration results, the exact artifact digest,
+known failure modes, intended use, and human-review requirements.
+
 **Proxies.** The original v3 was offered college prestige and career gap. The
 label never uses them, so they received near-zero weight (+0.012 and +0.030,
 the positive gap weight a chance correlation) and zeroing them changed 23
