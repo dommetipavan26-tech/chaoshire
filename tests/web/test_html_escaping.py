@@ -68,6 +68,7 @@ REVIEWED_PRESENTATIONAL_INTERPOLATIONS = {
         "a.certificate.grade==='F'?'bad':'warn'",
         "at.statistical_test.significant_at_0_05?'bad':'ok'",
         "bias?'badbar':''",
+        "chartToneClass(r.tone)",
         "c.grade==='A'||c.grade==='B'?'ok':c.grade==='F'?'bad':'warn'",
         "c.passed?'ok':'bad'",
         "fullBasis?'ok':'warn'",

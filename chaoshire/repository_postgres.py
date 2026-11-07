@@ -93,10 +93,12 @@ def initialise_database() -> None:
                     certificate_grade TEXT NOT NULL,
                     protected_attributes TEXT NOT NULL,
                     configuration_json TEXT NOT NULL,
-                    result_json TEXT NOT NULL
+                    result_json TEXT NOT NULL,
+                    access_token_hash TEXT
                 )
                 """
             )
+            cursor.execute("ALTER TABLE audit_runs ADD COLUMN IF NOT EXISTS access_token_hash TEXT")
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_audit_runs_created_at "
                 "ON audit_runs(created_at DESC)"
@@ -108,6 +110,7 @@ def save_audit(
     name: str,
     configuration: dict[str, Any],
     source: str = "uploaded_csv",
+    access_token_hash: str | None = None,
 ) -> str:
     """Persist aggregate results and return a stable public audit ID."""
     initialise_database()
@@ -126,8 +129,8 @@ def save_audit(
                 INSERT INTO audit_runs (
                     id, name, created_at, source, row_count, accepted_count,
                     certificate_score, certificate_grade, protected_attributes,
-                    configuration_json, result_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    configuration_json, result_json, access_token_hash
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     audit_id,
@@ -141,6 +144,7 @@ def save_audit(
                     json.dumps(configuration["protected_attributes"]),
                     json.dumps(configuration, ensure_ascii=False),
                     json.dumps(result, ensure_ascii=False),
+                    access_token_hash,
                 ),
             )
     return audit_id
@@ -172,6 +176,7 @@ def list_audits(limit: int = 50) -> list[dict[str, Any]]:
             "accepted": row[5],
             "certificate": {"total": row[6], "grade": row[7]},
             "protected_attributes": json.loads(row[8]),
+            "access_required": True,
         }
         for row in rows
     ]
@@ -184,3 +189,13 @@ def get_audit(audit_id: str) -> dict[str, Any] | None:
             cursor.execute("SELECT result_json FROM audit_runs WHERE id = %s", (audit_id,))
             row = cursor.fetchone()
     return json.loads(row[0]) if row else None
+
+
+def audit_access_digest(audit_id: str) -> str | None:
+    """Stored token digest for one audit, or ``None`` when unset/missing."""
+    initialise_database()
+    with connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT access_token_hash FROM audit_runs WHERE id = %s", (audit_id,))
+            row = cursor.fetchone()
+    return str(row[0]) if row and row[0] else None

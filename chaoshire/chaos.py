@@ -18,6 +18,7 @@ from .models import MODEL_META, Coefficients, get_model, score
 DEFAULT_THRESHOLDS = {
     "gender_swap": {"warn": 0.01, "fail": 0.05},
     "ethnicity_swap": {"warn": 0.01, "fail": 0.05},
+    "intersectional_swap": {"warn": 0.01, "fail": 0.05},
     "adversarial": {"warn": 0.05, "fail": 0.20},
     "gap_stress": {"warn": 0.05, "fail": 0.15},
     "age_stress": {"warn": 0.05, "fail": 0.15},
@@ -138,6 +139,34 @@ def community_swap_experiment(coefficients: Coefficients, _limit: int) -> Observ
         flips / len(DEMO_DATA),
         f"{flips} ({flips / len(DEMO_DATA):.1%})",
         f"Minority→Majority avg score change: {delta:+.4f}",
+        _decision_evidence(DEMO_DATA, baseline, changed_scores, changed),
+    )
+
+
+def intersectional_swap_experiment(coefficients: Coefficients, _limit: int) -> Observation:
+    """Swap gender *and* community markers together on every candidate.
+
+    Single-attribute swaps can each look small while their combination —
+    the situation of a candidate who is, say, both female and from a
+    penalised community — flips far more decisions. This experiment applies
+    both published mappings at once and counts the combined flips; it does
+    not attribute the flips between the two signals.
+    """
+    baseline = score(DEMO_DATA, coefficients)
+    transformed = DEMO_DATA.copy()
+    transformed["gender"] = transformed["gender"].replace({"M": "F", "F": "M", "NB": "M"})
+    transformed["ethnicity"] = transformed["ethnicity"].replace(
+        {"G1": "G3", "G3": "G1", "G2": "G1"}
+    )
+    changed_scores = score(transformed, coefficients)
+    changed = (changed_scores >= DECISION_THRESHOLD) != (baseline >= DECISION_THRESHOLD)
+    flips = int(changed.sum())
+    combined_mask = ((DEMO_DATA["gender"] == "F") & (DEMO_DATA["ethnicity"] == "G3")).to_numpy()
+    delta = round4((changed_scores - baseline)[combined_mask].mean())
+    return Observation(
+        flips / len(DEMO_DATA),
+        f"{flips} ({flips / len(DEMO_DATA):.1%})",
+        f"Avg score change for Female + Community C candidates: {delta:+.4f}",
         _decision_evidence(DEMO_DATA, baseline, changed_scores, changed),
     )
 
@@ -332,6 +361,23 @@ CHAOS_TESTS = [
         "Decisions flipped",
         community_swap_experiment,
         construction_check=_no_weight_check(("eth_G2", "eth_G3"), "community signals"),
+    ),
+    ChaosTest(
+        "intersectional_swap",
+        "Intersectional Gender × Community Swap",
+        (
+            "Gender and community markers are swapped together (the gender-swap "
+            "and community-swap mappings applied at once) and the same rows are "
+            "re-scored. The rate counts decisions that cross the accept threshold "
+            "when both identity signals change, which single-attribute swaps "
+            "cannot observe."
+        ),
+        "Decisions flipped",
+        intersectional_swap_experiment,
+        construction_check=_no_weight_check(
+            ("gender_M", "gender_NB", "eth_G2", "eth_G3"),
+            "gender and community markers",
+        ),
     ),
     ChaosTest(
         "adversarial",

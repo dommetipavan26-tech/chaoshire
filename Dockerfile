@@ -1,5 +1,17 @@
 FROM python:3.12-slim
 
+# Apply Debian security updates the published base image does not carry yet.
+# The base image is rebuilt on Docker Hub's schedule, not Debian's, so a fix
+# released after the last base rebuild (e.g. apt 3.0.3 -> 3.0.4 for
+# CVE-2026-109518, libpcre2 10.46-1deb13u3 for CVE-2026-103111) would
+# otherwise ship in this image and fail the Trivy CRITICAL,HIGH gate in
+# .github/workflows/security.yml. Upgrading the packages already installed
+# (nothing new, package lists removed) makes every build carry the Debian
+# fixes available at build time.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8000

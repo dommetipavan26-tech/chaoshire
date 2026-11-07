@@ -21,10 +21,10 @@ from .models import MODEL_META
 VERSION = __version__
 
 #: Verified by ``scripts/check_build_info.py`` against a real pytest run.
-AUTOMATED_TESTS = 513
+AUTOMATED_TESTS = 528
 
 #: Verified by ``scripts/check_build_info.py`` against a real coverage report.
-PACKAGE_COVERAGE = "96.6%"
+PACKAGE_COVERAGE = "96.3%"
 
 #: Derived: cannot drift.
 SERVICE_WORKER_CACHE = f"chaoshire-v{VERSION.replace('.', '')}"

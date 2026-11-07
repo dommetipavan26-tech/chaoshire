@@ -57,6 +57,9 @@ def test_schema_and_index_are_idempotent_and_isolated(postgres_schema):
             "protected_attributes",
             "configuration_json",
             "result_json",
+            # Per-audit access token digest (chaoshire.audit_access); the
+            # token itself is never stored.
+            "access_token_hash",
         }
         cursor.execute("SELECT indexname FROM pg_indexes WHERE schemaname=%s", (schema,))
         assert "idx_audit_runs_created_at" in {row[0] for row in cursor.fetchall()}
@@ -124,8 +127,11 @@ def test_new_connection_sees_published_history_and_api_readiness(postgres_schema
     with TestClient(app) as client:
         assert client.get("/api/ready").status_code == 200
         assert client.get("/api/meta").json()["build"]["repository_backend"] == "postgres"
-        assert client.get(f"/api/audits/{identifier}").json()["audit_id"] == identifier
+        # Audit detail is access-controlled: anonymous reads are refused and
+        # the operator (this record has no token) reads it.
+        assert client.get(f"/api/audits/{identifier}").status_code == 401
         assert client.get("/api/audits").json()["audits"][0]["audit_id"] == identifier
+    assert operator_client().get(f"/api/audits/{identifier}").json()["audit_id"] == identifier
     assert repo.get_audit(identifier) is not None
 
 

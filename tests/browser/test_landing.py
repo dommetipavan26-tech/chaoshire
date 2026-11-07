@@ -130,7 +130,7 @@ def test_landing_ctas_mobile_layout_and_keyboard_navigation() -> None:
         expect(page.locator("#home-score")).to_have_text("32 / F")
         expect(page.locator("#home-gender")).to_have_text("169")
         expect(page.locator("#home-community")).to_have_text("111")
-        expect(page.locator("#home-resilience")).to_have_text("30")
+        expect(page.locator("#home-resilience")).to_have_text("25")
 
         page.get_by_role("button", name="Measure", exact=True).click()
         page.get_by_role("button", name="Fairness Dashboard", exact=True).click()

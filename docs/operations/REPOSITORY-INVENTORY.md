@@ -21,6 +21,7 @@ Files checked: **155**.
 | `chaoshire/adapters.py` | Pluggable model and decision-source adapter contracts. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `chaoshire/agent.py` | Deterministic, evidence-grounded fairness review. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `chaoshire/app.py` | FastAPI route layer for ChaosHire. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
+| `chaoshire/audit_access.py` | Per-audit access tokens for published audits: issue, hash, and verify (digest-only storage). | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `chaoshire/build_info.py` | Single source of truth for the build facts the landing page and README quote. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `chaoshire/chaos.py` | Reusable controlled-experiment framework for hiring-model chaos tests. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |
 | `chaoshire/cli.py` | Command-line tools for CI/CD fairness gates and report generation. | UTF-8/nonempty; limited secret-signature scan; Python AST | PASS |

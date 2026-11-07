@@ -413,3 +413,30 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass);box-shadow:0 0
   .proof .card:nth-child(4){border-bottom-right-radius:12px}
 }
 @media(prefers-reduced-motion:reduce){.btn,.mbtn,nav button,.card,.btn::after,.mbtn::after,nav button::after{transition:none}.btn:hover,.mbtn:hover,.card:hover,.btn:active,.mbtn:active,nav button:active{transform:none}}
+
+/* ---------- interactive charts (inline SVG, no dependencies) ---------- */
+.chart-card{margin-top:14px}
+.chart-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.chart-control-label{font-size:14px;color:var(--dim)}
+.chart-select{width:auto;min-width:180px}
+.chart-toggle{display:flex;gap:6px;flex-wrap:wrap}
+.chart-toggle-btn.on{border-color:var(--brass);color:var(--brass)}
+.chart-svg{width:100%;height:auto;display:block}
+.chart-grid{stroke:var(--line);stroke-width:1}
+.chart-track{fill:var(--card2)}
+.chart-bar.ok{fill:var(--brass)}
+.chart-bar.bad{fill:var(--rose)}
+.chart-bar.warn{fill:var(--amber)}
+.chart-bar.na{fill:var(--line)}
+.chart-label{fill:var(--dim);font:13px var(--sans)}
+.chart-axis{fill:var(--dim);font:11px var(--sans)}
+.chart-value{fill:var(--txt);font:13px var(--sans);font-variant-numeric:tabular-nums}
+.chart-svg g:focus{outline:2px solid var(--brass);outline-offset:2px}
+.chart-table{margin-top:10px}
+.chart-table summary{cursor:pointer;color:var(--dim);font-size:13.5px}
+.chart-block{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.chart-block-title{font-size:18px}
+.history-token-row{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:12px}
+.history-token-row label{font-size:13.5px;color:var(--dim);display:block;margin-bottom:4px}
+.history-token-row input{min-width:min(320px,100%)}
+.audit-token-note{overflow-wrap:anywhere}

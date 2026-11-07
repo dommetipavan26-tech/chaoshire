@@ -61,6 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # So the SARIF copy of the scan below can reach code scanning, where
+      # findings stay triageable after the job log expires.
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build the runtime image
@@ -75,6 +78,26 @@ jobs:
           severity: CRITICAL,HIGH
           vuln-type: os,library
           ignore-unfixed: "true"
+      # Same scan, machine-readable: published to code scanning for triage.
+      # Never gates (exit-code 0); the table step above remains the gate.
+      - name: Scan again for code-scanning triage (SARIF)
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: chaoshire:security
+          version: v0.70.0
+          format: sarif
+          output: trivy-container-results.sarif
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+          vuln-type: os,library
+          ignore-unfixed: "true"
+      - name: Upload container scan results to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          sarif_file: trivy-container-results.sarif
+          category: trivy-container
 
   codeql:
     runs-on: ubuntu-latest
