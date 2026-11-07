@@ -128,9 +128,17 @@ Scores on the deterministic fixture: LegacyCorp `32/F`, MeritFirst `84/B`, previ
 - [x] Add a configurable 80% accuracy guard against the synthetic label to the API, CLI and release-gate UI; test a higher floor blocking v4.
 - [x] Update current model UI, browser/core assertions, README, changelog, methodology, case study and integration guide; preserve v3 as a named baseline.
 
+## Unreleased — top-5 updates
+
+- [x] Apply Dependabot PRs #90–#94 (pydantic 2.14.2, pytest 9.2.0, tzdata 2026.6, filelock 4.2.5, opentelemetry-api 1.45.2) onto the working branch; the open PRs are superseded and will close when this lands
+- [x] Per-audit access control (see Future engineering below)
+- [x] Sixth Chaos Lab experiment: intersectional gender × community swap (LegacyCorp 177 flips, resilience 30/100 → 25/100 over six tests)
+- [x] Interactive dependency-free SVG charts (fairness chart with attribute/metric controls + Chaos Lab rate chart, data-table twins)
+- [x] Refresh stale portfolio screenshots from the current source (`scripts/capture_portfolio.py`)
+
 ## Future engineering
 
-- [ ] Per-audit access control so published uploads are not world-readable
+- [x] Per-audit access control so published uploads are not world-readable (per-audit access token, digest-only storage; operator key or `X-Audit-Access-Token` required for `GET /api/audits/{id}` and the shared uploaded slot — `chaoshire/audit_access.py`)
 - [x] Move `style-src 'unsafe-inline'` out of the CSP by externalising the inline stylesheet (`chaoshire/static/chaoshire.css`, JS templates use `data-style=""` applied via CSSOM)
 - [ ] User accounts and auditor/reviewer roles
 - [x] Optional PostgreSQL repository behind env (`CHAOSHIRE_DB_BACKEND=postgres` + `CHAOSHIRE_DATABASE_URL`; SQLite stays default — `chaoshire/repository_postgres.py`)

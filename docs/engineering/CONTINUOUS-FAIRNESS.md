@@ -51,11 +51,24 @@ result therefore carries a model-dependent `by_construction` note (empty when th
 test can genuinely fail), and the suite reports `passes_by_construction` and a
 `resilience_scope` sentence. The Chaos Lab shows a **by construction** chip and
 scope note next to the badge. On the shipped fixtures, MeritFirst and TalentFit
-each have four such passes and LegacyCorp has none. Like the fixture-limited
+each have five such passes and LegacyCorp has none. Like the fixture-limited
 label, this changes no verdict and no resilience point. It stops a 100/100 score
 from being read as evidence of equal outcomes, which the fairness risk score
 measures separately (the original TalentFit v3 had 100/100 resilience and
 scored 66/C).
+
+## Intersectional swap
+
+The sixth experiment applies the gender-swap and community-swap mappings
+*together*. Single-attribute swaps cannot observe a penalty that only bites
+when both signals change, so the combined rate is reported separately rather
+than inferred from the two single rates. On the shipped fixture LegacyCorp
+flips 177 of 1,000 decisions (17.7%, FAIL) under the combined swap — more
+than under either swap alone — while MeritFirst and TalentFit pass by
+construction (neither reads gender or community markers). Adding this FAIL
+to the mean moves LegacyCorp's published resilience from the historical
+five-test 30/100 to 25/100 over six tests; no coefficient or threshold was
+tuned to produce that change.
 
 ## Candidate-level evidence
 

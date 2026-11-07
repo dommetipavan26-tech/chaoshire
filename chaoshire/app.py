@@ -56,6 +56,7 @@ from .platform import (
     process_worker_count,
     public_write_posture,
     rate_limit_per_minute,
+    require_audit_access,
     require_operator,
     require_private_data_access,
     require_write_access,
@@ -559,10 +560,11 @@ def demo_story() -> dict:
 @app.get("/api/audit", tags=["audit"])
 def api_audit(model: ModelQuery, dataset: DatasetQuery, request: Request) -> Any:
     if dataset == "uploaded":
-        require_private_data_access(request)
         result = uploaded_audit()
         if "error" in result:
+            require_private_data_access(request)
             return JSONResponse(status_code=404, content=result)
+        _require_uploaded_access(request, result)
         ship_event(
             "audit.completed",
             {
@@ -724,12 +726,22 @@ def api_upload(
 @app.get("/api/audits", tags=["audit history"])
 def audit_history(request: Request, limit: int = 50) -> dict:
     require_private_data_access(request)
-    return {"audits": list_audits(limit)}
+    return {
+        "audits": list_audits(limit),
+        "access": {
+            "detail": (
+                "Listing shows metadata only. A saved audit's full record "
+                "requires the operator key or that audit's access token."
+            )
+        },
+    }
 
 
 @app.get("/api/audits/{audit_id}", tags=["audit history"])
 def audit_detail(audit_id: str, request: Request) -> dict:
-    require_private_data_access(request)
+    # Per-audit access control: the identifier alone no longer reads the
+    # record. Operator key or the audit's own token (issued at upload).
+    require_audit_access(request, audit_id)
     result = get_audit(audit_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Audit record not found.")
@@ -738,14 +750,29 @@ def audit_detail(audit_id: str, request: Request) -> dict:
 
 @app.get("/api/audit/export", response_class=JSONResponse, tags=["audit"])
 def export_uploaded_audit(request: Request) -> JSONResponse:
-    require_private_data_access(request)
     result = uploaded_audit()
     if "error" in result:
+        require_private_data_access(request)
         return JSONResponse(status_code=404, content=result)
+    _require_uploaded_access(request, result)
     return JSONResponse(
         content=result,
         headers={"Content-Disposition": "attachment; filename=chaoshire-audit.json"},
     )
+
+
+def _require_uploaded_access(request: Request, result: dict) -> None:
+    """Gate the shared ``dataset=uploaded`` slot by its audit's token.
+
+    The slot holds the latest published audit, so the token issued for that
+    audit (or the operator key) is required to read it back in any mode.
+    Records without an identifier fall back to the private-mode gate.
+    """
+    audit_id = result.get("audit_id")
+    if audit_id:
+        require_audit_access(request, str(audit_id))
+    else:
+        require_private_data_access(request)
 
 
 def _report_inputs(
@@ -753,10 +780,11 @@ def _report_inputs(
 ) -> tuple[dict, dict | None]:
     """Resolve report inputs; protect uploaded content in private mode."""
     if dataset == "uploaded":
-        require_private_data_access(request)
         result = uploaded_audit()
         if "error" in result:
+            require_private_data_access(request)
             raise HTTPException(status_code=404, detail=result["error"])
+        _require_uploaded_access(request, result)
         return result, None
     return audit(build_decisions(get_model(model))), run_chaos_suite(model, evidence_limit=0)
 

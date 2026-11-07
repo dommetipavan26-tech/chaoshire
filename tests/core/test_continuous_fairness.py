@@ -52,7 +52,7 @@ def test_model_comparison_reports_reviewed_deltas():
     assert response.status_code == 200
     result = response.json()
     assert result["delta"]["certificate"] == 52
-    assert result["delta"]["chaos_resilience"] == 70
+    assert result["delta"]["chaos_resilience"] == 75
     assert result["candidate"]["certificate"]["grade"] == "B"
 
 

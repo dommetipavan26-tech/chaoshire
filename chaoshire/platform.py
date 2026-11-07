@@ -610,6 +610,46 @@ def require_private_data_access(request: Request) -> None:
         require_operator(request.headers.get("x-api-key"))
 
 
+def is_operator_request(request: Request) -> bool:
+    """Whether the request carries the configured operator API key."""
+    configured = configured_api_key()
+    supplied = request.headers.get("x-api-key")
+    return bool(configured and supplied and api_key_matches(configured, supplied))
+
+
+def supplied_audit_access_token(request: Request) -> str | None:
+    """Per-audit token from the dedicated header or query parameter."""
+    from .audit_access import AUDIT_ACCESS_HEADER
+
+    return request.headers.get(AUDIT_ACCESS_HEADER) or request.query_params.get("access_token")
+
+
+def require_audit_access(request: Request, audit_id: str) -> None:
+    """Admit reading one published audit: operator key or its own token.
+
+    Published audits are no longer world-readable by identifier alone. The
+    operator key reads every audit; an audit access token (issued once, at
+    upload time) reads exactly that audit. This is a per-record bearer
+    capability, not an account or tenant boundary. Unknown identifiers get
+    the same 401 as unauthorised ones so the route cannot be used to probe
+    which audit IDs exist; an authorised caller still receives a 404.
+    """
+    if is_operator_request(request):
+        return
+    from .repository import verify_audit_access
+
+    if verify_audit_access(audit_id, supplied_audit_access_token(request)):
+        return
+    raise HTTPException(
+        status_code=401,
+        detail=(
+            "Reading a published audit requires the operator X-API-Key or the "
+            "audit's access token (X-Audit-Access-Token header or access_token "
+            "query parameter, issued once when the audit was uploaded)."
+        ),
+    )
+
+
 class RequestBodyLimitMiddleware:
     """Bound actual ASGI body bytes, even with no or misleading Content-Length.
 

@@ -29,15 +29,16 @@ def test_legacy_audit_contract():
     assert len(body["attributes"]) == 3
 
 
-def test_chaos_suite_has_five_tests_and_expected_resilience():
+def test_chaos_suite_has_six_tests_and_expected_resilience():
     response = client.get("/api/chaos", params={"model": "legacy"})
     assert response.status_code == 200
     body = response.json()
-    assert len(body["tests"]) == 5
-    assert body["resilience"] == 30
+    assert len(body["tests"]) == 6
+    assert body["resilience"] == 25
     assert {test["id"] for test in body["tests"]} == {
         "gender_swap",
         "ethnicity_swap",
+        "intersectional_swap",
         "adversarial",
         "gap_stress",
         "age_stress",

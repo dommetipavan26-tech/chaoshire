@@ -6,7 +6,7 @@
 
 > Netflix breaks its own servers to find weaknesses before customers do. ChaosHire applies the same idea to automated hiring decisions: stress the model safely before unfair behavior affects real candidates.
 
-> **Visual note:** screenshots retained under `docs/portfolio/assets/` are historical design captures and predate TalentFit v4; they are not current model evidence.
+> **Visual note:** the landing/dashboard screenshots under `docs/portfolio/assets/` were recaptured from the current source with `scripts/capture_portfolio.py` (TalentFit v4, six Chaos Lab experiments, 528 tests) and are current design captures; historical redesign before/after shots in the same folder remain historical.
 
 ChaosHire is an open-source fairness-auditing prototype for hiring models. It combines
 group-fairness metrics with controlled counterfactual experiments, candidate-level
@@ -20,6 +20,7 @@ decision change if only the candidate's identity changed?”**
 |---|---|---|
 | Gender-swap counterfactual | Change gender markers; leave qualifications unchanged | Direct or proxy gender influence |
 | Name/community swap | Change community signals; preserve the résumé | Name or community discrimination |
+| Intersectional swap | Change gender and community signals together | Combined penalties single-attribute swaps cannot observe |
 | Privilege-keyword injection | Weak, prestige-heavy synthetic résumés | Résumé gaming and class proxies |
 | Career-gap stress | Add a career gap to qualified selected candidates | Penalties affecting caregivers and returners |
 | Ageing stress | Re-submit selected younger candidates as 50+ | Hidden age penalties |
@@ -40,12 +41,13 @@ three selectable model variants (`legacy` and `fair` are hand-authored fixtures;
 
 | Model (API/CLI ID) | Purpose | Fairness risk | Chaos resilience |
 |---|---|---:|---:|
-| **LegacyCorp Screen v1** (`legacy`) | Intentionally biased test fixture | **32 / F** | **30 / 100** |
+| **LegacyCorp Screen v1** (`legacy`) | Intentionally biased test fixture | **32 / F** | **25 / 100** |
 | **MeritFirst v2** (`fair`) | Merit-based control fixture | **84 / B** | **100 / 100** |
 | **TalentFit v4 (trained)** (`trained`) | Merit-only logistic regression, fairness-prioritised global cutoff | **85 / B** | **100 / 100** |
 
 On the biased fixture, Chaos Lab reports 16.9% decision flips under gender swapping,
-11.1% under name/community swapping, 32.7% newly rejected under ageing stress, and 42
+11.1% under name/community swapping, 17.7% under the combined intersectional swap,
+32.7% newly rejected under ageing stress, and 42
 qualified candidates incorrectly rejected by LegacyCorp. TalentFit v4 excludes
 protected and proxy features and uses one global P(qualified) ≥ 1/4 cutoff. The 3:1
 false-rejection operating point was selected from a fixed grid on 49 synthetic tuning
@@ -76,7 +78,8 @@ All results are synthetic only, not findings about real employers or applicants.
   [42 U.S.C. § 2000e-2(l)](https://www.law.cornell.edu/uscode/text/42/2000e-2)) and is
   only available as a refused-by-default research contrast
 - Pluggable decision-adapter contract — audit CSV outcomes without exposing model
-  weights — plus named audit IDs and SQLite/PostgreSQL aggregate history
+  weights — plus named audit IDs, per-audit access tokens for published records,
+  and SQLite/PostgreSQL aggregate history
 - Model-version comparison and CI/CD fairness release gates over frozen synthetic
   baseline/stress populations, with bootstrap uncertainty, tail metrics, explicit
   accuracy/recall/FPR/four-fifths limits, Pareto and global-cutoff sensitivity reports;
@@ -141,7 +144,7 @@ python -m pytest -q
 
 GitHub Actions runs linting, type checking, the trained-model drift check, and the test
 suite on Python 3.11 and 3.12, with a separate browser workflow. The **current source
-baseline**, measured locally, contains **513 tests with 96.6% package coverage**; the
+baseline**, measured locally, contains **528 tests with 96.3% package coverage**; the
 quality gate requires a 90% minimum and the tagged release may lag this revision.
 `chaoshire/build_info.py` is the single source of truth for every number this README
 quotes, and `scripts/check_build_info.py` re-derives the test and coverage figures from

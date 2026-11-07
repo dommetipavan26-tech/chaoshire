@@ -1,5 +1,5 @@
 // ChaosHire dashboard behavior. Served as a content-versioned, same-origin asset.
-let META=null, MODEL='legacy', LAST_UPLOAD=null;
+let META=null, MODEL='legacy', LAST_UPLOAD=null, LAST_AUDIT_TOKEN=null;
 const $=s=>document.querySelector(s);
 const jget=async(u)=>{let err;for(let i=0;i<4;i++){try{const r=await fetch(u);if(r.ok)return r.json();
   // A 4xx is the server explaining itself, not a transient failure: return the
@@ -10,6 +10,7 @@ const jget=async(u)=>{let err;for(let i=0;i<4;i++){try{const r=await fetch(u);if
 const jpost=async(u,b)=>{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});try{return await r.json();}catch(_){return {error:'HTTP '+r.status};}};
 // One place that turns any FastAPI/pydantic/service error shape into a string.
 const problemOf=r=>r&&(r.error||(r.detail?(typeof r.detail==='string'?r.detail:Array.isArray(r.detail)?r.detail.map(d=>d.msg||JSON.stringify(d)).join('; '):JSON.stringify(r.detail)):null));
+const jgetToken=async(u,token)=>{const r=await fetch(u,{headers:token?{'X-Audit-Access-Token':token}:{}});try{return await r.json();}catch(_){return {error:'HTTP '+r.status};}};
 const pc=x=>(x*100).toFixed(1)+'%';
 const pval=x=>x<.0001?'p < 0.0001':`p = ${Number(x).toFixed(4)}`;
 // Escapes the five characters that matter in BOTH text and attribute contexts.
@@ -141,7 +142,7 @@ $('#tab-welcome').addEventListener('click',e=>{if(e.target.id==='startdemo')show
 // Deterministic fixture results, mirrored by tests/core/test_metrics.py and
 // tests/core/test_trained_model.py. If these drift, the tests fail first.
 const HOME_MODELS={
-  legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',role:'Biased vendor screen',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:30,
+  legacy:{name:'LegacyCorp',score:'32 / F',grade:'F',role:'Biased vendor screen',gender:169,genderWidth:84.5,community:111,communityWidth:55.5,resilience:25,
     finding:'Marked female, LegacyCorp scores her 0.485 and rejects her. The same resume marked male scores 0.530 and is accepted. The cutoff is 0.5. This happens 169 times in 1,000 decisions.'},
   fair:{name:'MeritFirst',score:'84 / B',grade:'B',role:'Skills-only reference',gender:0,genderWidth:0,community:0,communityWidth:0,resilience:100,
     finding:'The same resume does not flip under MeritFirst. Gender flips: 0. Community flips: 0. Resilience 100. Fairness risk score 84 / B. Skills-only scoring removes this particular failure. It is a reference, not a claim that hiring is solved.'},
@@ -168,6 +169,59 @@ function renderModelSel(){
 $('#modelsel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;MODEL=b.dataset.m;renderModelSel();renderHomeModel();
   loadOverview();$('#tab-chaos').innerHTML=chaosIntro();$('#tab-filtered').innerHTML='<p class="dim">Open this tab to load…</p>';$('#tab-mitigations').innerHTML=mitHTML();});
 
+
+/* ---------------- INTERACTIVE CHARTS ---------------- */
+// Dependency-free inline-SVG charts. Every bar carries a <title> tooltip and
+// an aria-label, the controls are native buttons/selects, and a data-table
+// <details> twin ships next to each chart so the numbers never exist only as
+// pixels. Colours come from CSS classes (CSP forbids inline style attributes;
+// chart fills use presentation classes in chaoshire.css).
+const chartToneClass=tone=>({ok:'ok',bad:'bad',warn:'warn',na:'na'}[tone]||'ok');
+function barChartSVG(rows,scaleMax){
+  const W=680,labelX=170,plotW=430,valueX=612,rowH=30,top=8;
+  const H=top+rows.length*rowH+22;
+  const ticks=[0,0.25,0.5,0.75,1].map(v=>({v,x:labelX+plotW*v}));
+  let out=`<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Bar chart. Each bar has a text tooltip and the same values are in the data table below.">`;
+  for(const tk of ticks){
+    out+=`<line class="chart-grid" x1="${tk.x}" y1="${top}" x2="${tk.x}" y2="${H-18}"></line><text class="chart-axis" x="${tk.x}" y="${H-4}" text-anchor="middle">${Math.round(tk.v*100)}%</text>`;
+  }
+  rows.forEach((r,i)=>{
+    const y=top+i*rowH;
+    const w=r.value===null?0:Math.max(0,Math.min(1,r.value/scaleMax))*plotW;
+    out+=`<g tabindex="0" role="img"><title>${esc(r.label)}: ${esc(r.display)}</title>`
+      +`<text class="chart-label" x="${labelX-8}" y="${y+17}" text-anchor="end">${esc(r.label.length>22?r.label.slice(0,21)+'…':r.label)}</text>`
+      +`<rect class="chart-track" x="${labelX}" y="${y+5}" width="${plotW}" height="14"></rect>`
+      +(r.value===null?`<text class="chart-axis" x="${labelX+6}" y="${y+17}">n/a</text>`:`<rect class="chart-bar ${chartToneClass(r.tone)}" x="${labelX}" y="${y+5}" width="${w.toFixed(1)}" height="14"></rect>`)
+      +`<text class="chart-value" x="${valueX}" y="${y+17}">${esc(r.display)}</text></g>`;
+  });
+  return out+'</svg>';
+}
+function chartDataTable(rows,metricLabel){
+  return `<details class="chart-table"><summary>Chart data (${esc(metricLabel)})</summary><table><tr><th>Group</th><th>${esc(metricLabel)}</th><th>n</th></tr>${rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${esc(r.display)}</td><td>${esc(r.n??'')}</td></tr>`).join('')}</table></details>`;
+}
+let CHART_STATE={attribute:null,metric:'selection_rate'},LAST_AUDIT=null;
+function renderFairnessChart(){
+  const host=$('#fairness-chart');if(!host||!LAST_AUDIT)return;
+  const at=LAST_AUDIT.attributes.find(x=>x.attribute===CHART_STATE.attribute)||LAST_AUDIT.attributes[0];
+  if(!at){host.innerHTML='';return;}
+  CHART_STATE.attribute=at.attribute;
+  const metric=CHART_STATE.metric;
+  const rows=at.groups.map(g=>({
+    label:glabel(at.attribute,g.group),
+    value:metric==='selection_rate'?g.selection_rate:g.tpr,
+    display:metric==='selection_rate'?pc(g.selection_rate):(g.tpr===null?'n/a':pc(g.tpr)),
+    n:g.n,
+    tone:(metric==='selection_rate'?g.selection_rate:g.tpr)===null?'na':((metric==='selection_rate'?g.selection_rate:g.tpr)>=0.8*(Math.max(...at.groups.map(x=>(metric==='selection_rate'?x.selection_rate:x.tpr)||0)))?'ok':'bad')
+  }));
+  const metricLabel=metric==='selection_rate'?'Selection rate':'True-positive rate';
+  host.innerHTML=barChartSVG(rows,1)
+    +`<div class="dim">Disparate impact for ${esc(attrTitle[at.attribute]||at.attribute)}: <b>${esc(at.disparate_impact)}</b> (four-fifths threshold 0.80). Bars are cream at or above 80% of the highest group rate, clay below it.</div>`
+    +chartDataTable(rows,metricLabel);
+  document.querySelectorAll('[data-chart-metric]').forEach(b=>{
+    const on=b.dataset.chartMetric===metric;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+  const sel=$('#chart-attribute');if(sel)sel.value=at.attribute;
+}
+
 /* ---------------- OVERVIEW ---------------- */
 async function loadOverview(dataset='demo'){
   // An unauthenticated upload is returned to the uploader and never published to
@@ -175,6 +229,7 @@ async function loadOverview(dataset='demo'){
   const a=(dataset==='uploaded'&&LAST_UPLOAD)?LAST_UPLOAD:await jget(`/api/audit?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}`);
   const s=$('#tab-overview');
   if(a.error){s.innerHTML=`<div class="err">${esc(a.error)}</div>`;return;}
+  LAST_AUDIT=a;
   const c=a.certificate, col=gradeColor(c.grade), assessable=c.assessable!==false;
   const fullBasis=c.comparable_with_full_basis!==false;
   const ring=`<div class="grade-ring">
@@ -194,6 +249,13 @@ async function loadOverview(dataset='demo'){
     <div class="card flex-card score-card">${ring}
       <div class="flex-col">${componentRows}
       <div class="dim score-basis">Fairness Risk Score · ${assessable?`${c.measured_points} of ${c.available_points} measurable points, normalised to ${c.scale||100}`:'not assessable'}</div>${basisChip}</div></div></div>`;
+  html+=`<div class="card card-mt chart-card"><h3>Fairness chart</h3>
+    <div class="chart-controls"><label class="chart-control-label" for="chart-attribute">Attribute</label>
+    <select id="chart-attribute" class="chart-select">${a.attributes.map(at=>`<option value="${esc(at.attribute)}">${esc(attrTitle[at.attribute]||at.attribute)}</option>`).join('')}</select>
+    <div class="chart-toggle" role="group" aria-label="Chart metric">
+    <button type="button" class="btn ghost chart-toggle-btn" data-chart-metric="selection_rate" aria-pressed="true">Selection rate</button>
+    <button type="button" class="btn ghost chart-toggle-btn" data-chart-metric="tpr" aria-pressed="false">True-positive rate</button></div></div>
+    <div id="fairness-chart"></div></div>`;
   if(c.platform_disclosure){const d=c.platform_disclosure;
     html+=`<div class="card card-mt"><h3>Platform capabilities, disclosed, not scored</h3>
       <div class="dim row-mb">${esc(d.why_unscored)}</div>
@@ -236,6 +298,11 @@ async function loadOverview(dataset='demo'){
     `<div class="download-actions"><a class="btn ghost btn-link-first" href="/api/report.html?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-report.html">Download HTML report</a><a class="btn ghost btn-link-first" href="/api/report.pdf?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-report.pdf">Download PDF</a><a class="btn ghost btn-link-first" href="/api/evidence?model=${encodeURIComponent(MODEL)}&dataset=${encodeURIComponent(dataset)}" download="chaoshire-evidence.json">Download verified evidence</a></div>`;
   s.innerHTML=html;
   applyDataStyles(s);
+  CHART_STATE={attribute:a.attributes[0]?.attribute||null,metric:'selection_rate'};
+  renderFairnessChart();
+  const chartSel=s.querySelector('#chart-attribute');
+  if(chartSel)chartSel.addEventListener('change',()=>{CHART_STATE.attribute=chartSel.value;renderFairnessChart();});
+  s.querySelectorAll('[data-chart-metric]').forEach(b=>b.addEventListener('click',()=>{CHART_STATE.metric=b.dataset.chartMetric;renderFairnessChart();}));
   if(localUpload)s.querySelector('#download-local-audit').addEventListener('click',()=>{
     const url=URL.createObjectURL(new Blob([JSON.stringify(a,null,2)],{type:'application/json'}));
     const link=document.createElement('a');link.href=url;link.download='chaoshire-audit.json';
@@ -258,7 +325,8 @@ $('#tab-chaos').addEventListener('click',async e=>{
   const rcol=r.resilience>=80?'var(--green)':r.resilience>=50?'var(--amber)':'var(--rose)';
   let html=`<div class="card" data-style="background:var(--card2)"><div class="grow"><span class="lbl lbl-auto-nw">Chaos Resilience Score</span>
     <div class="bar"><i data-style="width:${r.resilience}%;background:${rcol}"></i></div><b data-style="color:${rcol}">${r.resilience}/100</b></div>
-    <div class="dim">Model under test: ${esc(r.model.title)}</div>${r.resilience_scope?`<div class="dim scope-note"><b>What this score can show:</b> ${esc(r.resilience_scope)}</div>`:''}</div><div class="grid g2 row-mt-lg">`;
+    <div class="dim">Model under test: ${esc(r.model.title)}</div>${r.resilience_scope?`<div class="dim scope-note"><b>What this score can show:</b> ${esc(r.resilience_scope)}</div>`:''}
+    <div class="chart-block"><h3 class="chart-block-title">Observed rate by experiment</h3><div id="chaos-chart"></div></div></div><div class="grid g2 row-mt-lg">`;
   for(const t of r.tests){
     html+=`<div class="card"><div class="flex-row-between">
       <h3>${esc(t.name)}</h3><div>${vChip(t.verdict)}${t.fixture_limit?'<span class="chip warn chip-fl">fixture-limited</span>':''}${t.by_construction?'<span class="chip warn chip-fl">by construction</span>':''}</div></div>
@@ -271,6 +339,12 @@ $('#tab-chaos').addEventListener('click',async e=>{
   }
   $('#chaosout').innerHTML=html+'</div>';
   applyDataStyles($('#chaosout'));
+  const chaosHost=$('#chaos-chart');
+  if(chaosHost){
+    const rows=r.tests.map(x=>({label:x.name,value:x.rate,display:x.value,n:'',tone:x.verdict==='PASS'?'ok':x.verdict==='WARN'?'warn':'bad'}));
+    const scale=Math.max(0.4,...r.tests.map(x=>x.rate));
+    chaosHost.innerHTML=barChartSVG(rows,scale)+`<div class="dim">Hover or focus a bar for its exact result. Verdict thresholds differ per experiment and are listed on each card below.</div>`+chartDataTable(rows,'Observed rate');
+  }
 });
 
 /* ---------------- FILTERED ---------------- */
@@ -475,10 +549,11 @@ $('#tab-upload').addEventListener('click',async e=>{
     const problem=problemOf(r);
     const warns=(r.warnings||[]).map(w=>`<div class="dim warn-line">${WARN} ${esc(w)}</div>`).join('');
     if(!problem&&r.audit)LAST_UPLOAD=r.audit;
+    if(!problem&&r.audit_access_token)LAST_AUDIT_TOKEN=r.audit_access_token;
     $('#upout').innerHTML=problem?`<div class="err">${esc(problem)}</div>${r.available_columns?`<div class="dim" data-style="margin-top:6px">Available columns: ${r.available_columns.map(esc).join(', ')}</div>`:''}`:
       `<div class="chip ${r.published?'ok':'warn'}">${r.published?'Published to the shared audit history':'Audited, not published'}</div>
        <div data-style="margin-top:7px"><b>${esc(r.audit_name)}</b><br><span class="dim">${r.audit_id?`Audit ID: ${esc(r.audit_id)} · `:''}attributes: ${r.attributes_found.map(esc).join(', ')} · ground truth: ${r.has_ground_truth?'yes':'no (equal-opportunity will be n/a)'} · ${esc(r.rows)} rows</span></div>
-       <div class="dim" data-style="margin-top:5px">${esc(r.publishing_note||'')}</div>${warns}
+       <div class="dim" data-style="margin-top:5px">${esc(r.publishing_note||'')}</div>${r.audit_access_token?`<div class="dim audit-token-note" data-style="margin-top:5px">Audit access token (shown once — save it to re-open this audit): <code>${esc(r.audit_access_token)}</code></div>`:''}${warns}
        <div data-style="margin-top:12px"><button class="btn" id="viewup">View audit →</button>
        ${r.published?'<a class="btn ghost btn-link" href="/api/audit/export" download="chaoshire-audit.json">Download JSON report</a>':''}</div>`;
     applyDataStyles($('#upout'));
@@ -495,15 +570,20 @@ async function loadHistory(){
   const s=$('#tab-history');
   s.innerHTML='<div class="card"><h3>Audit history</h3><p class="dim">Loading aggregate evidence…</p></div>';
   const r=await jget('/api/audits');
+  if(!r.audits){s.innerHTML=`<div class="card"><h3>Audit history</h3><div class="err">${esc(problemOf(r)||'Audit history is unavailable.')}</div></div>`;return;}
   if(!r.audits.length){s.innerHTML=`<div class="card"><h3>Audit history</h3><p class="dim">No saved audits yet. Upload a synthetic decision CSV to create the first record.</p></div>`;return;}
   s.innerHTML=`<div class="card"><div class="history-head"><div><h3>Saved aggregate audits</h3><p class="dim">Raw applicant rows are never written to this history database.</p></div><button class="btn ghost" id="refreshhistory">Refresh</button></div>
+   <div class="history-token-row"><div><label for="history-token">Audit access token (needed to view a saved audit unless this browser holds the operator key)</label><input id="history-token" type="password" autocomplete="off" placeholder="Token issued when the audit was uploaded"></div></div>
+   <p class="dim row-mt-sm">${esc(r.access?.detail||'')}</p>
    <div class="history-overflow"><table><tr><th>Audit</th><th>Created</th><th>Rows</th><th>Attributes</th><th>Fairness risk score</th><th></th></tr>
    ${r.audits.map(a=>`<tr><td><b>${esc(a.name)}</b><br><span class="dim">${esc(a.audit_id)}</span></td><td>${new Date(a.created_at).toLocaleString()}</td><td>${a.candidates}</td><td>${a.protected_attributes.map(esc).join(', ')}</td><td><span class="chip ${a.certificate.grade==='A'||a.certificate.grade==='B'?'ok':a.certificate.grade==='F'?'bad':'warn'}">${esc(a.certificate.total)} / ${esc(a.certificate.grade)}</span>${a.certificate.basis&&a.certificate.basis!=='full'?` <span class="chip warn" title="Scored without ground-truth qualification labels; not comparable with a full-basis score.">selection-rate basis</span>`:''}</td><td><button class="btn ghost history-view" data-audit="${esc(a.audit_id)}">View</button></td></tr>`).join('')}</table></div></div><div id="historydetail" class="history-detail"></div>`;
 }
 $('#tab-history').addEventListener('click',async e=>{
   if(e.target.id==='refreshhistory'){loadHistory();return;}
   const b=e.target.closest('.history-view');if(!b)return;
-  const a=await jget('/api/audits/'+encodeURIComponent(b.dataset.audit));
+  const token=($('#history-token')?.value||'').trim()||LAST_AUDIT_TOKEN;
+  const a=await jgetToken('/api/audits/'+encodeURIComponent(b.dataset.audit),token);
+  if(a.error||a.detail){$('#historydetail').innerHTML=`<div class="err">${esc(problemOf(a))}</div>`;return;}
   const c=a.certificate;
   $('#historydetail').innerHTML=`<div class="card"><div class="history-detail-head"><div><h3>${esc(a.audit_name)}</h3><div class="dim">${esc(a.audit_id)} · ${new Date(a.created_at).toLocaleString()} · ${esc(a.source)}</div></div><span class="chip ${c.grade==='A'||c.grade==='B'?'ok':c.grade==='F'?'bad':'warn'} chip-xl">${esc(c.total)} / Grade ${esc(c.grade)}</span></div>
    ${c.basis_note?`<div class="dim row-mt-md">${esc(c.basis_note)}</div>`:''}

@@ -87,10 +87,19 @@ def initialise_database() -> None:
                 certificate_grade TEXT NOT NULL,
                 protected_attributes TEXT NOT NULL,
                 configuration_json TEXT NOT NULL,
-                result_json TEXT NOT NULL
+                result_json TEXT NOT NULL,
+                access_token_hash TEXT
             )
             """
         )
+        # Databases created before per-audit access tokens existed have no
+        # digest column; add it in place. Rows predating the feature keep a
+        # NULL digest and are readable by the operator only.
+        columns = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(audit_runs)").fetchall()
+        }
+        if "access_token_hash" not in columns:
+            connection.execute("ALTER TABLE audit_runs ADD COLUMN access_token_hash TEXT")
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_audit_runs_created_at ON audit_runs(created_at DESC)"
         )
@@ -101,12 +110,18 @@ def save_audit(
     name: str,
     configuration: dict[str, Any],
     source: str = "uploaded_csv",
+    access_token_hash: str | None = None,
 ) -> str:
-    """Persist aggregate results and return a stable public audit ID."""
+    """Persist aggregate results and return a stable public audit ID.
+
+    ``access_token_hash`` is the SHA-256 digest of the audit's per-record
+    access token (see :mod:`chaoshire.audit_access`); the token itself is
+    never stored. ``None`` leaves the record operator-only.
+    """
     if _postgres_active():
         from .repository_postgres import save_audit as _pg_save
 
-        return _pg_save(result, name, configuration, source)
+        return _pg_save(result, name, configuration, source, access_token_hash=access_token_hash)
     initialise_database()
     audit_id = f"AUD-{uuid4().hex[:12].upper()}"
     created_at = datetime.now(UTC).isoformat()
@@ -122,8 +137,8 @@ def save_audit(
             INSERT INTO audit_runs (
                 id, name, created_at, source, row_count, accepted_count,
                 certificate_score, certificate_grade, protected_attributes,
-                configuration_json, result_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                configuration_json, result_json, access_token_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 audit_id,
@@ -137,6 +152,7 @@ def save_audit(
                 json.dumps(configuration["protected_attributes"]),
                 json.dumps(configuration, ensure_ascii=False),
                 json.dumps(result, ensure_ascii=False),
+                access_token_hash,
             ),
         )
     return audit_id
@@ -173,6 +189,9 @@ def list_audits(limit: int = 50) -> list[dict[str, Any]]:
                 "grade": row["certificate_grade"],
             },
             "protected_attributes": json.loads(row["protected_attributes"]),
+            # Metadata only: the detail record requires the operator key or
+            # this audit's access token (see chaoshire.audit_access).
+            "access_required": True,
         }
         for row in rows
     ]
@@ -189,3 +208,24 @@ def get_audit(audit_id: str) -> dict[str, Any] | None:
             "SELECT result_json FROM audit_runs WHERE id = ?", (audit_id,)
         ).fetchone()
     return json.loads(row["result_json"]) if row else None
+
+
+def audit_access_digest(audit_id: str) -> str | None:
+    """Stored token digest for one audit, or ``None`` when unset/missing."""
+    if _postgres_active():
+        from .repository_postgres import audit_access_digest as _pg_digest
+
+        return _pg_digest(audit_id)
+    initialise_database()
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT access_token_hash FROM audit_runs WHERE id = ?", (audit_id,)
+        ).fetchone()
+    return str(row["access_token_hash"]) if row and row["access_token_hash"] else None
+
+
+def verify_audit_access(audit_id: str, token: str | None) -> bool:
+    """Whether ``token`` is the access token issued for ``audit_id``."""
+    from .audit_access import audit_access_token_matches
+
+    return audit_access_token_matches(audit_access_digest(audit_id), token)

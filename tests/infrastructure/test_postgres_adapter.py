@@ -106,8 +106,9 @@ def test_postgres_dispatch_save_audit(monkeypatch):
     # Mock the postgres save_audit to avoid needing a real DB
     called = {}
 
-    def fake_save(result, name, config, source="uploaded_csv"):
+    def fake_save(result, name, config, source="uploaded_csv", access_token_hash=None):
         called["args"] = (result, name, config, source)
+        called["access_token_hash"] = access_token_hash
         return "AUD-MOCK123456"
 
     monkeypatch.setattr("chaoshire.repository_postgres.save_audit", fake_save)

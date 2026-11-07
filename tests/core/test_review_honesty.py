@@ -87,8 +87,9 @@ def test_privilege_injection_pass_is_labelled_fixture_limited():
 
 def test_the_fixture_label_changes_no_verdict_and_no_resilience_score():
     suite = run_chaos_suite("legacy", evidence_limit=0)
-    # Published demo constants — preserved (LegacyCorp resilience 30/100).
-    assert suite["resilience"] == 30
+    # Published demo constants: the sixth (intersectional) test is a FAIL for
+    # LegacyCorp, so the mean over six verdicts is 25/100, not the old 30/100.
+    assert suite["resilience"] == 25
     verdicts = {result["id"]: result["verdict"] for result in suite["tests"]}
     assert verdicts["adversarial"] == "PASS"
     scores = {"PASS": 1.0, "WARN": 0.5, "FAIL": 0.0}
@@ -183,12 +184,12 @@ def test_guided_demo_quotes_the_upgrade_and_the_label_ceiling():
 
 
 def test_passes_that_cannot_fail_are_labelled_by_construction():
-    expected = {"gender_swap", "ethnicity_swap", "gap_stress", "age_stress"}
+    expected = {"gender_swap", "ethnicity_swap", "intersectional_swap", "gap_stress", "age_stress"}
     for model in ("fair", "trained"):
         suite = client.get("/api/chaos", params={"model": model}).json()
         structural = {result["id"] for result in suite["tests"] if result["by_construction"]}
         assert structural == expected, model
-        assert suite["passes_by_construction"] == 4
+        assert suite["passes_by_construction"] == 5
         assert "not evidence of equal outcomes" in suite["resilience_scope"]
         # The label changes no verdict and no resilience point.
         assert suite["resilience"] == 100
@@ -199,12 +200,12 @@ def test_passes_that_cannot_fail_are_labelled_by_construction():
     )
     assert "gives a career gap no weight" in gap["by_construction"]
     # LegacyCorp penalises every perturbed signal, so none of its verdicts is
-    # structural and its published 30/100 is untouched.
+    # structural; its resilience is the six-test mean, 25/100.
     legacy = run_chaos_suite("legacy", evidence_limit=0)
     assert legacy["passes_by_construction"] == 0
     assert legacy["resilience_scope"] == ""
     assert all(result["by_construction"] == "" for result in legacy["tests"])
-    assert legacy["resilience"] == 30
+    assert legacy["resilience"] == 25
     # Rendered next to the verdict and as a scope note in the Chaos Lab.
     assert "by construction" in DASHBOARD_SOURCE
     assert "t.by_construction" in DASHBOARD_SOURCE
@@ -212,11 +213,16 @@ def test_passes_that_cannot_fail_are_labelled_by_construction():
 
 
 def test_published_demo_scores_are_preserved():
-    """LegacyCorp stays 32/F and Chaos stays 30/100 — nothing was tuned to look better."""
+    """LegacyCorp stays 32/F; Chaos is 25/100 over the six-test suite.
+
+    The drop from the historical five-test 30/100 is the added intersectional
+    FAIL entering the mean — no coefficient or threshold was tuned.
+    """
     certificate = audit(build_decisions(LEGACY))["certificate"]
     assert (certificate["total"], certificate["grade"]) == (32, "F")
     suite = run_chaos_suite("legacy", evidence_limit=50)
-    assert suite["resilience"] == 30
+    assert suite["resilience"] == 25
     flips = {result["id"]: result["evidence_count"] for result in suite["tests"]}
     assert flips["gender_swap"] == 169
     assert flips["ethnicity_swap"] == 111
+    assert flips["intersectional_swap"] == 177

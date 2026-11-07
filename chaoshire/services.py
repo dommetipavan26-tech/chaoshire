@@ -564,8 +564,14 @@ def upload_decisions(
         )
 
     audit_id: str | None
+    audit_access_token: str | None = None
     if publish:
-        audit_id = save_audit(result, safe_name, metadata)
+        # Issued once, here: only the digest is persisted, so this response
+        # is the caller's only chance to record the token (see audit_access).
+        from .audit_access import new_audit_access_token
+
+        audit_access_token, access_digest = new_audit_access_token()
+        audit_id = save_audit(result, safe_name, metadata, access_token_hash=access_digest)
         with UPLOADED_LOCK:
             UPLOADED["df"] = uploaded
             UPLOADED["metadata"] = metadata
@@ -580,6 +586,9 @@ def upload_decisions(
     upload_result = {
         "ok": True,
         "audit_id": audit_id,
+        # Present only on a published upload, exactly once; never stored,
+        # listed, or included in the persisted audit record.
+        "audit_access_token": audit_access_token,
         "audit_name": safe_name,
         "created_at": result["created_at"],
         "rows": int(len(uploaded)),
@@ -590,7 +599,9 @@ def upload_decisions(
         "warnings": warnings,
         "published": publish,
         "publishing_note": (
-            "Saved to the shared audit history."
+            "Saved to the shared audit history. Reading it back requires the operator "
+            "key or the audit_access_token above — save it now, it is shown only once "
+            "and only its digest is stored."
             if publish
             else "Returned to you only. Unauthenticated uploads are not published to the "
             "shared audit history; send the deployment's X-API-Key to publish."
