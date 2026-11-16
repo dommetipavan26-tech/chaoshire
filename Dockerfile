@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 # Apply Debian security updates the published base image does not carry yet.
 # The base image is rebuilt on Docker Hub's schedule, not Debian's, so a fix
